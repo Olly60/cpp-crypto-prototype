@@ -56,6 +56,7 @@ void hexFromBytes(string &out, uint8_t* bytes, size_t size) {
 }
 
 struct UTXO {
+	uint64_t txId;
 	uint8_t txHash[32];
 	uint64_t outputIndex;
 	uint64_t amount;
@@ -66,6 +67,7 @@ struct TxInput {
 	uint8_t prevTxHash[32];
 	uint64_t outputIndex;
 	uint8_t signature[32];
+	uint8_t senderPublicKey[32];
 };
 
 struct TxOutput {
@@ -75,20 +77,19 @@ struct TxOutput {
 
 struct Transaction {
 	vector<TxInput> txInputs;
-	TxOutput output;
-	Transaction(uint64_t amountP, uint8_t* Reciver, uint8_t* sign) {
-		time_t timestamp = time(0);
-		uint64_t amount = amountP;
-	}
+	vector<TxOutput> outputs;
+};
 
+struct BlockHeader {
+	uint64_t blockNumber;
+	uint8_t previousBlockHash[32];
+	uint8_t merkleRoot[32];
+	time_t timestamp = time(0);
+	int nonce;
+	int difficulty;
 };
 
 struct Block {
-	uint8_t previousBlockHash[32];
-	uint8_t merkleRoot[32];
-	long timestamp;
-	int nonce;
-	int difficulty;
 	vector<Transaction> transactions;
 	uint8_t hash[32];
 };
