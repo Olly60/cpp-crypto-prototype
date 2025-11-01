@@ -3,17 +3,14 @@
 #include <string>
 #include <vector>
 using namespace std;
-unsigned char bytesPrivateKey[crypto_box_SECRETKEYBYTES];
-unsigned char bytesPublicKey[crypto_box_PUBLICKEYBYTES];
+uint8_t bytesPrivateKey[crypto_box_SECRETKEYBYTES];
+uint8_t bytesPublicKey[crypto_box_PUBLICKEYBYTES];
 string hexPrivateKey;
 string hexPublicKey;
-unsigned char signature[crypto_sign_BYTES];
+uint8_t signature[crypto_sign_BYTES];
 string command;
-vector<TxInput> TransactionInputs;
-vector<TxOutput> TransactionOutputs;
-vector<UTXO> UTXOs;
 
-void bytesFromHex(unsigned char* out, string hex) {
+void bytesFromHex(uint8_t* out, string hex) {
 	for (size_t i = 0; i < hex.size(); i = i + 2) {
 		char high = toupper(hex[i]);
 		char low = toupper(hex[i + 1]);
@@ -34,7 +31,7 @@ void bytesFromHex(unsigned char* out, string hex) {
 	}
 }
 
-void hexFromBytes(string &out, const unsigned char* bytes, size_t size) {
+void hexFromBytes(string &out, uint8_t* bytes, size_t size) {
 	out.clear();
 	out.resize(size*2);
 	for (size_t i = 0; i < size; i++) {
@@ -59,54 +56,49 @@ void hexFromBytes(string &out, const unsigned char* bytes, size_t size) {
 }
 
 struct UTXO {
-	unsigned char txHash[32];
+	uint8_t txHash[32];
 	uint64_t outputIndex;
 	uint64_t amount;
-	unsigned char publicKey[32];
+	uint8_t publicKey[32];
 };
 
 struct TxInput {
-	unsigned char prevTxHash[32];
+	uint8_t prevTxHash[32];
 	uint64_t outputIndex;
-	unsigned char signature[32];
+	uint8_t signature[32];
 };
 
 struct TxOutput {
 	uint64_t amount;
-	unsigned char publicKey[32];
+	uint8_t publicKey[32];
 };
 
 struct Transaction {
-	Transaction(uint64_t amountP) {
+	vector<TxInput> txInputs;
+	TxOutput output;
+	Transaction(uint64_t amountP, uint8_t* Reciver, uint8_t* sign) {
+		time_t timestamp = time(0);
 		uint64_t amount = amountP;
-		timestamp = time(0);
 	}
-	unsigned char txid[32];
-	vector<TxInput> inputs;
-	vector<TxOutput> outputs;
-	time_t timestamp;
-};
 
-struct BlockHeader {
-	unsigned char previousBlockHash[32];
-	unsigned char merkleRoot[32];
-	long timestamp;
-	int nonce;
-	int difficulty;
 };
 
 struct Block {
-	BlockHeader header;
+	uint8_t previousBlockHash[32];
+	uint8_t merkleRoot[32];
+	long timestamp;
+	int nonce;
+	int difficulty;
 	vector<Transaction> transactions;
-	unsigned char hash[32];
+	uint8_t hash[32];
 };
 
-struct Blockchain {
-	vector<Block> chain;
-};
+vector<UTXO> UTXOs;
+vector<Block> BlockChain;
 
 	int main()
 	{
+		cout << time(0);
 		cout << "Enter your private key or type new to generate one: ";
 		cin >> command;
 		if (command == "new") {
@@ -122,10 +114,10 @@ struct Blockchain {
 		}
 		cout << "Public Key: " << hexPublicKey << endl << "Private Key: " << hexPrivateKey << endl;
 
-		Transaction tx(5);
+		//Transaction tx(5);
 
-		crypto_sign_detached(signature, NULL, 'e', 8, bytesPrivateKey);
-		int signVerify = crypto_sign_verify_detached(signature, 'e', 8, bytesPublicKey);
+		//crypto_sign_detached(signature, NULL, 'e', 8, bytesPrivateKey);
+		//int signVerify = crypto_sign_verify_detached(signature, 'e', 8, bytesPublicKey);
 
-		cout << signature << endl << signVerify;
+		//cout << signature << endl << signVerify;
 	}
