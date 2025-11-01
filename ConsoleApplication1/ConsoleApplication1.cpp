@@ -10,6 +10,7 @@ string hexPublicKey;
 uint8_t signature[crypto_sign_BYTES];
 string command;
 
+
 void bytesFromHex(uint8_t* out, string hex) {
 	for (size_t i = 0; i < hex.size(); i = i + 2) {
 		char high = toupper(hex[i]);
@@ -55,13 +56,24 @@ void hexFromBytes(string &out, uint8_t* bytes, size_t size) {
 	}
 }
 
-struct UTXO {
-	uint64_t txId;
-	uint8_t txHash[32];
-	uint64_t outputIndex;
-	uint64_t amount;
-	uint8_t publicKey[32];
-};
+bool verifyBlock(Block block) {
+	uint8_t hash[32];
+	crypto_hash_sha256(hash, (uint8_t*)&block.header, sizeof(BlockHeader));
+	if (!(block.blockHash == hash)) return false;
+
+	crypto_hash_sha256(hash, (uint8_t*)&block.transactions, sizeof(Transaction)); // combine inputs and outputs into one vector then hash
+	if (!(block.header.merkleRoot == hash)) return false;
+
+
+
+
+
+
+
+
+	return true;
+
+}
 
 struct TxInput {
 	uint8_t prevTxHash[32];
@@ -78,24 +90,33 @@ struct TxOutput {
 struct Transaction {
 	vector<TxInput> txInputs;
 	vector<TxOutput> outputs;
+	uint8_t transactionHash[32];
 };
 
 struct BlockHeader {
-	uint64_t blockNumber;
 	uint8_t previousBlockHash[32];
-	uint8_t merkleRoot[32];
+	uint8_t merkleRoot[32]; // transaction hashes hashed together
 	time_t timestamp = time(0);
-	int nonce;
-	int difficulty;
+	uint64_t nonce;
+	uint64_t difficulty;
 };
 
 struct Block {
+	BlockHeader header;
 	vector<Transaction> transactions;
-	uint8_t hash[32];
+	uint8_t blockHash[32];
 };
 
+struct UTXO { // for keeping track
+	uint64_t outputIndex;
+	uint8_t prevtxHash[32];
+	uint64_t amount;
+	uint8_t publicKey[32];
+};
+
+
 vector<UTXO> UTXOs;
-vector<Block> BlockChain;
+vector<Block> blockChain;
 
 	int main()
 	{
@@ -115,8 +136,8 @@ vector<Block> BlockChain;
 		}
 		cout << "Public Key: " << hexPublicKey << endl << "Private Key: " << hexPrivateKey << endl;
 
-		//Transaction tx(5);
-
+		Transaction tx;
+		tx.txInputs.push_back(TxInput());
 		//crypto_sign_detached(signature, NULL, 'e', 8, bytesPrivateKey);
 		//int signVerify = crypto_sign_verify_detached(signature, 'e', 8, bytesPublicKey);
 
