@@ -68,9 +68,9 @@ static bool verifyBlock(Block block) {
 		if (block.blockHash != hashBuffer) return false; // invalid block hash
 		if (blockChain.count(block.blockHash) == 1) return false; // already in chain
 		for (Transaction tx : block.transactions) { // verify each transaction
-			for (TxInput txInput : tx.txInputs) { // verify each input
-				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInput, sizeof(TxInput));
-				if (crypto_sign_verify_detached(txInput.signature.data(), hashBuffer.data(), 32, txInput.senderPublicKey.data())) return false; // invalid signature
+			for (TxInputSigned txInputSigned : tx.txInputs) { // verify each input
+				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInputSigned, sizeof(TxInput));
+				if (crypto_sign_verify_detached(txInputSigned.signature.data(), hashBuffer.data(), 32, txInputSigned.txInput.senderPublicKey.data())) return false; // invalid signature
 			}
 		}
 		return true;
@@ -79,18 +79,23 @@ static bool verifyBlock(Block block) {
 
 struct TxInput {
 	array<uint8_t, 32> prevTxHash;
-	array<uint8_t, 32> outputIndex;
+	uint64_t outputIndex;
 	array<uint8_t, 32> senderPublicKey;
+	array<uint8_t, 32> prevBlockHash;
+};
+struct TxInputSigned {
+	TxInput txInput;
 	array<uint8_t, 32> signature;
 };
 
 struct TxOutput {
 	uint64_t amount;
+	uint64_t outputIndex;
 	array<uint8_t, 32> recipient;
 };
 
 struct Transaction {
-	vector<TxInput> txInputs;
+	vector<TxInputSigned> txInputs;
 	vector<TxOutput> txOputs;
 	array<uint8_t, 32> transactionHash;
 };
