@@ -64,25 +64,16 @@ static void hexFromBytes(string &out, array<uint8_t, 32> bytes, size_t size) {
 static bool verifyBlock(Block block) {
 	array<uint8_t, 32> hashBuffer;
 	if (block.header.version = 1) {
-		crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
-		if (block.blockHash != hashBuffer) return false;
-		if (blockChain.count(block.blockHash) == 1) return false;
-
-		for (Transaction tx : block.transactions) {
-			for (TxInput txInput : tx.txInputs) {
+		crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&block.header, sizeof(BlockHeader)); 
+		if (block.blockHash != hashBuffer) return false; // invalid block hash
+		if (blockChain.count(block.blockHash) == 1) return false; // already in chain
+		for (Transaction tx : block.transactions) { // verify each transaction
+			for (TxInput txInput : tx.txInputs) { // verify each input
 				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInput, sizeof(TxInput));
-				if (crypto_sign_verify_detached(txInput.signature.data(), hashBuffer.data(), 32, txInput.senderPublicKey.data())) return false;
+				if (crypto_sign_verify_detached(txInput.signature.data(), hashBuffer.data(), 32, txInput.senderPublicKey.data())) return false; // invalid signature
 			}
-
-
-
 		}
-
-
-
-
 		return true;
-
 	}
 }
 
@@ -146,10 +137,4 @@ int main()
 		hexFromBytes(hexPrivateKey, bytesPrivateKey, crypto_box_SECRETKEYBYTES);
 	}
 	cout << "Public Key: " << hexPublicKey << endl << "Private Key: " << hexPrivateKey << endl;
-
-
-	//crypto_sign_detached(signature, NULL, 'e', 8, bytesPrivateKey);
-	//int signVerify = crypto_sign_verify_detached(signature, 'e', 8, bytesPublicKey);
-
-	//cout << signature << endl << signVerify;
 }
