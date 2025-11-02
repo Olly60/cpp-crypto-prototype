@@ -10,13 +10,14 @@ array<uint8_t, crypto_box_PUBLICKEYBYTES> bytesPublicKey;
 string hexPrivateKey;
 string hexPublicKey;
 array<uint8_t, crypto_sign_BYTES> signature;
-string command;
+string userInput;
 
 
-void bytesFromHex(array<uint8_t, 32> out, string hex) {
+
+static void bytesFromHex(array<uint8_t, 32> &out, string hex) {
 	for (size_t i = 0; i < hex.size(); i = i + 2) {
-		char high = toupper(hex[i]);
-		char low = toupper(hex[i + 1]);
+		uint8_t high = toupper(hex[i]);
+		uint8_t low = toupper(hex[i + 1]);
 
 		if (low >= '0' && low <= '9') {
 			low = low - '0';
@@ -34,12 +35,12 @@ void bytesFromHex(array<uint8_t, 32> out, string hex) {
 	}
 }
 
-void hexFromBytes(string& out, array<uint8_t, 32> bytes, size_t size) {
+static void hexFromBytes(string &out, array<uint8_t, 32> bytes, size_t size) {
 	out.clear();
 	out.resize(size * 2);
 	for (size_t i = 0; i < size; i++) {
-		unsigned char low = bytes[i] >> 4;
-		unsigned char high = bytes[i] & 0x0F;
+		uint8_t low = bytes[i] >> 4;
+		uint8_t high = bytes[i] & 0x0F;
 
 		if (low >= 0 && low <= 9) {
 			low += '0';
@@ -58,42 +59,48 @@ void hexFromBytes(string& out, array<uint8_t, 32> bytes, size_t size) {
 	}
 }
 
-bool verifyBlock(Block block) {
-	array<uint8_t, 32> hash;
+
+
+static bool verifyBlock(Block block) {
+	array<uint8_t, 32> hashBuffer;
 	if (block.header.version = 1) {
-		crypto_hash_sha256(hash.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
-		if (!(block.blockHash == hash)) return false;
+		crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
+		if (block.blockHash != hashBuffer) return false;
+		if (blockChain.count(block.blockHash) == 1) return false;
 
-		crypto_hash_sha256(hash.data(), (uint8_t*)&block.transactions, sizeof(Transaction)); // combine inputs and outputs into one vector then hash
-		if (!(block.header.merkleRoot == hash)) return false;
-		if (!(block.blockHash) ) return false;
+		for (Transaction tx : block.transactions) {
+			for (TxInput txInput : tx.txInputs) {
+				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInput, sizeof(TxInput));
+				if (crypto_sign_verify_detached(txInput.signature.data(), hashBuffer.data(), 32, txInput.senderPublicKey.data())) return false;
+			}
 
-		blockChain.count(block.blockHash);
+
+
+		}
+
+
+
+
+		return true;
 
 	}
-
-
-
-
-	return true;
-
 }
 
 struct TxInput {
 	array<uint8_t, 32> prevTxHash;
 	array<uint8_t, 32> outputIndex;
-	uint8_t signature[32];
 	array<uint8_t, 32> senderPublicKey;
+	array<uint8_t, 32> signature;
 };
 
 struct TxOutput {
 	uint64_t amount;
-	array<uint8_t, 32> publicKey;
+	array<uint8_t, 32> recipient;
 };
 
 struct Transaction {
 	vector<TxInput> txInputs;
-	vector<TxOutput> outputs;
+	vector<TxOutput> txOputs;
 	array<uint8_t, 32> transactionHash;
 };
 
@@ -119,7 +126,6 @@ struct UTXO { // for keeping track
 	array<uint8_t, 32> publicKey;
 };
 
-
 vector<UTXO> UTXOs;
 unordered_map<array<uint8_t, 32>, uint64_t> blockChain;
 
@@ -127,22 +133,21 @@ int main()
 {
 	cout << time(0);
 	cout << "Enter your private key or type new to generate one: ";
-	cin >> command;
-	if (command == "new") {
+	cin >> userInput;
+	if (userInput == "new") {
 		crypto_box_keypair(bytesPublicKey.data(), bytesPrivateKey.data());
 		hexFromBytes(hexPublicKey, bytesPublicKey, crypto_box_PUBLICKEYBYTES);
 		hexFromBytes(hexPrivateKey, bytesPrivateKey, crypto_box_SECRETKEYBYTES);
 	}
 	else {
-		bytesFromHex(bytesPrivateKey, command);
+		bytesFromHex(bytesPrivateKey, userInput);
 		crypto_scalarmult_base(bytesPublicKey.data(), bytesPrivateKey.data());
 		hexFromBytes(hexPublicKey, bytesPublicKey, crypto_box_PUBLICKEYBYTES);
 		hexFromBytes(hexPrivateKey, bytesPrivateKey, crypto_box_SECRETKEYBYTES);
 	}
 	cout << "Public Key: " << hexPublicKey << endl << "Private Key: " << hexPrivateKey << endl;
 
-	Transaction tx;
-	tx.txInputs.push_back(TxInput());
+
 	//crypto_sign_detached(signature, NULL, 'e', 8, bytesPrivateKey);
 	//int signVerify = crypto_sign_verify_detached(signature, 'e', 8, bytesPublicKey);
 
