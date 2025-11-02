@@ -14,7 +14,7 @@ string userInput;
 
 
 
-static void bytesFromHex(array<uint8_t, 32> &out, string hex) {
+static void bytesFromHex(array<uint8_t, 32>& out, string hex) {
 	for (size_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
@@ -35,7 +35,7 @@ static void bytesFromHex(array<uint8_t, 32> &out, string hex) {
 	}
 }
 
-static void hexFromBytes(string &out, array<uint8_t, 32> bytes, size_t size) {
+static void hexFromBytes(string& out, array<uint8_t, 32> bytes, size_t size) {
 	out.clear();
 	out.resize(size * 2);
 	for (size_t i = 0; i < size; i++) {
@@ -63,14 +63,36 @@ static void hexFromBytes(string &out, array<uint8_t, 32> bytes, size_t size) {
 
 static bool verifyBlock(Block block) {
 	array<uint8_t, 32> hashBuffer;
+	vector<uint8_t> vectorBuffer;
+	vector<uint8_t> txHashes;
+	// Version 1 block verification
 	if (block.header.version = 1) {
-		crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&block.header, sizeof(BlockHeader)); 
-		if (block.blockHash != hashBuffer) return false; // invalid block hash
-		if (blockChain.count(block.blockHash) == 1) return false; // already in chain
-		for (Transaction tx : block.transactions) { // verify each transaction
-			for (TxInputSigned txInputSigned : tx.txInputs) { // verify each input
-				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInputSigned, sizeof(TxInput));
+
+		// Invalid block hash
+		crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
+		if (block.blockHash != hashBuffer) return false;
+
+		// Verify block header
+		if (blockChain.count(block.blockHash) == 1) return false; // Already in chain
+		if (blockChain.count(block.header.previousBlockHash) == 0) return false; // Previous block not found
+
+		// Verify each transaction
+		for (Transaction tx : block.transactions) {
+
+			// Invalid transaction hash
+			vectorBuffer.insert(vectorBuffer.end(), tx.txInputs.begin(), tx.txInputs.end());
+			vectorBuffer.insert(vectorBuffer.end(), tx.txOutputs.begin(), tx.txOutputs.end());
+			crypto_hash_sha256(hashBuffer.data(), (uint8_t*)vectorBuffer.data(), vectorBuffer.size());
+			if (tx.transactionHash != hashBuffer) return false;
+			txHashes.
+			vectorBuffer.clear();
+
+
+			// Verify each input
+			for (TxInputSigned txInputSigned : tx.txInputs) {
+				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInputSigned.txInput, sizeof(TxInput));
 				if (crypto_sign_verify_detached(txInputSigned.signature.data(), hashBuffer.data(), 32, txInputSigned.txInput.senderPublicKey.data())) return false; // invalid signature
+				if (blockChain.count(txInputSigned.txInput.prevBlockHash) == 0) return false; // Previous block not found
 			}
 		}
 		return true;
@@ -83,6 +105,7 @@ struct TxInput {
 	array<uint8_t, 32> senderPublicKey;
 	array<uint8_t, 32> prevBlockHash;
 };
+
 struct TxInputSigned {
 	TxInput txInput;
 	array<uint8_t, 32> signature;
@@ -96,7 +119,7 @@ struct TxOutput {
 
 struct Transaction {
 	vector<TxInputSigned> txInputs;
-	vector<TxOutput> txOputs;
+	vector<TxOutput> txOutputs;
 	array<uint8_t, 32> transactionHash;
 };
 
