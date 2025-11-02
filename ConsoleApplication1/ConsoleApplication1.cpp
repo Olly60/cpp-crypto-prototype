@@ -73,7 +73,7 @@ static bool verifyBlock(Block block) {
 		// Already in chain
 		if (blockChain.count(block.blockHash) == 1) return false;
 		// Previous block not found
-		if (blockChain.count(block.header.previousBlockHash) == 0) return false;
+		if (blockChain.count(block.header.previousBlockHash) == 0) return false; 
 
 		// Verify each transaction
 		for (Transaction tx : block.transactions) {
@@ -93,7 +93,7 @@ static bool verifyBlock(Block block) {
 				// Invalid signature
 				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInputSigned.txInput, sizeof(TxInput));
 				if (crypto_sign_verify_detached(txInputSigned.signature.data(), hashBuffer.data(), 32, txInputSigned.txInput.senderPublicKey.data())) return false;
-
+				
 				// Public key does not match
 				if (utxos[txInputSigned.txInput.prevTxHash].publicKey != txInputSigned.txInput.senderPublicKey) return false;
 
@@ -108,11 +108,11 @@ static bool verifyBlock(Block block) {
 				// Invalid output index
 				if (txInputSigned.txInput.outputIndex != utxos[txInputSigned.txInput.prevTxHash].outputIndex) return false;
 			}
-			// Remove used UTXOs
-			for (Transaction tx : block.transactions) {
-				for (TxInputSigned txInputSigned : tx.txInputs) {
-					utxos.erase(txInputSigned.txInput.prevTxHash);
-				}
+		}
+		// Remove used UTXOs
+		for (Transaction tx : block.transactions) {
+			for (TxInputSigned txInputSigned : tx.txInputs) {
+				utxos.erase(txInputSigned.txInput.prevTxHash);
 			}
 		}
 		return true;
