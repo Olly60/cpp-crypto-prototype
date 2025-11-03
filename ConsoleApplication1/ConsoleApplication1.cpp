@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <array>
+typedef array<uint8_t, 32> hash32_t;
 using namespace std;
 array<uint8_t, crypto_box_SECRETKEYBYTES> bytesPrivateKey;
 array<uint8_t, crypto_box_PUBLICKEYBYTES> bytesPublicKey;
@@ -16,22 +17,19 @@ unordered_map<array<uint8_t, 32>, Block> blockChain;
 
 // Custom hash function for UTXOKey
 struct UTXOKeyHash {
-	size_t operator()(const UTXOKey &key) const noexcept {
-		
+	size_t operator()(const UTXOKey& key) const noexcept {
 		const uint64_t* chunks = reinterpret_cast<const uint64_t*>(key.txHash.data());
-
-		size_t data = (chunks[0] ^ chunks[1] ^ chunks[2] ^ chunks[3]) ^ key.outputIndex;
-
+		size_t data = chunks[0] ^ chunks[1] ^ chunks[2] ^ chunks[3];
+		data ^= key.outputIndex + 0x9e3779b97f4a7c15ULL + (data << 6) + (data >> 2);
 		return data;
 	}
 };
 
 // Unspent Transaction Output Key
 struct UTXOKey {
-	array<uint8_t, 32> txHash;
+	hash32_t txHash;
 	uint64_t outputIndex;
 };
-
 
 static void bytesFromHex(array<uint8_t, 32>& out, string hex) {
 	for (size_t i = 0; i < hex.size(); i = i + 2) {
@@ -77,85 +75,116 @@ static void hexFromBytes(string& out, array<uint8_t, 32> bytes, size_t size) {
 	}
 }
 
-static bool verifyBlock(const Block &block) {
+static void sha256Of(array<uint8_t, 32>& out, const void* data, size_t len) {
+	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
+}
+
+
+static bool verifyBlock(const Block& block) {
 	// Version 1 block verification
 	if (block.header.version == 1) {
-	
+
 		// Invalid block hash
 		array<uint8_t, 32> blockHash;
-		crypto_hash_sha256(blockHash.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
+		sha256Of(blockHash, &block.header, sizeof(BlockHeader));
 		if (block.blockHash != blockHash) return false;
 
 		// Verify block header
 		// Already in chain
 		if (blockChain.count(block.blockHash) == 1) return false;
 		// Previous block not found
-		if (blockChain.count(block.header.previousBlockHash) == 0) return false; 
+		if (blockChain.count(block.header.previousBlockHash) == 0) return false;
 
 		// Verify each transaction
 		vector<UTXOKey> seenUtxo;
-		array<uint8_t, 32> txHash;
-		for (const Transaction &tx : block.transactions) {
+		hash32_t txHash;
+		bool isCoinbaseTx = true;
+		for (const Transaction& tx : block.transactions) {
+
+			// Coinbase transaction
+			if (isCoinbaseTx) { isCoinbaseTx = false; continue; }
 
 			// Transaction hash
-			array<array<uint8_t, 32>, 2> inOutHashes;
-			crypto_hash_sha256(inOutHashes[0].data(), (uint8_t*)tx.txInputs.data(), tx.txOutputs.size() * sizeof(UTXO));
-			crypto_hash_sha256(inOutHashes[1].data(), (uint8_t*)tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
-			crypto_hash_sha256(txHash.data(), (uint8_t*)inOutHashes.data(), inOutHashes.size());
+			array<hash32_t, 2> inOutHashes;
+			sha256Of(inOutHashes[0], tx.txInputs.data(), tx.txInputs.size() * sizeof(UTXO));
+			sha256Of(inOutHashes[1], tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			sha256Of(txHash, inOutHashes.data(), inOutHashes.size() * sizeof(hash32_t));
 
 			// Verify each input
 			UTXOKey key;
 			uint64_t totalInputAmount = 0;
 			uint64_t totalOutputAmount = 0;
-			for (const TxInputSigned &txInputSigned : tx.txInputs) {
+			for (const TxInputSigned& txInputSigned : tx.txInputs) {
 
 				key.txHash = txInputSigned.txInput.txHash;
 				key.outputIndex = txInputSigned.txInput.outputIndex;
-
 				// UTXO not found
 				if (UTXOs.count(key) == 0) return false;
 
 				// Invalid signature
-				crypto_hash_sha256(txHash.data(), (uint8_t*)&txInputSigned.txInput, sizeof(TxInput));
+				sha256Of(txHash, &txInputSigned.txInput, sizeof(TxInput));
 				if (crypto_sign_verify_detached(txInputSigned.signature.data(), txHash.data(), 32, UTXOs[key].recipient.data()) != 0) return false;
 
 				// Double spending
 				if (find(seenUtxo.begin(), seenUtxo.end(), key) != seenUtxo.end()) return false;
 				seenUtxo.push_back(key);
 
+				// Calculate total input amount
 				totalInputAmount += UTXOs[key].amount;
 			}
 
 			// Verify each output
+			// Calculate total output amount
 			for (UTXO txOutput : tx.txOutputs) {
-
 				totalOutputAmount += txOutput.amount;
 			}
+			// Output amount exceeds input amount subtract fee
+			uint64_t fee = max(totalInputAmount / 100, (uint64_t)1);
+			if (totalOutputAmount > totalInputAmount - fee) return false;
 
-			// Output amount exceeds input amount
-			if (totalOutputAmount > totalInputAmount) return false;
+
+			// Verify coinbase transaction
+			// Coinbase transaction should have no inputs
+			if (!block.transactions[0].txInputs.empty()) return false;
+			// Coinbase transaction should have exactly one output
+			if (block.transactions[0].txOutputs.size() != 1) return false;
+			// Coinbase transaction output amount should equal total fees
+			uint64_t coinabaseAmount = 0;
+			for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
+				coinabaseAmount += coinbaseTxOutput.amount;
+			}
+			// Coinbase amount exceeds total fees
+			if (coinabaseAmount > fee) return false;
+
 		}
 
 
-		// Add block to chain if block is valid
+		// All checks passed
+		// Add block to chain
 		blockChain[block.blockHash] = block;
 
 		// Remove used UTXOs
-		for (const Transaction &tx : block.transactions) {
+		for (const Transaction& tx : block.transactions) {
 			for (TxInputSigned txInputSigned : tx.txInputs) {
-				UTXOs.erase(txInputSigned.txInput.txHash);
+				UTXOKey key;
+				key.txHash = txInputSigned.txInput.txHash;
+				key.outputIndex = txInputSigned.txInput.outputIndex;
+				UTXOs.erase(key);
 			}
 		}
-		// Add new UTXOs
-		for (const Transaction &tx : block.transactions) {
+
+		// Add new UTXOs from Transactions
+		for (const Transaction& tx : block.transactions) {
 			// Transaction hash
-			array<array<uint8_t, 32>, 2> inOutHashes;
-			crypto_hash_sha256(inOutHashes[0].data(), (uint8_t*)tx.txInputs.data(), tx.txOutputs.size() * sizeof(UTXO));
-			crypto_hash_sha256(inOutHashes[1].data(), (uint8_t*)tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
-			crypto_hash_sha256(txHash.data(), (uint8_t*)inOutHashes.data(), inOutHashes.size());
+			hash32_t inOutHashes;
+			sha256Of(inOutHashes[0], tx.txInputs.data(), tx.txInputs.size() * sizeof(UTXO));
+			sha256Of(inOutHashes[1], tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			sha256Of(txHash, inOutHashes.data(), inOutHashes.size() * sizeof(hash32_t));
+
+			// Add each output as UTXO
 			size_t index = 0;
-			for (const UTXO &txOutput : tx.txOutputs) {
-				UTXOKey key;
+			UTXOKey key;
+			for (const UTXO& txOutput : tx.txOutputs) {
 				key.txHash = txHash;
 				key.outputIndex = index;
 				UTXOs[key] = txOutput;
@@ -163,26 +192,44 @@ static bool verifyBlock(const Block &block) {
 			}
 		}
 
+		// Create UTXO for Coinbase Transaction outputs
+		const Transaction& coinbaseTx = block.transactions[0];
+		hash32_t inOutHashes;
+		sha256Of(inOutHashes[0], coinbaseTx.txInputs.data(), coinbaseTx.txInputs.size() * sizeof(UTXO));
+		sha256Of(inOutHashes[1], coinbaseTx.txOutputs.data(), coinbaseTx.txOutputs.size() * sizeof(UTXO));
+		sha256Of(txHash, inOutHashes.data(), inOutHashes.size() * sizeof(hash32_t));
+		UTXOKey key;
+		size_t index = 0;
+		for (const UTXO& coinbaseTxOutput : coinbaseTx.txOutputs) {
+			key.txHash = txHash;
+			key.outputIndex = index;
+			UTXOs[key] = coinbaseTxOutput;
+			index++;
+		}
+
+
+
+		// Block is valid
 		return true;
 	}
 }
 
 // Unspent Transaction Output
-struct UTXO { 
+struct UTXO {
 	uint64_t amount;
-	array<uint8_t, 32> recipient;
+	hash32_t recipient;
 };
 
 // Transaction Input Decides which UTXO to Spend
 struct TxInput {
-	array<uint8_t, 32> txHash;
+	hash32_t txHash;
 	uint64_t outputIndex;
 };
 
 // Signed Transaction Input
 struct TxInputSigned {
 	TxInput txInput;
-	array<uint8_t, 32> signature;
+	hash32_t signature;
 };
 
 // Transaction
@@ -194,8 +241,8 @@ struct Transaction {
 // Block Header
 struct BlockHeader {
 	uint64_t version;
-	array<uint8_t, 32> previousBlockHash;
-	array<uint8_t, 32> merkleRoot; // transaction hashes hashed together
+	hash32_t previousBlockHash;
+	hash32_t merkleRoot; // transaction hashes hashed together
 	time_t timestamp;
 	uint64_t nonce;
 	uint64_t difficulty;
@@ -205,7 +252,7 @@ struct BlockHeader {
 struct Block {
 	BlockHeader header;
 	vector<Transaction> transactions;
-	array<uint8_t, 32> blockHash;
+	hash32_t blockHash;
 };
 
 
