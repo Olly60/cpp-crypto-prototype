@@ -11,8 +11,25 @@ string hexPrivateKey;
 string hexPublicKey;
 array<uint8_t, crypto_sign_BYTES> signature;
 string userInput;
-unordered_map<UTXOKey, UTXO> utxos;
+unordered_map<UTXOKey, UTXO, > UTXOs; // Fix later with custom hash function
 unordered_map<array<uint8_t, 32>, Block> blockChain;
+
+// Custom hash function for UTXOKey
+struct UTXOKeyHash {
+	size_t operator()(const UTXOKey &key) const noexcept {
+		
+		array<array<uint8_t, 32>, 2> hash;
+
+		crypto_hash_sha64(txHashAmountHashes, key.txHash.data(), sizeof());
+		return *reinterpret_cast<size_t*>(keyHash.data());
+	}
+};
+
+// Unspent Transaction Output Key
+struct UTXOKey {
+	array<uint8_t, 32> txHash;
+	uint64_t outputIndex;
+};
 
 
 static void bytesFromHex(array<uint8_t, 32>& out, string hex) {
@@ -60,10 +77,10 @@ static void hexFromBytes(string& out, array<uint8_t, 32> bytes, size_t size) {
 	}
 }
 
-static bool verifyBlock(Block block) {
+static bool verifyBlock(const Block &block) {
 	// Version 1 block verification
-	if (block.header.version = 1) {
-
+	if (block.header.version == 1) {
+	
 		// Invalid block hash
 		array<uint8_t, 32> blockHash;
 		crypto_hash_sha256(blockHash.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
@@ -78,7 +95,7 @@ static bool verifyBlock(Block block) {
 		// Verify each transaction
 		vector<UTXOKey> seenUtxo;
 		array<uint8_t, 32> txHash;
-		for (Transaction tx : block.transactions) {
+		for (const Transaction &tx : block.transactions) {
 
 			// Transaction hash
 			array<array<uint8_t, 32>, 2> inOutHashes;
@@ -90,23 +107,23 @@ static bool verifyBlock(Block block) {
 			UTXOKey key;
 			uint64_t totalInputAmount = 0;
 			uint64_t totalOutputAmount = 0;
-			for (TxInputSigned txInputSigned : tx.txInputs) {
+			for (const TxInputSigned &txInputSigned : tx.txInputs) {
 
 				key.txHash = txInputSigned.txInput.txHash;
 				key.outputIndex = txInputSigned.txInput.outputIndex;
 
 				// UTXO not found
-				if (utxos.count(key) == 0) return false;
+				if (UTXOs.count(key) == 0) return false;
 
 				// Invalid signature
 				crypto_hash_sha256(txHash.data(), (uint8_t*)&txInputSigned.txInput, sizeof(TxInput));
-				if (crypto_sign_verify_detached(txInputSigned.signature.data(), txHash.data(), 32, utxos[key].recipient.data())) return false;
+				if (crypto_sign_verify_detached(txInputSigned.signature.data(), txHash.data(), 32, UTXOs[key].recipient.data())) return false;
 
 				// Double spending
 				if (find(seenUtxo.begin(), seenUtxo.end(), key) != seenUtxo.end()) return false;
 				seenUtxo.push_back(key);
 
-				totalInputAmount += utxos[key].amount;
+				totalInputAmount += UTXOs[key].amount;
 			}
 
 			// Verify each output
@@ -124,30 +141,31 @@ static bool verifyBlock(Block block) {
 		blockChain[block.blockHash] = block;
 
 		// Remove used UTXOs
-		for (Transaction tx : block.transactions) {
+		for (const Transaction &tx : block.transactions) {
 			for (TxInputSigned txInputSigned : tx.txInputs) {
-				utxos.erase(txInputSigned.txInput.txHash);
+				UTXOs.erase(txInputSigned.txInput.txHash);
 			}
 		}
 		// Add new UTXOs
-		for (Transaction tx : block.transactions) {
-			for (UTXO txOutput : tx.txOutputs) {
+		for (const Transaction &tx : block.transactions) {
+			// Transaction hash
+			array<array<uint8_t, 32>, 2> inOutHashes;
+			crypto_hash_sha256(inOutHashes[0].data(), (uint8_t*)tx.txInputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			crypto_hash_sha256(inOutHashes[1].data(), (uint8_t*)tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			crypto_hash_sha256(txHash.data(), (uint8_t*)inOutHashes.data(), inOutHashes.size());
+			size_t index = 0;
+			for (const UTXO &txOutput : tx.txOutputs) {
 				UTXOKey key;
-				key.txHash = txOutput.txHash;
-				key.outputIndex = txOutput.outputIndex;
-				utxos[key] = txOutput;
+				key.txHash = txHash;
+				key.outputIndex = index;
+				UTXOs[key] = txOutput;
+				index++;
 			}
 		}
 
 		return true;
 	}
 }
-
-// Unspent Transaction Output Key
-struct UTXOKey { 
-	array<uint8_t, 32> txHash;
-	uint64_t outputIndex;
-};
 
 // Unspent Transaction Output
 struct UTXO { 
