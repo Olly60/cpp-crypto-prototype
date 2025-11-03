@@ -32,7 +32,7 @@ struct UTXOKey {
 };
 
 static void bytesFromHex(hash256_t& out, string hex) {
-	for (size_t i = 0; i < hex.size(); i = i + 2) {
+	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
 		if (high >= '0' && high <= '9') {
@@ -51,10 +51,10 @@ static void bytesFromHex(hash256_t& out, string hex) {
 	}
 }
 
-static void hexFromBytes(string& out, hash256_t bytes, size_t size) {
+static void hexFromBytes(string& out, hash256_t bytes, uint64_t size) {
 	out.clear();
 	out.resize(size * 2);
-	for (size_t i = 0; i < size; i++) {
+	for (uint64_t i = 0; i < size; i++) {
 		uint8_t high = bytes[i] >> 4;
 		uint8_t low = bytes[i] & 0x0F;
 
@@ -71,8 +71,14 @@ static void hexFromBytes(string& out, hash256_t bytes, size_t size) {
 	}
 }
 
-static void sha256Of(hash256_t& out, const void* data, size_t len) {
+static void sha256Of(hash256_t& out, const void* data, uint64_t len) {
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
+}
+
+void putUint64LE(uint8_t* buf, uint64_t value) {
+	for (int i = 0; i < 8; i++) {
+		buf[i] = (value >> (i * 8)) & 0xFF; // least significant byte first
+	}
 }
 
 static bool verifyBlock(const Block& block) {
@@ -81,13 +87,31 @@ static bool verifyBlock(const Block& block) {
 
 		// Invalid block hash
 		hash256_t blockHash;
-		sha256Of(blockHash, &block.header, sizeof(BlockHeader));
+
+		// --------------------------- Serialize block header for hashing
+		array<uint8_t, 96> serializedHeader;
+		memcpy(serializedHeader.data(), &block.header.version, 8);
+		memcpy(serializedHeader.data() + 8, block.header.previousBlockHash.data(), 32);
+		memcpy(serializedHeader.data() + 40, block.header.merkleRoot.data(), 32);
+		memcpy(serializedHeader.data() + 72, &block.header.timestamp, 8);
+		memcpy(serializedHeader.data() + 80, &block.header.difficulty, 8);
+		memcpy(serializedHeader.data() + 88, &block.header.nonce, 8);
+		
+		sha256Of(blockHash, serializedHeader.data(), serializedHeader.size());
 
 		// Verify block header
 		// Already in chain
 		if (blockChain.count(block.blockHash) == 1) return false;
+
 		// Previous block not found
 		if (blockChain.count(block.header.previousBlockHash) == 0) return false;
+
+		// Timestamp is earlier than previous block
+		if (block.header.timestamp < blockChain[block.header.previousBlockHash].header.timestamp) return false;
+
+		// Timestamp is too far in the future
+		uint64_t currentTime = time(0);
+		if (block.header.timestamp > currentTime + (2 * (60 * 60))) return false;
 
 		// Verify each transaction
 		vector<UTXOKey> seenUtxo;
@@ -102,9 +126,9 @@ static bool verifyBlock(const Block& block) {
 			// Transaction hash
 			hash256_t inOutHashes;
 			tx.txInputs
-			sha256Of(inOutHashes[0], );
-			sha256Of(inOutHashes[0], tx.txInputs.data(), tx.txInputs.size() * sizeof(UTXO));
-			sha256Of(inOutHashes[1], tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			//sha256Of(inOutHashes[0], );
+
+			// --------------------------- Sterlise transaction inputs and outputs for hashing
 			sha256Of(txHash, inOutHashes.data(), inOutHashes.size() * sizeof(hash256_t));
 
 			// Verify each input
@@ -115,6 +139,7 @@ static bool verifyBlock(const Block& block) {
 
 				key.txHash = txInputSigned.txInput.txHash;
 				key.outputIndex = txInputSigned.txInput.outputIndex;
+
 				// UTXO not found
 				if (UTXOs.count(key) == 0) return false;
 
@@ -133,6 +158,10 @@ static bool verifyBlock(const Block& block) {
 			// Verify each output
 			// Calculate total output amount
 			for (UTXO txOutput : tx.txOutputs) {
+
+				// Double spending of transaction
+				if (UTXOs.count(key) != 0) return false;
+				// Accumulate output amount
 				totalOutputAmount += txOutput.amount;
 			}
 			// Output amount exceeds input amount subtract fee
@@ -146,15 +175,17 @@ static bool verifyBlock(const Block& block) {
 		// Verify coinbase transaction
 		// Coinbase transaction should have no inputs
 		if (!block.transactions[0].txInputs.empty()) return false;
+
 		// Coinbase transaction should have exactly one output
 		if (block.transactions[0].txOutputs.size() != 1) return false;
+
 		// Coinbase transaction output amount should equal total fees
 		uint64_t coinabaseAmount = 0;
 		for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
 			coinabaseAmount += coinbaseTxOutput.amount;
 		}
 		// Coinbase amount exceeds total fees
-		if (coinabaseAmount != BlockReward) return false;
+		if (coinabaseAmount != blockReward) return false;
 
 
 
@@ -194,9 +225,7 @@ static bool verifyBlock(const Block& block) {
 		// Create UTXOs for Coinbase Transaction outputs
 		const Transaction& coinbaseTx = block.transactions[0];
 		hash256_t inOutHashes;
-		sha256Of(inOutHashes[0], coinbaseTx.txInputs.data(), coinbaseTx.txInputs.size() * sizeof(UTXO));
-		sha256Of(inOutHashes[1], coinbaseTx.txOutputs.data(), coinbaseTx.txOutputs.size() * sizeof(UTXO));
-		sha256Of(txHash, inOutHashes.data(), inOutHashes.size() * sizeof(hash256_t));
+		//sha256Of(in 
 		UTXOKey key;
 		size_t index = 0;
 		for (const UTXO& coinbaseTxOutput : coinbaseTx.txOutputs) {
@@ -209,6 +238,9 @@ static bool verifyBlock(const Block& block) {
 		// Block is valid
 		return true;
 	}
+
+	// Unsupported block version
+	return false;
 }
 
 // Unspent Transaction Output
@@ -240,9 +272,10 @@ struct BlockHeader {
 	uint64_t version;
 	hash256_t previousBlockHash;
 	hash256_t merkleRoot;
-	time_t timestamp;
-	uint64_t nonce;
+	uint64_t timestamp;
 	uint64_t difficulty;
+	uint64_t nonce;
+	
 };
 
 // Block
