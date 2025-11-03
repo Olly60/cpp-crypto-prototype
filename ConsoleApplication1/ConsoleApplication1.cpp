@@ -11,8 +11,8 @@ string hexPrivateKey;
 string hexPublicKey;
 array<uint8_t, crypto_sign_BYTES> signature;
 string userInput;
-unordered_map<array<uint8_t, 32>, UTXO> utxos;
-unordered_map<array<uint8_t, 32>, uint64_t> blockChain;
+unordered_map<UTXOKey, UTXO> utxos;
+unordered_map<array<uint8_t, 32>, Block> blockChain;
 
 
 static void bytesFromHex(array<uint8_t, 32>& out, string hex) {
@@ -61,13 +61,13 @@ static void hexFromBytes(string& out, array<uint8_t, 32> bytes, size_t size) {
 }
 
 static bool verifyBlock(Block block) {
-	array<uint8_t, 32> hashBuffer;
 	// Version 1 block verification
 	if (block.header.version = 1) {
 
 		// Invalid block hash
-		crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
-		if (block.blockHash != hashBuffer) return false;
+		array<uint8_t, 32> blockHash;
+		crypto_hash_sha256(blockHash.data(), (uint8_t*)&block.header, sizeof(BlockHeader));
+		if (block.blockHash != blockHash) return false;
 
 		// Verify block header
 		// Already in chain
@@ -76,72 +76,104 @@ static bool verifyBlock(Block block) {
 		if (blockChain.count(block.header.previousBlockHash) == 0) return false; 
 
 		// Verify each transaction
+		vector<UTXOKey> seenUtxo;
+		array<uint8_t, 32> txHash;
 		for (Transaction tx : block.transactions) {
 
-			// Invalid transaction hash
+			// Transaction hash
 			array<array<uint8_t, 32>, 2> inOutHashes;
-			crypto_hash_sha256(hashBuffer.data(), (uint8_t*)tx.txInputs.data(), tx.txInputs.size());
-			inOutHashes[0] = hashBuffer;
-			crypto_hash_sha256(hashBuffer.data(), (uint8_t*)tx.txOutputs.data(), tx.txOutputs.size());
-			inOutHashes[1] = hashBuffer;
-			crypto_hash_sha256(hashBuffer.data(), (uint8_t*)inOutHashes.data(), inOutHashes.size());
-			if (tx.transactionHash != hashBuffer) return false;
+			crypto_hash_sha256(inOutHashes[0].data(), (uint8_t*)tx.txInputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			crypto_hash_sha256(inOutHashes[1].data(), (uint8_t*)tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			crypto_hash_sha256(txHash.data(), (uint8_t*)inOutHashes.data(), inOutHashes.size());
 
 			// Verify each input
+			UTXOKey key;
+			uint64_t totalInputAmount = 0;
+			uint64_t totalOutputAmount = 0;
 			for (TxInputSigned txInputSigned : tx.txInputs) {
 
-				// Invalid signature
-				crypto_hash_sha256(hashBuffer.data(), (uint8_t*)&txInputSigned.txInput, sizeof(TxInput));
-				if (crypto_sign_verify_detached(txInputSigned.signature.data(), hashBuffer.data(), 32, txInputSigned.txInput.senderPublicKey.data())) return false;
-				
-				// Public key does not match
-				if (utxos[txInputSigned.txInput.prevTxHash].publicKey != txInputSigned.txInput.senderPublicKey) return false;
+				key.txHash = txInputSigned.txInput.txHash;
+				key.outputIndex = txInputSigned.txInput.outputIndex;
 
 				// UTXO not found
-				if (utxos.count(txInputSigned.txInput.prevTxHash) == 0) return false;
+				if (utxos.count(key) == 0) return false;
+
+				// Invalid signature
+				crypto_hash_sha256(txHash.data(), (uint8_t*)&txInputSigned.txInput, sizeof(TxInput));
+				if (crypto_sign_verify_detached(txInputSigned.signature.data(), txHash.data(), 32, utxos[key].recipient.data())) return false;
 
 				// Double spending
-				vector<array<uint8_t, 32>> seenUtxo;
-				if (find(seenUtxo.begin(), seenUtxo.end(), txInputSigned.txInput.prevTxHash) != seenUtxo.end()) return false;
-				seenUtxo.push_back(txInputSigned.txInput.prevTxHash);
+				if (find(seenUtxo.begin(), seenUtxo.end(), key) != seenUtxo.end()) return false;
+				seenUtxo.push_back(key);
 
-				// Invalid output index
-				if (txInputSigned.txInput.outputIndex != utxos[txInputSigned.txInput.prevTxHash].outputIndex) return false;
+				totalInputAmount += utxos[key].amount;
 			}
+
+			// Verify each output
+			for (UTXO txOutput : tx.txOutputs) {
+
+				totalOutputAmount += txOutput.amount;
+			}
+
+			// Output amount exceeds input amount
+			if (totalOutputAmount > totalInputAmount) return false;
 		}
+
+
+		// Add block to chain if block is valid
+		blockChain[block.blockHash] = block;
+
 		// Remove used UTXOs
 		for (Transaction tx : block.transactions) {
 			for (TxInputSigned txInputSigned : tx.txInputs) {
-				utxos.erase(txInputSigned.txInput.prevTxHash);
+				utxos.erase(txInputSigned.txInput.txHash);
 			}
 		}
+		// Add new UTXOs
+		for (Transaction tx : block.transactions) {
+			for (UTXO txOutput : tx.txOutputs) {
+				UTXOKey key;
+				key.txHash = txOutput.txHash;
+				key.outputIndex = txOutput.outputIndex;
+				utxos[key] = txOutput;
+			}
+		}
+
 		return true;
 	}
 }
 
-struct TxInput {
-	array<uint8_t, 32> prevTxHash;
+// Unspent Transaction Output Key
+struct UTXOKey { 
+	array<uint8_t, 32> txHash;
 	uint64_t outputIndex;
-	array<uint8_t, 32> senderPublicKey;
 };
 
+// Unspent Transaction Output
+struct UTXO { 
+	uint64_t amount;
+	array<uint8_t, 32> recipient;
+};
+
+// Transaction Input Decides which UTXO to Spend
+struct TxInput {
+	array<uint8_t, 32> txHash;
+	uint64_t outputIndex;
+};
+
+// Signed Transaction Input
 struct TxInputSigned {
 	TxInput txInput;
 	array<uint8_t, 32> signature;
 };
 
-struct TxOutput {
-	uint64_t amount;
-	uint64_t outputIndex;
-	array<uint8_t, 32> recipient;
-};
-
+// Transaction
 struct Transaction {
 	vector<TxInputSigned> txInputs;
-	vector<TxOutput> txOutputs;
-	array<uint8_t, 32> transactionHash;
+	vector<UTXO> txOutputs;
 };
 
+// Block Header
 struct BlockHeader {
 	uint64_t version;
 	array<uint8_t, 32> previousBlockHash;
@@ -151,17 +183,14 @@ struct BlockHeader {
 	uint64_t difficulty;
 };
 
+// Block
 struct Block {
 	BlockHeader header;
 	vector<Transaction> transactions;
 	array<uint8_t, 32> blockHash;
 };
 
-struct UTXO { // for keeping track
-	uint64_t outputIndex;
-	uint64_t amount;
-	array<uint8_t, 32> publicKey;
-};
+
 
 int main()
 {
