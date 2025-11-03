@@ -11,17 +11,18 @@ string hexPrivateKey;
 string hexPublicKey;
 array<uint8_t, crypto_sign_BYTES> signature;
 string userInput;
-unordered_map<UTXOKey, UTXO, > UTXOs; // Fix later with custom hash function
+unordered_map<UTXOKey, UTXO, UTXOKeyHash> UTXOs;
 unordered_map<array<uint8_t, 32>, Block> blockChain;
 
 // Custom hash function for UTXOKey
 struct UTXOKeyHash {
 	size_t operator()(const UTXOKey &key) const noexcept {
 		
-		array<array<uint8_t, 32>, 2> hash;
+		const uint64_t* chunks = reinterpret_cast<const uint64_t*>(key.txHash.data());
 
-		crypto_hash_sha64(txHashAmountHashes, key.txHash.data(), sizeof());
-		return *reinterpret_cast<size_t*>(keyHash.data());
+		size_t data = (chunks[0] ^ chunks[1] ^ chunks[2] ^ chunks[3]) ^ key.outputIndex;
+
+		return data;
 	}
 };
 
@@ -36,20 +37,19 @@ static void bytesFromHex(array<uint8_t, 32>& out, string hex) {
 	for (size_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
-
-		if (low >= '0' && low <= '9') {
-			low = low - '0';
-		}
-		else if (low >= 'A' && low <= 'F') {
-			low = (low - 'A') + 10;
-		}
 		if (high >= '0' && high <= '9') {
 			high = high - '0';
 		}
 		else if (high >= 'A' && high <= 'F') {
 			high = (high - 'A') + 10;
 		}
-		out[i / 2] = (low << 4) | high;
+		if (low >= '0' && low <= '9') {
+			low = low - '0';
+		}
+		else if (low >= 'A' && low <= 'F') {
+			low = (low - 'A') + 10;
+		}
+		out[i / 2] = (high << 4) | low;
 	}
 }
 
@@ -57,20 +57,20 @@ static void hexFromBytes(string& out, array<uint8_t, 32> bytes, size_t size) {
 	out.clear();
 	out.resize(size * 2);
 	for (size_t i = 0; i < size; i++) {
-		uint8_t low = bytes[i] >> 4;
-		uint8_t high = bytes[i] & 0x0F;
+		uint8_t high = bytes[i] >> 4;
+		uint8_t low = bytes[i] & 0x0F;
 
-		if (low >= 0 && low <= 9) {
-			low += '0';
-		}
-		else if (low >= 10 && low <= 16) {
-			low += ('A' - 10);
-		}
 		if (high >= 0 && high <= 9) {
 			high += '0';
 		}
 		else if (high >= 10 && high <= 16) {
 			high += ('A' - 10);
+		}
+		if (low >= 0 && low <= 9) {
+			low += '0';
+		}
+		else if (low >= 10 && low <= 16) {
+			low += ('A' - 10);
 		}
 		out[i * 2] = high;
 		out[(i * 2) + 1] = low;
@@ -117,7 +117,7 @@ static bool verifyBlock(const Block &block) {
 
 				// Invalid signature
 				crypto_hash_sha256(txHash.data(), (uint8_t*)&txInputSigned.txInput, sizeof(TxInput));
-				if (crypto_sign_verify_detached(txInputSigned.signature.data(), txHash.data(), 32, UTXOs[key].recipient.data())) return false;
+				if (crypto_sign_verify_detached(txInputSigned.signature.data(), txHash.data(), 32, UTXOs[key].recipient.data()) != 0) return false;
 
 				// Double spending
 				if (find(seenUtxo.begin(), seenUtxo.end(), key) != seenUtxo.end()) return false;
