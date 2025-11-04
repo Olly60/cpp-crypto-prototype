@@ -232,7 +232,7 @@ static bool processBlock(const Block& block) {
 			uint64_t index = 0;
 			for (const UTXO& txOutput : tx.txOutputs) {
 				key.txHash = txHash;
-				key.outputIndex = putUint64LE(index);
+				key.outputIndex = //reinterpret_cast<uint64_t>(putUint64LE(index).data());
 				UTXOs[key] = txOutput;
 				index++;
 			}
