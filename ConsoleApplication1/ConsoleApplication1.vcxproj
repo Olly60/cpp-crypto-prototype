@@ -123,13 +123,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ConsoleApplication1.cpp" />
-    <ClCompile Include="Crypto.h" />
+    <ClCompile Include="blockchain.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="BlockChain.h" />
-    <ClInclude Include="Serializer.h" />
-    <ClInclude Include="Types.h" />
+    <ClInclude Include="blockchain.h" />
+    <ClInclude Include="types.h" />
+    <ClInclude Include="utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

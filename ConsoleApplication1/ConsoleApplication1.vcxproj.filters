@@ -15,21 +15,24 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConsoleApplication1.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Crypto.h">
-      <Filter>Header Files</Filter>
+    <ClCompile Include="blockchain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="utils.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Types.h">
+    <ClInclude Include="types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Serializer.h">
+    <ClInclude Include="blockchain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="BlockChain.h">
+    <ClInclude Include="utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
