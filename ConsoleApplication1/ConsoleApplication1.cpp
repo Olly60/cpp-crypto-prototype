@@ -80,25 +80,24 @@ static void sha256Of(hash256_t& out, const void* data, const uint64_t &len) {
 }
 
 // Little-endian uint64_t to byte array
-static void putUint64LE(uint8_t* buf, const uint64_t &value) {
+static array<uint8_t, 8> putUint64LE(const uint64_t &value) {
+	array<uint8_t, 8> buf;
 	for (uint8_t i = 0; i < 8; i++) buf[i] = (value >> (i * 8)) & 0xFF;
+	return buf;
 }
 
 // Sterilise transaction for hashing
 static void hashTransaction(hash256_t& out, const Transaction& tx) {
 	vector<uint8_t> inOutSerilised;
-	array<uint8_t, 8> buffer;
 	for (const TxInputSigned& txInputSigned : tx.txInputs) {
-		putUint64LE(buffer.data(), txInputSigned.txInput.outputIndex);
-		inOutSerilised.insert(inOutSerilised.end(), buffer.begin(), buffer.end());
-		inOutSerilised.insert(inOutSerilised.end(), txInputSigned.txInput.prevTxHash.begin(), txInputSigned.txInput.prevTxHash.end());
-		for (const UTXO& txOutput : tx.txOutputs) {
-			putUint64LE(buffer.data(), txOutput.amount);
-			inOutSerilised.insert(inOutSerilised.end(), buffer.begin(), buffer.end());
-			inOutSerilised.insert(inOutSerilised.end(), txOutput.recipient.begin(), txOutput.recipient.end());
-		}
-		sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
+		inOutSerilised.insert(inOutSerilised.end(), putUint64LE(txInputSigned.txInput.outputIndex).begin(), putUint64LE(txInputSigned.txInput.outputIndex).end());
+		inOutSerilised.insert(inOutSerilised.end(), putUint64LE(txInputSigned.txInput.prevTxHash).begin(), putUint64LE(txInputSigned.txInput.prevTxHash).end());
 	}
+	for (const UTXO& txOutput : tx.txOutputs) {
+		inOutSerilised.insert(inOutSerilised.end(), putUint64LE(txOutput.amount).begin(), putUint64LE(txOutput.amount).end());
+		inOutSerilised.insert(inOutSerilised.end(), putUint64LE(txOutput.recipient).begin(), putUint64LE(txOutput.recipient).end());
+	}
+	sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
 }
 
 static bool processBlock(const Block& block) {
@@ -108,12 +107,13 @@ static bool processBlock(const Block& block) {
 		// Calculate block hash
 		hash256_t blockHash;
 		array<uint8_t, 96> serializedHeader;
-		putUint64LE(serializedHeader.data(), block.header.version);
+
+		memcpy(serializedHeader.data(), putUint64LE(block.header.version).data(), 8);
 		memcpy(serializedHeader.data() + 8, block.header.previousBlockHash.data(), 32);
 		memcpy(serializedHeader.data() + 40, block.header.merkleRoot.data(), 32);
-		putUint64LE(serializedHeader.data() + 72, block.header.timestamp);
-		putUint64LE(serializedHeader.data() + 80, block.header.difficulty);
-		putUint64LE(serializedHeader.data() + 88, block.header.nonce);
+		memcpy(serializedHeader.data() + 72, putUint64LE(block.header.timestamp).data(), 8);
+		memcpy(serializedHeader.data() + 80, putUint64LE(block.header.difficulty).data(), 8);
+		memcpy(serializedHeader.data() + 88, putUint64LE(block.header.nonce).data(), 8);
 		sha256Of(blockHash, serializedHeader.data(), serializedHeader.size());
 
 		// Verify block header
@@ -228,11 +228,11 @@ static bool processBlock(const Block& block) {
 			}
 			
 			// Add new UTXOs from Transactions
-			size_t index = 0;
 			UTXOKey key;
+			uint64_t index = 0;
 			for (const UTXO& txOutput : tx.txOutputs) {
 				key.txHash = txHash;
-				key.outputIndex = index;
+				key.outputIndex = putUint64LE(index);
 				UTXOs[key] = txOutput;
 				index++;
 			}
@@ -244,7 +244,7 @@ static bool processBlock(const Block& block) {
 		uint64_t index = 0;
 		for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
 			key.txHash = txHash;
-			key.outputIndex = index;
+			key.outputIndex = putUint64LE(index);
 			UTXOs[key] = coinbaseTxOutput;
 			index++;
 		}
