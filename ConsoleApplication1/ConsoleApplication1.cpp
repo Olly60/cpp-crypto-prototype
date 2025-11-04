@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <array>
 #include <fstream>
+
 typedef array<uint8_t, 32> hash256_t;
 using namespace std;
 array<uint8_t, crypto_box_SECRETKEYBYTES> bytesPrivateKey;
@@ -33,7 +34,7 @@ struct UTXOKey {
 };
 
 // Convert hexadecimal string to byte array
-static void bytesFromHex(hash256_t& out, const string &hex) {
+static void bytesFromHex(hash256_t& out, const string& hex) {
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
@@ -54,7 +55,7 @@ static void bytesFromHex(hash256_t& out, const string &hex) {
 }
 
 // Convert byte array to hexadecimal string
-static void hexFromBytes(string& out, const hash256_t &bytes, const uint64_t &size) {
+static void hexFromBytes(string& out, const hash256_t& bytes, const uint64_t& size) {
 	out.clear();
 	out.resize(size * 2);
 	for (uint64_t i = 0; i < size; i++) {
@@ -75,12 +76,12 @@ static void hexFromBytes(string& out, const hash256_t &bytes, const uint64_t &si
 }
 
 // SHA-256 Hashing
-static void sha256Of(hash256_t& out, const void* data, const uint64_t &len) {
+static void sha256Of(hash256_t& out, const void* data, const uint64_t& len) {
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
 }
 
 // Little-endian uint64_t to byte array
-static array<uint8_t, 8> putUint64LE(const uint64_t &value) {
+static array<uint8_t, 8> putUint64LE(const uint64_t& value) {
 	array<uint8_t, 8> buf;
 	for (uint8_t i = 0; i < 8; i++) buf[i] = (value >> (i * 8)) & 0xFF;
 	return buf;
@@ -184,7 +185,7 @@ static bool processBlock(const Block& block) {
 			// Accumulate total fees
 			blockReward += txFee;
 		}
-		
+
 		// Verify coinbase transaction
 		// Coinbase transaction should have no inputs
 		if (!block.transactions[0].txInputs.empty()) return false;
@@ -214,7 +215,7 @@ static bool processBlock(const Block& block) {
 			}
 		}
 
-		
+
 		for (const Transaction& tx : block.transactions) {
 			hashTransaction(txHash, tx);
 
@@ -224,15 +225,15 @@ static bool processBlock(const Block& block) {
 				key.txHash = txInputSigned.txInput.prevTxHash;
 				key.outputIndex = txInputSigned.txInput.outputIndex;
 				UTXOs.erase(key);
-				
+
 			}
-			
+
 			// Add new UTXOs from Transactions
 			UTXOKey key;
 			uint64_t index = 0;
 			for (const UTXO& txOutput : tx.txOutputs) {
 				key.txHash = txHash;
-				key.outputIndex = //reinterpret_cast<uint64_t>(putUint64LE(index).data());
+				key.outputIndex = *reinterpret_cast<uint64_t*>(putUint64LE(index).data());
 				UTXOs[key] = txOutput;
 				index++;
 			}
@@ -244,7 +245,7 @@ static bool processBlock(const Block& block) {
 		uint64_t index = 0;
 		for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
 			key.txHash = txHash;
-			key.outputIndex = putUint64LE(index);
+			key.outputIndex = *reinterpret_cast<uint64_t*>(putUint64LE(index).data());
 			UTXOs[key] = coinbaseTxOutput;
 			index++;
 		}
@@ -289,7 +290,7 @@ struct BlockHeader {
 	uint64_t timestamp;
 	uint64_t difficulty;
 	uint64_t nonce;
-	
+
 };
 
 // Block
