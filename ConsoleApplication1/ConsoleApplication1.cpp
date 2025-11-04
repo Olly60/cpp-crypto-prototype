@@ -31,7 +31,7 @@ struct UTXOKey {
 	uint64_t outputIndex;
 };
 
-static void bytesFromHex(hash256_t& out, string hex) {
+static void bytesFromHex(hash256_t& out, const string &hex) {
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
@@ -51,7 +51,7 @@ static void bytesFromHex(hash256_t& out, string hex) {
 	}
 }
 
-static void hexFromBytes(string& out, hash256_t bytes, uint64_t size) {
+static void hexFromBytes(string& out, const hash256_t &bytes, const uint64_t &size) {
 	out.clear();
 	out.resize(size * 2);
 	for (uint64_t i = 0; i < size; i++) {
@@ -71,15 +71,14 @@ static void hexFromBytes(string& out, hash256_t bytes, uint64_t size) {
 	}
 }
 
-static void sha256Of(hash256_t& out, const void* data, uint64_t len) {
+static void sha256Of(hash256_t& out, const void* data, const uint64_t &len) {
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
 }
 
-void putUint64LE(uint8_t* buf, uint64_t value) {
-	for (int i = 0; i < 8; i++) {
-		buf[i] = (value >> (i * 8)) & 0xFF; // least significant byte first
-	}
+static void putUint64LE(uint8_t* buf, const uint64_t &value) {
+	for (uint8_t i = 0; i < 8; i++) buf[i] = (value >> (i * 8)) & 0xFF;
 }
+
 
 static bool verifyBlock(const Block& block) {
 	// Version 1 block verification
@@ -90,12 +89,12 @@ static bool verifyBlock(const Block& block) {
 
 		// --------------------------- Serialize block header for hashing
 		array<uint8_t, 96> serializedHeader;
-		memcpy(serializedHeader.data(), &block.header.version, 8);
+		putUint64LE(serializedHeader.data(), block.header.version);
 		memcpy(serializedHeader.data() + 8, block.header.previousBlockHash.data(), 32);
 		memcpy(serializedHeader.data() + 40, block.header.merkleRoot.data(), 32);
-		memcpy(serializedHeader.data() + 72, &block.header.timestamp, 8);
-		memcpy(serializedHeader.data() + 80, &block.header.difficulty, 8);
-		memcpy(serializedHeader.data() + 88, &block.header.nonce, 8);
+		putUint64LE(serializedHeader.data() + 72, block.header.timestamp);
+		putUint64LE(serializedHeader.data() + 80, block.header.difficulty);
+		putUint64LE(serializedHeader.data() + 88, block.header.nonce);
 		
 		sha256Of(blockHash, serializedHeader.data(), serializedHeader.size());
 
