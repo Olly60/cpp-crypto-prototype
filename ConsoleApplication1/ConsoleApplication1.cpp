@@ -92,10 +92,12 @@ static void steriliseTransactionHash(hash256_t& out, const Transaction& tx) {
 		putUint64LE(buffer.data(), txInputSigned.txInput.outputIndex);
 		inOutSerilised.insert(inOutSerilised.end(), buffer.begin(), buffer.end());
 		inOutSerilised.insert(inOutSerilised.end(), txInputSigned.txInput.prevTxHash.begin(), txInputSigned.txInput.prevTxHash.end());
-	for (const UTXO& txOutput : tx.txOutputs) {
-		putUint64LE(buffer.data(), txOutput.amount);
-		inOutSerilised.insert(inOutSerilised.end(), buffer.begin(), buffer.end());
-		inOutSerilised.insert(inOutSerilised.end(), txOutput.recipient.begin(), txOutput.recipient.end());
+		for (const UTXO& txOutput : tx.txOutputs) {
+			putUint64LE(buffer.data(), txOutput.amount);
+			inOutSerilised.insert(inOutSerilised.end(), buffer.begin(), buffer.end());
+			inOutSerilised.insert(inOutSerilised.end(), txOutput.recipient.begin(), txOutput.recipient.end());
+		}
+		sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
 	}
 }
 
