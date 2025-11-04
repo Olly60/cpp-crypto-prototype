@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <array>
+#include <fstream>
 typedef array<uint8_t, 32> hash256_t;
 using namespace std;
 array<uint8_t, crypto_box_SECRETKEYBYTES> bytesPrivateKey;
@@ -83,8 +84,22 @@ static void putUint64LE(uint8_t* buf, const uint64_t &value) {
 	for (uint8_t i = 0; i < 8; i++) buf[i] = (value >> (i * 8)) & 0xFF;
 }
 
+// Sterilise transaction for hashing
+static void steriliseTransactionHash(hash256_t& out, const Transaction& tx) {
+	vector<uint8_t> inOutSerilised;
+	array<uint8_t, 8> buffer;
+	for (const TxInputSigned& txInputSigned : tx.txInputs) {
+		putUint64LE(buffer.data(), txInputSigned.txInput.outputIndex);
+		inOutSerilised.insert(inOutSerilised.end(), buffer.begin(), buffer.end());
+		inOutSerilised.insert(inOutSerilised.end(), txInputSigned.txInput.prevTxHash.begin(), txInputSigned.txInput.prevTxHash.end());
+	for (const UTXO& txOutput : tx.txOutputs) {
+		putUint64LE(buffer.data(), txOutput.amount);
+		inOutSerilised.insert(inOutSerilised.end(), buffer.begin(), buffer.end());
+		inOutSerilised.insert(inOutSerilised.end(), txOutput.recipient.begin(), txOutput.recipient.end());
+	}
+}
 
-static bool verifyBlock(const Block& block) {
+static bool processBlock(const Block& block) {
 	// Version 1 block verification
 	if (block.header.version == 1) {
 
@@ -137,7 +152,7 @@ static bool verifyBlock(const Block& block) {
 			uint64_t totalOutputAmount = 0;
 			for (const TxInputSigned& txInputSigned : tx.txInputs) {
 
-				key.txHash = txInputSigned.txInput.txHash;
+				key.txHash = txInputSigned.txInput.prevTxHash;
 				key.outputIndex = txInputSigned.txInput.outputIndex;
 
 				// UTXO not found
@@ -195,7 +210,7 @@ static bool verifyBlock(const Block& block) {
 		for (const Transaction& tx : block.transactions) {
 			for (TxInputSigned txInputSigned : tx.txInputs) {
 				UTXOKey key;
-				key.txHash = txInputSigned.txInput.txHash;
+				key.txHash = txInputSigned.txInput.prevTxHash;
 				key.outputIndex = txInputSigned.txInput.outputIndex;
 				UTXOs.erase(key);
 			}
@@ -205,10 +220,14 @@ static bool verifyBlock(const Block& block) {
 		for (const Transaction& tx : block.transactions) {
 			// Transaction hash
 			hash256_t inOutHashes;
+
+			for (const TxInputSigned& txInputSigned : tx.txInputs) {
+				
+			}
 			
-			sha256Of(inOutHashes[0], tx.txInputs.data(), tx.txInputs.size() * sizeof(UTXO));
-			sha256Of(inOutHashes[1], tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
-			sha256Of(txHash, inOutHashes.data(), inOutHashes.size() * sizeof(hash256_t));
+			//sha256Of(inOutHashes[0], tx.txInputs.data(), tx.txInputs.size() * sizeof(UTXO));
+			//sha256Of(inOutHashes[1], tx.txOutputs.data(), tx.txOutputs.size() * sizeof(UTXO));
+			//sha256Of(txHash, inOutHashes.data(), inOutHashes.size() * sizeof(hash256_t));
 
 			// Add each output as UTXO
 			size_t index = 0;
@@ -250,7 +269,7 @@ struct UTXO {
 
 // Transaction Input Decides which UTXO to Spend
 struct TxInput {
-	hash256_t txHash;
+	hash256_t prevTxHash;
 	uint64_t outputIndex;
 };
 
