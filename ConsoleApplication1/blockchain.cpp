@@ -1,12 +1,10 @@
-#pragma once
 #include <sodium.h>
 #include <unordered_map>
 #include "types.h"
 #include "utils.h"
 #include <vector>
 #include <time.h>
-
-using std::vector;
+#include <fstream>
 
 static bool processBlock(const Block& block,
 	std::unordered_map<hash256_t, Block>& blockChain,
@@ -16,14 +14,14 @@ static bool processBlock(const Block& block,
 
 		// Calculate block hash
 		hash256_t blockHash;
-		array<uint8_t, 96> serializedHeader;
+		std::array<uint8_t, 96> serializedHeader;
 
-		memcpy(serializedHeader.data(), putUint64LE(block.header.version).data(), 8);
+		memcpy(serializedHeader.data(), putUint64Le(block.header.version).data(), 8);
 		memcpy(serializedHeader.data() + 8, block.header.previousBlockHash.data(), 32);
 		memcpy(serializedHeader.data() + 40, block.header.merkleRoot.data(), 32);
-		memcpy(serializedHeader.data() + 72, putUint64LE(block.header.timestamp).data(), 8);
-		memcpy(serializedHeader.data() + 80, putUint64LE(block.header.difficulty).data(), 8);
-		memcpy(serializedHeader.data() + 88, putUint64LE(block.header.nonce).data(), 8);
+		memcpy(serializedHeader.data() + 72, putUint64Le(block.header.timestamp).data(), 8);
+		memcpy(serializedHeader.data() + 80, putUint64Le(block.header.difficulty).data(), 8);
+		memcpy(serializedHeader.data() + 88, putUint64Le(block.header.nonce).data(), 8);
 		sha256Of(blockHash, serializedHeader.data(), serializedHeader.size());
 
 		// Verify block header
@@ -41,12 +39,12 @@ static bool processBlock(const Block& block,
 		if (block.header.timestamp > currentTime + (2 * (60 * 60))) return false;
 
 		// Verify each transaction
-		vector<UTXOKey> seenUtxo;
+		std::vector<UTXOKey> seenUtxo;
 		uint64_t blockReward = 0;
-		vector<uint8_t> txHashes;
+		std::vector<uint8_t> txHashes;
 		bool isCoinbaseTx = true;
 		hash256_t txHash;
-		vector<hash256_t> merkleLeaves;
+		std::vector<hash256_t> merkleLeaves;
 		for (const Transaction& tx : block.transactions) {
 
 			// Coinbase transaction
@@ -142,7 +140,7 @@ static bool processBlock(const Block& block,
 			uint64_t index = 0;
 			for (const UTXO& txOutput : tx.txOutputs) {
 				key.txHash = txHash;
-				key.outputIndex = *reinterpret_cast<uint64_t*>(putUint64LE(index).data());
+				key.outputIndex = *reinterpret_cast<uint64_t*>(putUint64Le(index).data());
 				UTXOs[key] = txOutput;
 				index++;
 			}
@@ -154,7 +152,7 @@ static bool processBlock(const Block& block,
 		uint64_t index = 0;
 		for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
 			key.txHash = txHash;
-			key.outputIndex = *reinterpret_cast<uint64_t*>(putUint64LE(index).data());
+			key.outputIndex = *reinterpret_cast<uint64_t*>(putUint64Le(index).data());
 			UTXOs[key] = coinbaseTxOutput;
 			index++;
 		}

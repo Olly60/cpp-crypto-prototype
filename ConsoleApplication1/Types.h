@@ -38,8 +38,8 @@ struct TxInputSigned {
 
 // Transaction
 struct Transaction {
-	vector<TxInputSigned> txInputs;
-	vector<UTXO> txOutputs;
+	std::vector<TxInputSigned> txInputs;
+	std::vector<UTXO> txOutputs;
 };
 
 // Block Header
@@ -56,5 +56,5 @@ struct BlockHeader {
 // Block
 struct Block {
 	BlockHeader header;
-	vector<Transaction> transactions;
+	std::vector<Transaction> transactions;
 };

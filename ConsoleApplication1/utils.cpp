@@ -1,9 +1,9 @@
+#pragma once
 #include "utils.h"
 #include <sodium.h>
 
-using std::vector;
 // Convert hexadecimal string to byte array
-void bytesFromHex(hash256_t& out, const string& hex) {
+void bytesFromHex(hash256_t& out, const std::string& hex) {
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
@@ -24,7 +24,7 @@ void bytesFromHex(hash256_t& out, const string& hex) {
 }
 
 // Convert byte array to hexadecimal string
-void hexFromBytes(string& out, const hash256_t& bytes, const uint64_t& size) {
+void hexFromBytes(std::string& out, const hash256_t& bytes, const uint64_t& size) {
 	out.clear();
 	out.resize(size * 2);
 	for (uint64_t i = 0; i < size; i++) {
@@ -50,21 +50,21 @@ void sha256Of(hash256_t& out, const void* data, const uint64_t& len) {
 }
 
 // Little-endian uint64_t to byte array
-array<uint8_t, 8> putUint64LE(const uint64_t& value) {
-	array<uint8_t, 8> buf;
+std::array<uint8_t, 8> putUint64Le(const uint64_t& value) {
+	std::array<uint8_t, 8> buf;
 	for (uint8_t i = 0; i < 8; i++) buf[i] = (value >> (i * 8)) & 0xFF;
 	return buf;
 }
 
 // Sterilise transaction for hashing
 void hashTransaction(hash256_t& out, const Transaction& tx) {
-	vector<uint8_t> inOutSerilised;
+	std::vector<uint8_t> inOutSerilised;
 	for (const TxInputSigned& txInputSigned : tx.txInputs) {
-		inOutSerilised.insert(inOutSerilised.end(), putUint64LE(txInputSigned.txInput.outputIndex).begin(), putUint64LE(txInputSigned.txInput.outputIndex).end());
+		inOutSerilised.insert(inOutSerilised.end(), putUint64Le(txInputSigned.txInput.outputIndex).begin(), putUint64Le(txInputSigned.txInput.outputIndex).end());
 		inOutSerilised.insert(inOutSerilised.end(), txInputSigned.txInput.prevTxHash.begin(), txInputSigned.txInput.prevTxHash.end());
 	}
 	for (const UTXO& txOutput : tx.txOutputs) {
-		inOutSerilised.insert(inOutSerilised.end(), putUint64LE(txOutput.amount).begin(), putUint64LE(txOutput.amount).end());
+		inOutSerilised.insert(inOutSerilised.end(), putUint64Le(txOutput.amount).begin(), putUint64Le(txOutput.amount).end());
 		inOutSerilised.insert(inOutSerilised.end(), txOutput.recipient.begin(), txOutput.recipient.end());
 	}
 	sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
