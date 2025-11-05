@@ -8,7 +8,6 @@
 #include "utils.h"
 #include "blockchain.h"
 
-typedef array<uint8_t, 32> hash256_t;
 using namespace std;
 array<uint8_t, crypto_box_SECRETKEYBYTES> bytesPrivateKey;
 array<uint8_t, crypto_box_PUBLICKEYBYTES> bytesPublicKey;

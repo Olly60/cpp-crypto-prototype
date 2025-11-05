@@ -3,7 +3,7 @@
 #include <sodium.h>
 
 // Convert hexadecimal string to byte array
-void bytesFromHex(hash256_t& out, const std::string& hex) {
+void bytesFromHex(array256_t& out, const std::string& hex) {
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
@@ -24,7 +24,7 @@ void bytesFromHex(hash256_t& out, const std::string& hex) {
 }
 
 // Convert byte array to hexadecimal string
-void hexFromBytes(std::string& out, const hash256_t& bytes, const uint64_t& size) {
+void hexFromBytes(std::string& out, const array256_t& bytes, const uint64_t& size) {
 	out.clear();
 	out.resize(size * 2);
 	for (uint64_t i = 0; i < size; i++) {
@@ -45,7 +45,7 @@ void hexFromBytes(std::string& out, const hash256_t& bytes, const uint64_t& size
 }
 
 // SHA-256 Hashing
-void sha256Of(hash256_t& out, const void* data, const uint64_t& len) {
+void sha256Of(array256_t& out, const void* data, const uint64_t& len) {
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
 }
 
@@ -57,7 +57,7 @@ std::array<uint8_t, 8> putUint64Le(const uint64_t& value) {
 }
 
 // Sterilise transaction for hashing
-void hashTransaction(hash256_t& out, const Transaction& tx) {
+void hashTransaction(array256_t& out, const Transaction& tx) {
 	std::vector<uint8_t> inOutSerilised;
 	for (const TxInputSigned& txInputSigned : tx.txInputs) {
 		inOutSerilised.insert(inOutSerilised.end(), putUint64Le(txInputSigned.txInput.outputIndex).begin(), putUint64Le(txInputSigned.txInput.outputIndex).end());

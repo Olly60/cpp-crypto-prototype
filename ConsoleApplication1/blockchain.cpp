@@ -9,7 +9,7 @@
 void addUTXO(){}
 void removeUTXO(){}
 
-bool processBlock(const Block& block) {
+bool processBlock(std::array<uint8_t, 1129680> serializedBlock) {
 	// Version 1 block verification
 	if (block.header.version == 1) {
 		
@@ -46,7 +46,7 @@ bool processBlock(const Block& block) {
 		uint64_t blockReward = 0;
 		std::vector<uint8_t> txHashes;
 		bool isCoinbaseTx = true;
-		hash256_t txHash;
+		array256_t txHash;
 		std::vector<uint8_t> merkleLeaves;
 		for (const Transaction& tx : block.transactions) {
 
@@ -98,7 +98,7 @@ bool processBlock(const Block& block) {
 		}
 
 		// MerkleRoot invalid
-		hash256_t merkleRoot;
+		array256_t merkleRoot;
 		sha256Of(merkleRoot, merkleLeaves.data(), merkleLeaves.size());
 		if (block.header.merkleRoot != block.header.merkleRoot) return false;
 
