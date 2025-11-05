@@ -17,8 +17,8 @@ struct TxInput {
 };
 
 struct Transaction {
-	std::array<TxInput, 256> txInputs;
-	std::array<UTXO, 256> txOutputs;
+	std::array<TxInput, 64> txInputs;
+	std::array<UTXO, 64> txOutputs;
 };
 
 struct Block {
@@ -28,5 +28,5 @@ struct Block {
 	uint64_t timestamp;
 	uint64_t difficulty;
 	uint64_t nonce;
-	std::array<Transaction, 256> transactions;
+	std::array<Transaction, 128> transactions;
 };
