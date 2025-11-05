@@ -69,3 +69,13 @@ void hashTransaction(hash256_t& out, const Transaction& tx) {
 	}
 	sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
 }
+
+
+std::array<uint8_t, 80> steriliseUtxo(UTXOKey key, UTXO Utxo) {
+
+}
+
+// Sterilise block header
+std::array<uint8_t, 96> steriliseBlockHeader(BlockHeader blockHeader) {
+
+}

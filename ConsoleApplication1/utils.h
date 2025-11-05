@@ -5,7 +5,7 @@
 #include <string>
 
 // Convert hexadecimal string to byte array
-static void bytesFromHex(hash256_t& out, const string& hex);
+static void bytesFromHex(hash256_t& out, const std::string &hex);
 
 // Convert byte array to hexadecimal string
 void hexFromBytes(std::string& out, const hash256_t& bytes, const uint64_t& size);
@@ -19,6 +19,11 @@ std::array<uint8_t, 8> putUint64Le(const uint64_t& value);
 // Sterilise transaction for hashing
 void hashTransaction(hash256_t& out, const Transaction& tx);
 
+// Sterilise UTXO for storage
 std::array<uint8_t, 80> steriliseUtxo(UTXOKey key, UTXO Utxo);
+
+// Sterilise block for storage
+std::array<uint8_t, 96> steriliseBlockHeader(BlockHeader blockHeader);
+
 
 

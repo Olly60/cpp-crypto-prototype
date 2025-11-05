@@ -6,16 +6,13 @@
 #include <time.h>
 #include <fstream>
 
-static bool processBlock(const Block& block,
-	std::unordered_map<hash256_t, Block>& blockChain,
-	std::unordered_map<UTXOKey, UTXO, UTXOKeyHash>& UTXOs) {
+static bool processBlock(const Block& block, std::unordered_map<hash256_t, Block>& blockChain, std::unordered_map<UTXOKey, UTXO, UTXOKeyHash>& UTXOs) {
 	// Version 1 block verification
 	if (block.header.version == 1) {
 
 		// Calculate block hash
 		hash256_t blockHash;
 		std::array<uint8_t, 96> serializedHeader;
-
 		memcpy(serializedHeader.data(), putUint64Le(block.header.version).data(), 8);
 		memcpy(serializedHeader.data() + 8, block.header.previousBlockHash.data(), 32);
 		memcpy(serializedHeader.data() + 40, block.header.merkleRoot.data(), 32);
@@ -44,14 +41,15 @@ static bool processBlock(const Block& block,
 		std::vector<uint8_t> txHashes;
 		bool isCoinbaseTx = true;
 		hash256_t txHash;
-		std::vector<hash256_t> merkleLeaves;
+		std::vector<uint8_t> merkleLeaves;
 		for (const Transaction& tx : block.transactions) {
+
+			hashTransaction(txHash, tx);
+			merkleLeaves.insert(merkleLeaves.end(), txHash.begin(), txHash.end());
 
 			// Coinbase transaction
 			if (isCoinbaseTx) { isCoinbaseTx = false; continue; }
-
-			hashTransaction(txHash, tx);
-			merkleLeaves.push_back(txHash);
+			
 			// Verify each input
 			UTXOKey key;
 			uint64_t totalInputAmount = 0;
@@ -92,6 +90,11 @@ static bool processBlock(const Block& block,
 			// Accumulate total fees
 			blockReward += txFee;
 		}
+
+		// MerkleRoot invalid
+		hash256_t merkleRoot;
+		sha256Of(merkleRoot, merkleLeaves.data(), merkleLeaves.size());
+		if (block.header.merkleRoot != block.header.merkleRoot) return false;
 
 		// Verify coinbase transaction
 		// Coinbase transaction should have no inputs
