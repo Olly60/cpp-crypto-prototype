@@ -18,11 +18,15 @@ std::array<uint8_t, 8> putUint64Le(const uint64_t& value);
 
 void hashTransaction(hash256_t& out, const Transaction& tx);
 
-UTXO formatUTXO();
+std::array<uint8_t, 80> SerialiseUTXO();
 
-UTXOKey formatUTXOKey();
+std::array<uint8_t, 72> SerialiseTxInput();
 
-TxInput formatTxInput();
+std::array<uint8_t, 72> SerialiseTx();
+
+std::array<uint8_t, 72> SerialiseBlock();
+
+
 
 
 
