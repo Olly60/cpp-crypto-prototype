@@ -6,9 +6,15 @@
 #include <time.h>
 #include <fstream>
 
-static bool processBlock(const Block& block, std::unordered_map<hash256_t, Block>& blockChain, std::unordered_map<UTXOKey, UTXO, UTXOKeyHash>& UTXOs) {
+void addUTXO(){}
+void removeUTXO(){}
+
+bool processBlock(const Block& block) {
 	// Version 1 block verification
 	if (block.header.version == 1) {
+		
+		std::ifstream blockchainFile("blockchain", std::ios::out);
+		std::fstream UTXOFile("UTXOs", std::ios::out)
 
 		// Calculate block hash
 		hash256_t blockHash;
@@ -97,19 +103,21 @@ static bool processBlock(const Block& block, std::unordered_map<hash256_t, Block
 		if (block.header.merkleRoot != block.header.merkleRoot) return false;
 
 		// Verify coinbase transaction
-		// Coinbase transaction should have no inputs
-		if (!block.transactions[0].txInputs.empty()) return false;
+		{
+			// Coinbase transaction should have no inputs
+			if (!block.transactions[0].txInputs.empty()) return false;
 
-		// Coinbase transaction should have exactly one output
-		if (block.transactions[0].txOutputs.size() != 1) return false;
+			// Coinbase transaction should have exactly one output
+			if (block.transactions[0].txOutputs.size() != 1) return false;
 
-		// Coinbase transaction output amount should equal total fees
-		uint64_t coinabaseAmount = 0;
-		for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
-			coinabaseAmount += coinbaseTxOutput.amount;
+			// Coinbase transaction output amount should equal total fees
+			uint64_t coinabaseAmount = 0;
+			for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
+				coinabaseAmount += coinbaseTxOutput.amount;
+			}
+			// Coinbase amount exceeds total fees
+			if (coinabaseAmount != blockReward) return false;
 		}
-		// Coinbase amount exceeds total fees
-		if (coinabaseAmount != blockReward) return false;
 
 		// All checks passed
 		// Add block to chain
@@ -120,12 +128,12 @@ static bool processBlock(const Block& block, std::unordered_map<hash256_t, Block
 			for (TxInputSigned txInputSigned : tx.txInputs) {
 				UTXOKey key;
 				key.txHash = txInputSigned.txInput.prevTxHash;
-				key.outputIndex = txInputSigned.txInput.outputIndex;
-				UTXOs.erase(key);
+				//key.outputIndex = //txInputSigned.txInput.outputIndex;
+				//UTXOs.erase(key);
 			}
 		}
 
-
+		// Process transactions
 		for (const Transaction& tx : block.transactions) {
 			hashTransaction(txHash, tx);
 
@@ -155,8 +163,8 @@ static bool processBlock(const Block& block, std::unordered_map<hash256_t, Block
 		uint64_t index = 0;
 		for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
 			key.txHash = txHash;
-			key.outputIndex = *reinterpret_cast<uint64_t*>(putUint64Le(index).data());
-			UTXOs[key] = coinbaseTxOutput;
+			//key.outputIndex = //*reinterpret_cast<uint64_t*>(putUint64Le(index).data());
+			//UTXOs[key] = coinbaseTxOutput;
 			index++;
 		}
 

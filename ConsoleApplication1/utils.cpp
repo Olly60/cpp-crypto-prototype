@@ -75,7 +75,15 @@ std::array<uint8_t, 80> steriliseUtxo(UTXOKey key, UTXO Utxo) {
 
 }
 
-// Sterilise block header
+std::array<uint8_t, 40> steriliseTxInput(){}
+
+void steriliseTx() {
+
+}
+
 std::array<uint8_t, 96> steriliseBlockHeader(BlockHeader blockHeader) {
 
 }
+
+void steriliseBlock(){}
+

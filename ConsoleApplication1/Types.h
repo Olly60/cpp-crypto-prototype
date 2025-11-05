@@ -3,16 +3,6 @@
 #include <vector>
 using hash256_t = std::array<uint8_t, 32>;
 
-// Custom hash function for UTXOKey
-struct UTXOKeyHash {
-	size_t operator()(const UTXOKey& key) const noexcept {
-		const uint64_t* chunks = reinterpret_cast<const uint64_t*>(key.txHash.data());
-		size_t data = chunks[0] ^ chunks[1] ^ chunks[2] ^ chunks[3];
-		data ^= key.outputIndex + 0x9e3779b97f4a7c15ULL + (data << 6) + (data >> 2);
-		return data;
-	}
-};
-
 // Unspent Transaction Output Key
 struct UTXOKey {
 	hash256_t txHash;
