@@ -9,7 +9,7 @@
 void addUTXO(){}
 void removeUTXO(){}
 
-bool processBlock(std::array<uint8_t, 1129680> serializedBlock) {
+bool processBlock(std::vector<uint8_t> serializedBlock) {
 	// Version 1 block verification
 	if (block.header.version == 1) {
 		
