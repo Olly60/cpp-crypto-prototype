@@ -60,12 +60,10 @@ std::array<uint8_t, 8> putUint64Le(const uint64_t& value) {
 void hashTransaction(array256_t& out, const Transaction& tx) {
 	std::vector<uint8_t> inOutSerilised;
 	for (const TxInput& txInputSigned : tx.txInputs) {
-		inOutSerilised.insert(inOutSerilised.end(), txInputSigned.txInput.outputIndex.begin(), txInputSigned.txInput.outputIndex.end());
-		inOutSerilised.insert(inOutSerilised.end(), txInputSigned.txInput.prevTxHash.begin(), txInputSigned.txInput.prevTxHash.end());
+		
 	}
 	for (const UTXO& txOutput : tx.txOutputs) {
-		inOutSerilised.insert(inOutSerilised.end(), putUint64Le(txOutput.amount).begin(), putUint64Le(txOutput.amount).end());
-		inOutSerilised.insert(inOutSerilised.end(), txOutput.recipient.begin(), txOutput.recipient.end());
+		
 	}
 	sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
 }
