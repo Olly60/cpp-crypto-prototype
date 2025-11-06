@@ -77,8 +77,8 @@ void hashTransaction(array256_t& out, const Transaction& tx) {
 
 }
 
-void SerialiseTx(std::array<uint8_t, 35328>& out, Transaction &tx){}
+void SerialiseTx(std::vector<uint8_t>& out, Transaction &tx){}
 
-void SerialiseBlock(std::array<uint8_t, 1129680>& out, Block &block){
+void SerialiseBlock(std::vector<uint8_t>& out, Block &block){
 
 }

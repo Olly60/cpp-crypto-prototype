@@ -22,9 +22,9 @@ void SerialiseUTXO(std::array<uint8_t, 73> &out, UTXO &Utxo);
 
 void SerialiseTxInput(std::array<uint8_t, 65> &out, TxInput &txInput);
 
-void SerialiseTx(std::array<uint8_t, 35328> &out, Transaction &tx);
+void SerialiseTx(std::vector<uint8_t> &out, Transaction &tx);
 
-void SerialiseBlock(std::array<uint8_t, 1129680> &out,Block &block);
+void SerialiseBlock(std::vector<uint8_t> &out,Block &block);
 
 
 
