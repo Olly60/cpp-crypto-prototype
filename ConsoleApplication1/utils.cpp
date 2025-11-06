@@ -56,32 +56,34 @@ std::array<uint8_t, 8> putUint64Le(const uint64_t& value) {
 	return buf;
 }
 
-// Sterilise transaction for hashing ----------------- Fix it
-void hashTransaction(array256_t& out, const Transaction& tx) {
-	std::vector<uint8_t> inOutSerilised;
-	for (const TxInput& txInputSigned : tx.txInputs) {
-		
-	}
-	for (const UTXO& txOutput : tx.txOutputs) {
-		
-	}
-	sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
+// Serialise data
+std::array<uint8_t, 65> serialiseTxInput(const TxInput& txInput) {
+	std::array<uint8_t, 65> data;
+	memcpy(data.data(), txInput.UTXOTxHash.data(), 32);
+	memcpy(data.data() + 32, putUint64Le(txInput.UTXOOutputIndex).data(), 1);
+	memcpy(data.data() + 33, txInput.signature.data(), 32);
+	return data;
 }
 
-std::array<uint8_t, 73>  SerialiseUTXO(UTXO& Utxo){
-	std::array<uint8_t, 73> data;
-	memcpy(data.data(), Utxo.txHash.data(), 32);
-	memcpy(data.data() + 32, &Utxo.outputIndex, 1);
+std::array<uint8_t, 40> serialiseUTXO(const UTXO& Utxo){
+	std::array<uint8_t, 40> data;
 	memcpy(data.data() + 40, putUint64Le(Utxo.amount).data(), 8);
 	memcpy(data.data() + 48, Utxo.recipient.data(), 32);
+	return data;
 }
 
- void SerialiseTxInput(std::array<uint8_t, 65>& out, TxInput &txInput){
-
+void serialiseTx(std::vector<uint8_t>& out, const Transaction &tx){
+	std::vector<uint8_t> serialisedinputs;
+	for (const TxInput& txInput : tx.txInputs) {
+		serialisedinputs.insert(serialisedinputs.end(), serialiseTxInput(txInput).begin(), serialiseTxInput(txInput).end())
+	}
+	std::array<uint8_t, 40> outputBuffer;
+	for (const UTXO& txOutput : tx.txOutputs) {
+	}
 }
 
-void SerialiseTx(std::vector<uint8_t>& out, Transaction &tx){}
+void serialiseBlock(std::vector<uint8_t>& out, const Block &block){
+	for (const Transaction& tx : block.transactions) {
 
-void SerialiseBlock(std::vector<uint8_t>& out, Block &block){
-
+	}
 }

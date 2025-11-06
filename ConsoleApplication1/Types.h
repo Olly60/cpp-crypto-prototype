@@ -1,11 +1,10 @@
 #pragma once
 #include <array>
 #include <vector>
+#include <string>
 typedef std::array<uint8_t, 32> array256_t;
 
 struct UTXO {
-	array256_t txHash = {};
-	uint8_t outputIndex = 0;
 	uint64_t amount = 0;
 	array256_t recipient = {};
 };

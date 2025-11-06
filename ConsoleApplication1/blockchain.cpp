@@ -1,10 +1,6 @@
 #include <sodium.h>
-#include <unordered_map>
 #include "types.h"
 #include "utils.h"
-#include <vector>
-#include <time.h>
-#include <fstream>
 
 void addUTXO(){}
 void removeUTXO(){}

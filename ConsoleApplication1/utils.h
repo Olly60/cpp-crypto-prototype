@@ -1,8 +1,5 @@
 #pragma once
-#include <string>
-#include <array>
 #include "types.h"
-#include <string>
 
 // Convert hexadecimal string to byte array
 static void bytesFromHex(array256_t& out, const std::string &hex);
@@ -16,15 +13,16 @@ void sha256Of(array256_t& out, const void* data, const uint64_t& len);
 // Little-endian uint64_t to byte array
 std::array<uint8_t, 8> putUint64Le(const uint64_t& value);
 
-void hashTransaction(array256_t& out, const Transaction& tx);
+// Serialise data
+void serialiseTxInput(std::array<uint8_t, 65>& out, const TxInput& txInput);
 
-void SerialiseUTXO(std::array<uint8_t, 73> &out, UTXO &Utxo);
+void serialiseUTXO(std::array<uint8_t, 40> &out, const UTXO &Utxo);
 
-void SerialiseTxInput(std::array<uint8_t, 65> &out, TxInput &txInput);
+void serialiseTxInput(std::array<uint8_t, 65> &out, const TxInput &txInput);
 
-void SerialiseTx(std::vector<uint8_t> &out, Transaction &tx);
+void serialiseTx(std::vector<uint8_t> &out, const Transaction &tx);
 
-void SerialiseBlock(std::vector<uint8_t> &out,Block &block);
+void serialiseBlock(std::vector<uint8_t> &out, const Block &block);
 
 
 
