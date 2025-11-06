@@ -68,9 +68,12 @@ void hashTransaction(array256_t& out, const Transaction& tx) {
 	sha256Of(out, inOutSerilised.data(), inOutSerilised.size());
 }
 
- void SerialiseUTXO(std::array<uint8_t, 73> &out , UTXO &Utxo){
-	memcpy(,putUint64Le(Utxo.amount))
-	
+std::array<uint8_t, 73>  SerialiseUTXO(UTXO& Utxo){
+	std::array<uint8_t, 73> data;
+	memcpy(data.data(), Utxo.txHash.data(), 32);
+	memcpy(data.data() + 32, &Utxo.outputIndex, 1);
+	memcpy(data.data() + 40, putUint64Le(Utxo.amount).data(), 8);
+	memcpy(data.data() + 48, Utxo.recipient.data(), 32);
 }
 
  void SerialiseTxInput(std::array<uint8_t, 65>& out, TxInput &txInput){

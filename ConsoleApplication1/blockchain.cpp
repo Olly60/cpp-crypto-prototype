@@ -17,7 +17,7 @@ bool processBlock(std::vector<uint8_t> serializedBlock) {
 		std::fstream UTXOFile("UTXOs", std::ios::out)
 
 		// Calculate block hash
-		hash256_t blockHash;
+		array256_t blockHash;
 		std::array<uint8_t, 96> serializedHeader;
 		memcpy(serializedHeader.data(), putUint64Le(block.header.version).data(), 8);
 		memcpy(serializedHeader.data() + 8, block.header.previousBlockHash.data(), 32);
