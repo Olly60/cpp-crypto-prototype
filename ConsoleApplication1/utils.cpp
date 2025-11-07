@@ -58,32 +58,41 @@ std::array<uint8_t, 8> putUint64Le(const uint64_t& value) {
 
 // Serialise data
 std::array<uint8_t, 65> serialiseTxInput(const TxInput& txInput) {
-	std::array<uint8_t, 65> data;
-	memcpy(data.data(), txInput.UTXOTxHash.data(), 32);
-	memcpy(data.data() + 32, putUint64Le(txInput.UTXOOutputIndex).data(), 1);
-	memcpy(data.data() + 33, txInput.signature.data(), 32);
-	return data;
+	std::array<uint8_t, 65> serialisedTxInput;
+	memcpy(serialisedTxInput.data(), txInput.UTXOTxHash.data(), 32);
+	memcpy(serialisedTxInput.data() + 32, putUint64Le(txInput.UTXOOutputIndex).data(), 1);
+	memcpy(serialisedTxInput.data() + 33, txInput.signature.data(), 32);
+	return serialisedTxInput;
 }
 
 std::array<uint8_t, 40> serialiseUTXO(const UTXO& Utxo){
-	std::array<uint8_t, 40> data;
-	memcpy(data.data() + 40, putUint64Le(Utxo.amount).data(), 8);
-	memcpy(data.data() + 48, Utxo.recipient.data(), 32);
-	return data;
+	std::array<uint8_t, 40> serialisedUTXO;
+	memcpy(serialisedUTXO.data() + 40, putUint64Le(Utxo.amount).data(), 8);
+	memcpy(serialisedUTXO.data() + 48, Utxo.recipient.data(), 32);
+	return serialisedUTXO;
 }
 
-void serialiseTx(std::vector<uint8_t>& out, const Transaction &tx){
-	std::vector<uint8_t> serialisedinputs;
+std::vector<uint8_t> serialiseTx(const Transaction &tx){
+	std::vector<uint8_t> serialisedTx;
+	std::vector<uint8_t> serialisedInputs;
 	for (const TxInput& txInput : tx.txInputs) {
-		serialisedinputs.insert(serialisedinputs.end(), serialiseTxInput(txInput).begin(), serialiseTxInput(txInput).end())
+		std::array<uint8_t, 65> serialisedInput = serialiseTxInput(txInput);
+		serialisedInputs.insert(serialisedInputs.end(), serialisedInput.begin(), serialisedInput.end());
 	}
-	std::array<uint8_t, 40> outputBuffer;
+	std::vector<uint8_t> serialisedOutputs;
 	for (const UTXO& txOutput : tx.txOutputs) {
+		std::array<uint8_t, 40> serialisedUTXO = serialiseUTXO(txOutput);
+		serialisedOutputs.insert(serialisedOutputs.end(), serialisedUTXO.begin(), serialisedUTXO.end());
 	}
+	serialisedTx.insert(serialisedTx.begin(), serialisedInputs.begin(), serialisedInputs.end());
+	serialisedTx.insert(serialisedTx.begin(), serialisedOutputs.begin(), serialisedOutputs.end());
+	return serialisedTx;
 }
 
-void serialiseBlock(std::vector<uint8_t>& out, const Block &block){
+std::vector<uint8_t> serialiseBlock(const Block &block){
+	std::vector<uint8_t> serialisedTxs;
 	for (const Transaction& tx : block.transactions) {
-
+		std::vector<uint8_t> serialisedTx = serialiseTx(tx);
+		serialisedTxs.insert(serialisedTxs.end(), serialisedTx.begin(), serialisedTx.end());
 	}
 }

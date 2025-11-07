@@ -14,15 +14,15 @@ void sha256Of(array256_t& out, const void* data, const uint64_t& len);
 std::array<uint8_t, 8> putUint64Le(const uint64_t& value);
 
 // Serialise data
-void serialiseTxInput(std::array<uint8_t, 65>& out, const TxInput& txInput);
+std::array<uint8_t, 65> serialiseTxInput(const TxInput& txInput);
 
-void serialiseUTXO(std::array<uint8_t, 40> &out, const UTXO &Utxo);
+std::array<uint8_t, 40> serialiseUTXO(const UTXO &Utxo);
 
-void serialiseTxInput(std::array<uint8_t, 65> &out, const TxInput &txInput);
+std::array<uint8_t, 65> serialiseTxInput(const TxInput &txInput);
 
-void serialiseTx(std::vector<uint8_t> &out, const Transaction &tx);
+std::vector<uint8_t> serialiseTx(const Transaction &tx);
 
-void serialiseBlock(std::vector<uint8_t> &out, const Block &block);
+std::vector<uint8_t> serialiseBlock(const Block &block);
 
 
 
