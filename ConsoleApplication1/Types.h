@@ -11,7 +11,7 @@ struct UTXO {
 
 struct TxInput {
 	array256_t UTXOTxHash = {};
-	uint8_t UTXOOutputIndex = 0;
+	uint32_t UTXOOutputIndex = 0;
 	array256_t signature = {};
 };
 
@@ -28,4 +28,15 @@ struct Block {
 	array256_t difficulty = {};
 	array256_t nonce = {};
 	std::vector<Transaction> transactions;
+};
+
+struct TxData {
+	std::vector<uint8_t> data;
+	uint32_t TxInputs = 0;
+	uint32_t TxOutputs = 0;
+};
+
+struct BlockData {
+	std::vector<uint8_t> data;
+	uint32_t Transactions;
 };
