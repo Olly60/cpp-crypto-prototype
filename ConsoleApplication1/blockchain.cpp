@@ -1,6 +1,7 @@
 #include <sodium.h>
 #include "types.h"
 #include "utils.h"
+#include <filesystem>
 
 void addUTXO(){}
 void removeUTXO(){}
