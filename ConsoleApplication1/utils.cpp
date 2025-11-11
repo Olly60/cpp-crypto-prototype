@@ -96,3 +96,7 @@ std::vector<uint8_t> serialiseBlock(const Block &block){
 		serialisedTxs.insert(serialisedTxs.end(), serialisedTx.begin(), serialisedTx.end());
 	}
 }
+
+// Format data
+
+TxInput 

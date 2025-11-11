@@ -24,6 +24,7 @@ std::vector<uint8_t> serialiseTx(const Transaction &tx);
 
 std::vector<uint8_t> serialiseBlock(const Block &block);
 
+// Format data
 
 
 
