@@ -52,16 +52,16 @@ void sha256Of(const void* data, const uint64_t& len, array256_t& out) {
 // Serialise data
 std::array<uint8_t, 65> serialiseTxInput(const TxInput& txInput) {
 	std::array<uint8_t, 65> serialisedTxInput;
-	memcpy(serialisedTxInput.data(), txInput.UTXOTxHash.data(), 32);
-	memcpy(serialisedTxInput.data() + 32, putUint64Le(txInput.UTXOOutputIndex).data(), 1);
-	memcpy(serialisedTxInput.data() + 33, txInput.signature.data(), 32);
+	memcpy(serialisedTxInput.data(), txInput.UTXOTxHash.data(), txInput.UTXOTxHash.size());
+	memcpy(serialisedTxInput.data() + 32, reinterpret_cast<const uint8_t*>(&txInput.UTXOOutputIndex), sizeof(txInput.UTXOOutputIndex));
+	memcpy(serialisedTxInput.data() + 33, txInput.signature.data(), txInput.signature.size());
 	return serialisedTxInput;
 }
 
 std::array<uint8_t, 40> serialiseUTXO(const UTXO& Utxo){
 	std::array<uint8_t, 40> serialisedUTXO;
-	memcpy(serialisedUTXO.data() + 40, putUint64Le(Utxo.amount).data(), 8);
-	memcpy(serialisedUTXO.data() + 48, Utxo.recipient.data(), 32);
+	memcpy(serialisedUTXO.data() + 40, reinterpret_cast<const uint8_t*>(&Utxo.amount), sizeof(Utxo.amount));
+	memcpy(serialisedUTXO.data() + 48, Utxo.recipient.data(), Utxo.recipient.size());
 	return serialisedUTXO;
 }
 
@@ -75,30 +75,37 @@ void serialiseTx(const Transaction &tx, std::vector<uint8_t> &out){
 		serialisedInputs.insert(serialisedInputs.end(), serialisedInput.begin(), serialisedInput.end());
 	}
 	std::vector<uint8_t> serialisedOutputs;
-	uint32_t outputNum = 0;
+	uint32_t outputAmount = 0;
 	for (const UTXO& txOutput : tx.txOutputs) {
-		outputNum++;
+		outputAmount++;
 		std::array<uint8_t, 40> serialisedUTXO = serialiseUTXO(txOutput);
 		serialisedOutputs.insert(serialisedOutputs.end(), serialisedUTXO.begin(), serialisedUTXO.end());
 	}
-	serialisedTx.push_back(inputAmount)
+	serialisedTx.insert(serialisedTx.end(), reinterpret_cast<uint8_t*>(&inputAmount), reinterpret_cast<uint8_t*>(&inputAmount) + sizeof(inputAmount));
 	serialisedTx.insert(serialisedTx.begin(), serialisedInputs.begin(), serialisedInputs.end());
+	serialisedTx.insert(serialisedTx.end(), reinterpret_cast<uint8_t*>(&outputAmount), reinterpret_cast<uint8_t*>(&outputAmount) + sizeof(outputAmount));
 	serialisedTx.insert(serialisedTx.begin(), serialisedOutputs.begin(), serialisedOutputs.end());
 	out = serialisedTx;
 }
 
-void serialiseBlock(std::vector<uint8_t>& out, uint32_t &txCount, const Block &block){
+void serialiseBlock(std::vector<uint8_t>& out, const Block &block){
+	std::vector<uint8_t> serialisedBlock;
+	serialisedBlock.insert(serialisedBlock.end(), reinterpret_cast<const uint8_t*>(&block.version), reinterpret_cast<const uint8_t*>(&block.version) + sizeof(block.version));
+	serialisedBlock.insert(serialisedBlock.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
+	serialisedBlock.insert(serialisedBlock.end(), block.merkleRoot.begin(), block.merkleRoot.end());
+	serialisedBlock.insert(serialisedBlock.end(), reinterpret_cast<const uint8_t*>(&block.timestamp), reinterpret_cast<const uint8_t*>(&block.timestamp) + sizeof(block.timestamp));
+	serialisedBlock.insert(serialisedBlock.end(), block.difficulty.begin(), block.difficulty.end());
+	serialisedBlock.insert(serialisedBlock.end(), block.nonce.begin(), block.nonce.end());
 	std::vector<uint8_t> serialisedTxs;
-	uint32_t txNum;
-	uint32_t inputCount;
-	uint32_t outputCount;
+	uint32_t txAmount = 0;
 	std::vector<uint8_t> serialisedTx;
 	for (const Transaction& tx : block.transactions) {
-		txNum++;
-		serialiseTx(serialisedTx, inputCount, outputCount, tx);
+		txAmount++;
+		serialiseTx(tx, serialisedTx);
 		serialisedTxs.insert(serialisedTxs.end(), serialisedTx.begin(), serialisedTx.end());
 	}
-
+	serialisedBlock.insert(serialisedBlock.end(), reinterpret_cast<uint8_t*>(&txAmount), reinterpret_cast<uint8_t*>(&txAmount) + sizeof(txAmount));
+	serialisedBlock.insert(serialisedBlock.end(), serialisedTx.begin(), serialisedTx.end());
 }
 
 // Format data
