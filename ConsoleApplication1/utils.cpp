@@ -3,7 +3,7 @@
 #include <sodium.h>
 
 // Convert hexadecimal string to byte array
-void bytesFromHex(array256_t& out, const std::string& hex) {
+void bytesFromHex(const std::string& hex, array256_t& out) {
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
 		uint8_t low = toupper(hex[i + 1]);
@@ -24,7 +24,7 @@ void bytesFromHex(array256_t& out, const std::string& hex) {
 }
 
 // Convert byte array to hexadecimal string
-void hexFromBytes(std::string& out, const array256_t& bytes, const uint64_t& size) {
+void hexFromBytes(const array256_t& bytes, const uint64_t& size, std::string& out) {
 	out.clear();
 	out.resize(size * 2);
 	for (uint64_t i = 0; i < size; i++) {
@@ -45,15 +45,8 @@ void hexFromBytes(std::string& out, const array256_t& bytes, const uint64_t& siz
 }
 
 // SHA-256 Hashing
-void sha256Of(array256_t& out, const void* data, const uint64_t& len) {
+void sha256Of(const void* data, const uint64_t& len, array256_t& out) {
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
-}
-
-// Little-endian uint64_t to byte array
-std::array<uint8_t, 8> putUint64Le(const uint64_t& value) {
-	std::array<uint8_t, 8> buf;
-	for (uint8_t i = 0; i < 8; i++) buf[i] = (value >> (i * 8)) & 0xFF;
-	return buf;
 }
 
 // Serialise data
@@ -72,29 +65,40 @@ std::array<uint8_t, 40> serialiseUTXO(const UTXO& Utxo){
 	return serialisedUTXO;
 }
 
-std::vector<uint8_t> serialiseTx(const Transaction &tx){
+void serialiseTx(const Transaction &tx, std::vector<uint8_t> &out){
 	std::vector<uint8_t> serialisedTx;
 	std::vector<uint8_t> serialisedInputs;
+	uint32_t inputAmount = 0;
 	for (const TxInput& txInput : tx.txInputs) {
+		inputAmount++;
 		std::array<uint8_t, 65> serialisedInput = serialiseTxInput(txInput);
 		serialisedInputs.insert(serialisedInputs.end(), serialisedInput.begin(), serialisedInput.end());
 	}
 	std::vector<uint8_t> serialisedOutputs;
+	uint32_t outputNum = 0;
 	for (const UTXO& txOutput : tx.txOutputs) {
+		outputNum++;
 		std::array<uint8_t, 40> serialisedUTXO = serialiseUTXO(txOutput);
 		serialisedOutputs.insert(serialisedOutputs.end(), serialisedUTXO.begin(), serialisedUTXO.end());
 	}
+	serialisedTx.push_back(inputAmount)
 	serialisedTx.insert(serialisedTx.begin(), serialisedInputs.begin(), serialisedInputs.end());
 	serialisedTx.insert(serialisedTx.begin(), serialisedOutputs.begin(), serialisedOutputs.end());
-	return serialisedTx;
+	out = serialisedTx;
 }
 
-std::vector<uint8_t> serialiseBlock(const Block &block){
+void serialiseBlock(std::vector<uint8_t>& out, uint32_t &txCount, const Block &block){
 	std::vector<uint8_t> serialisedTxs;
+	uint32_t txNum;
+	uint32_t inputCount;
+	uint32_t outputCount;
+	std::vector<uint8_t> serialisedTx;
 	for (const Transaction& tx : block.transactions) {
-		std::vector<uint8_t> serialisedTx = serialiseTx(tx);
+		txNum++;
+		serialiseTx(serialisedTx, inputCount, outputCount, tx);
 		serialisedTxs.insert(serialisedTxs.end(), serialisedTx.begin(), serialisedTx.end());
 	}
+
 }
 
 // Format data

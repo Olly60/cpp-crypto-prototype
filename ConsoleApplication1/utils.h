@@ -20,11 +20,12 @@ std::array<uint8_t, 40> serialiseUTXO(const UTXO &Utxo);
 
 std::array<uint8_t, 65> serialiseTxInput(const TxInput &txInput);
 
-std::vector<uint8_t> serialiseTx(const Transaction &tx);
+void serialiseTx(std::vector<uint8_t>& out, uint32_t& inputCount, uint32_t& outputCount, const Transaction &tx);
 
-std::vector<uint8_t> serialiseBlock(const Block &block);
+void serialiseBlock(std::vector<uint8_t>& out, uint32_t& txCount, const Block &block);
 
 // Format data
+
 
 
 
