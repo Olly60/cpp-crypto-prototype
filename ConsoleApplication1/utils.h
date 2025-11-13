@@ -16,7 +16,7 @@ std::array<uint8_t, 8> putUint64Le(const uint64_t& value);
 // Serialise data
 std::array<uint8_t, 65> serialiseTxInput(const TxInput& txInput);
 
-std::array<uint8_t, 40> serialiseUTXO(const UTXO &Utxo);
+std::array<uint8_t, outputSize> serialiseUTXO(const UTXO &Utxo);
 
 std::array<uint8_t, 65> serialiseTxInput(const TxInput &txInput);
 

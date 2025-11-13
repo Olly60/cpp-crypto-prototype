@@ -50,18 +50,18 @@ void sha256Of(const void* data, const uint64_t& len, array256_t& out) {
 }
 
 // Serialise data
-std::array<uint8_t, 65> serialiseTxInput(const TxInput& txInput) {
-	std::array<uint8_t, 65> serialisedTxInput;
+std::array<uint8_t, inputSize> serialiseTxInput(const TxInput& txInput) {
+	std::array<uint8_t, inputSize> serialisedTxInput;
 	memcpy(serialisedTxInput.data(), txInput.UTXOTxHash.data(), txInput.UTXOTxHash.size());
-	memcpy(serialisedTxInput.data() + 32, reinterpret_cast<const uint8_t*>(&txInput.UTXOOutputIndex), sizeof(txInput.UTXOOutputIndex));
-	memcpy(serialisedTxInput.data() + 33, txInput.signature.data(), txInput.signature.size());
+	memcpy(serialisedTxInput.data() + txInput.UTXOTxHash.size(), reinterpret_cast<const uint8_t*>(&txInput.UTXOOutputIndex), sizeof(txInput.UTXOOutputIndex));
+	memcpy(serialisedTxInput.data() + txInput.UTXOTxHash.size() + sizeof(txInput.UTXOOutputIndex), txInput.signature.data(), txInput.signature.size());
 	return serialisedTxInput;
 }
 
-std::array<uint8_t, 40> serialiseUTXO(const UTXO& Utxo){
-	std::array<uint8_t, 40> serialisedUTXO;
-	memcpy(serialisedUTXO.data() + 40, reinterpret_cast<const uint8_t*>(&Utxo.amount), sizeof(Utxo.amount));
-	memcpy(serialisedUTXO.data() + 48, Utxo.recipient.data(), Utxo.recipient.size());
+std::array<uint8_t, outputSize> serialiseUTXO(const UTXO& Utxo){
+	std::array<uint8_t, outputSize> serialisedUTXO;
+	memcpy(serialisedUTXO.data(), reinterpret_cast<const uint8_t*>(&Utxo.amount), sizeof(Utxo.amount));
+	memcpy(serialisedUTXO.data() + sizeof(Utxo.amount), Utxo.recipient.data(), Utxo.recipient.size());
 	return serialisedUTXO;
 }
 
@@ -78,7 +78,7 @@ void serialiseTx(const Transaction &tx, std::vector<uint8_t> &out){
 	uint32_t outputAmount = 0;
 	for (const UTXO& txOutput : tx.txOutputs) {
 		outputAmount++;
-		std::array<uint8_t, 40> serialisedUTXO = serialiseUTXO(txOutput);
+		std::array<uint8_t, outputSize> serialisedUTXO = serialiseUTXO(txOutput);
 		serialisedOutputs.insert(serialisedOutputs.end(), serialisedUTXO.begin(), serialisedUTXO.end());
 	}
 	serialisedTx.insert(serialisedTx.end(), reinterpret_cast<uint8_t*>(&inputAmount), reinterpret_cast<uint8_t*>(&inputAmount) + sizeof(inputAmount));
@@ -110,18 +110,34 @@ void serialiseBlock(std::vector<uint8_t>& out, const Block &block){
 
 // Format data
 
-TxInput formatTxInput(const std::vector<uint8_t> txInput) {
-
+TxInput formatTxInput(const uint8_t* serialisedTxInput) {
+	TxInput txInput;
+	memcpy(txInput.UTXOTxHash.data(), serialisedTxInput, sizeof(array256_t));
+	memcpy(&txInput.UTXOOutputIndex, serialisedTxInput + sizeof(array256_t), sizeof(uint32_t));
+	memcpy(txInput.signature.data(), serialisedTxInput + sizeof(array256_t) + sizeof(uint32_t), sizeof(array256_t));
 }
 
-UTXO formatUTXO(const std::vector<uint8_t> Utxo) {
-
+UTXO formatUTXO(const uint8_t *serialisedUtxo) {
+	UTXO Utxo;
+	memcpy(&Utxo.amount, serialisedUtxo, sizeof(uint32_t));
+	memcpy(Utxo.recipient.data(), serialisedUtxo + 32, sizeof(array256_t));
 }
 
-void formatTransaction(const std::vector<uint8_t> tx, Transaction &out) {
-
+void formatTransaction(const uint8_t* serialisedTx, uint32_t size,Transaction &out) {
+	std::vector<TxInput> txInputs;
+	std::vector<UTXO> txOutputs;
+	uint32_t inputAmount;
+	uint32_t outputAmount;
+	memcpy(&inputAmount, serialisedTx, sizeof(uint32_t));
+	memcpy(&outputAmount, serialisedTx + sizeof(uint32_t) + (inputAmount * inputSize), sizeof(uint32_t));
+	for (uint32_t i = 0; i < inputAmount; i) {
+		txInputs.push_back(formatTxInput(serialisedTx + sizeof(uint32_t) + (i * inputSize)));
+	}
+	for (uint32_t i = 0; i < inputAmount; i) {
+		txOutputs.push_back(formatUTXO(serialisedTx + sizeof(uint32_t) + (inputAmount * inputSize) + sizeof(uint32_t) + (i * outputSize)));
+	}
 }
 
-void formatBlock(const std::vector<uint8_t> block, Block &out) {
+void formatBlock(const std::vector<uint8_t> &serialisedBlock, uint32_t size ,Block &out) {
 
 }
