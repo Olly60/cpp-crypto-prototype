@@ -123,7 +123,8 @@ UTXO formatUTXO(const uint8_t *serialisedUtxo) {
 	memcpy(Utxo.recipient.data(), serialisedUtxo + 32, sizeof(array256_t));
 }
 
-void formatTransaction(const uint8_t* serialisedTx, uint32_t size,Transaction &out) {
+void formatTransaction(const uint8_t* serialisedTx, uint32_t size, Transaction &out) {
+	Transaction tx;
 	std::vector<TxInput> txInputs;
 	std::vector<UTXO> txOutputs;
 	uint32_t inputAmount;
@@ -136,8 +137,11 @@ void formatTransaction(const uint8_t* serialisedTx, uint32_t size,Transaction &o
 	for (uint32_t i = 0; i < inputAmount; i) {
 		txOutputs.push_back(formatUTXO(serialisedTx + sizeof(uint32_t) + (inputAmount * inputSize) + sizeof(uint32_t) + (i * outputSize)));
 	}
+	tx.txInputs = txInputs;
+	tx.txOutputs = txOutputs;
+	out = tx;
 }
 
 void formatBlock(const std::vector<uint8_t> &serialisedBlock, uint32_t size ,Block &out) {
-
+	memcpy
 }
