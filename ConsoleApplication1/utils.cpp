@@ -110,4 +110,18 @@ void serialiseBlock(std::vector<uint8_t>& out, const Block &block){
 
 // Format data
 
-TxInput 
+TxInput formatTxInput(const std::vector<uint8_t> txInput) {
+
+}
+
+UTXO formatUTXO(const std::vector<uint8_t> Utxo) {
+
+}
+
+void formatTransaction(const std::vector<uint8_t> tx, Transaction &out) {
+
+}
+
+void formatBlock(const std::vector<uint8_t> block, Block &out) {
+
+}
