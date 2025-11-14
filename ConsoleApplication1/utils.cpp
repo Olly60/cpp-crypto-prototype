@@ -119,7 +119,6 @@ std::vector<uint8_t> serialiseBlock(Block &block) {
 }
 
 // Format data
-
 static TxInput formatTxInput(const uint8_t* serialisedTxInput) {
 	TxInput txInput;
 	memcpy(txInput.UTXOTxHash.data(), serialisedTxInput, sizeof(txInput.UTXOTxHash));
