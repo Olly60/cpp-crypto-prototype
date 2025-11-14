@@ -163,7 +163,7 @@ Block formatBlock(const uint8_t* serialisedBlock) {
 	Transaction tx;
 	for (uint32_t txIndex = 0; txIndex < txAmount; txIndex++) {
 		block.transactions.push_back(formatTransaction(serialisedBlock + offset));
-		offset += (sizeof(uint32_t) * 2) + *reinterpret_cast<const uint32_t*>(serialisedBlock + offset) + *reinterpret_cast<const uint32_t*>(serialisedBlock + offset + sizeof(uint32_t));
+		offset += (sizeof(uint32_t)*2) + *reinterpret_cast<const uint32_t*>(serialisedBlock + offset) + *reinterpret_cast<const uint32_t*>(serialisedBlock + offset + sizeof(uint32_t));
 	}
 	return block;
 }
