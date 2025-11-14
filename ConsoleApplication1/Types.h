@@ -31,14 +31,3 @@ struct Block {
 	array256_t nonce = {};
 	std::vector<Transaction> transactions;
 };
-
-struct TxData {
-	std::vector<uint8_t> data;
-	uint32_t TxInputs = 0;
-	uint32_t TxOutputs = 0;
-};
-
-struct BlockData {
-	std::vector<uint8_t> data;
-	uint32_t Transactions;
-};
