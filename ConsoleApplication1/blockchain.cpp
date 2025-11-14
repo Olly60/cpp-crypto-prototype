@@ -7,6 +7,7 @@ void addUTXO(){}
 void removeUTXO(){}
 
 bool processBlock(std::vector<uint8_t> serializedBlock) {
+	Block block = formatBlock("enter block here");
 	// Version 1 block verification
 	if (block.header.version == 1) {
 		
