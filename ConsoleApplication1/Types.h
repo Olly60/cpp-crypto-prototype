@@ -3,11 +3,8 @@
 #include <vector>
 #include <string>
 typedef std::array<uint8_t, 32> array256_t;
-#define inputSize 65
-#define outputSize 40
-#define inputAmountSize 4
-#define outputAmountSize 4
-#define txAmountSize 4
+constexpr uint8_t inputSize = 65;
+constexpr uint8_t outputSize = 40;
 
 struct UTXO {
 	uint64_t amount = 0;
