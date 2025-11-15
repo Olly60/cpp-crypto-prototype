@@ -123,12 +123,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="blockchain.cpp" />
+    <ClCompile Include="process_block.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="utils.cpp" />
+    <ClCompile Include="crypto_utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="blockchain.h" />
+    <ClInclude Include="process_block.h" />
+    <ClInclude Include="crypto_utils.h" />
     <ClInclude Include="types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

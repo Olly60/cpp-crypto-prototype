@@ -1,5 +1,5 @@
 #pragma once
-#include "utils.h"
+#include "crypto_utils.h"
 #include "types.h"
 #include <sodium.h>
 
