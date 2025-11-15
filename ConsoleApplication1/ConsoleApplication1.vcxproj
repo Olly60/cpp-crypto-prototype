@@ -130,7 +130,6 @@
   <ItemGroup>
     <ClInclude Include="blockchain.h" />
     <ClInclude Include="types.h" />
-    <ClInclude Include="utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
