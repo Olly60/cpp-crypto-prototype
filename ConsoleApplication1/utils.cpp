@@ -1,5 +1,6 @@
 #pragma once
 #include "utils.h"
+#include "types.h"
 #include <sodium.h>
 
 // Convert hexadecimal string to byte array
