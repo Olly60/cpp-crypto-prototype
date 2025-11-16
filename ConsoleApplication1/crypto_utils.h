@@ -4,7 +4,11 @@ array256_t bytesFromHex(const std::string& hex);
 
 std::string hexFromBytes(const array256_t& bytes, const uint64_t& len);
 
-array256_t sha256Of(const void* data, const uint64_t& len);
+array256_t sha256Of(const uint8_t* data, const uint64_t& len);
+
+std::array<uint8_t, 8> putLe(uint64_t in);
+
+std::array<uint8_t, 4> putLe(uint32_t in);
 
 std::vector<uint8_t> serialiseTxInput(const TxInput& in, uint64_t version);
 

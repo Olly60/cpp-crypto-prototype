@@ -51,32 +51,48 @@ std::string hexFromBytes(const array256_t& bytes, const uint64_t& len) {
 }
 
 // SHA-256 Hashing
-array256_t sha256Of(const void* data, const uint64_t& len) {
+array256_t sha256Of(const uint8_t* data, const uint64_t& len) {
 	array256_t out;
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
 	return out;
+}
+
+// Detect endianness at compile time
+constexpr bool isLittleEndian() {
+    const uint16_t x = 1;
+    return *reinterpret_cast<const uint8_t*>(&x) == 1;
+}
+
+// Make number little endian
+template <typename T>
+std::array<uint8_t, sizeof(T)> putLe(T in) {
+    std::array<uint8_t, sizeof(T)> out{};
+    for (uint64_t i = 0; i < sizeof(T); i++) {
+        out[i] = static_cast<uint8_t>(in >> (i * 8));
+    }
+    return out;
+}
+
+// Make number big endian
+template <typename T>
+static std::array<uint8_t, sizeof(T)> putBe(T in) {
+    std::array<uint8_t, sizeof(T)> out{};
+    for (size_t i = 0; i < sizeof(T); i++) {
+        out[sizeof(T) - 1 - i] = static_cast<uint8_t>(in >> (8 * i));
+    }
+    return out;
+}
+
+template <typename T>
+std::array<uint8_t, sizeof(T)> putNativeFromLe(T in) {
+    std::array<uint8_t, sizeof(T)> out{};
+    if constexpr (isLittleEndian()) return
 }
 
 // ============================================================================
 // v1 SERIALISERS + PARSERS
 // ============================================================================
 namespace v1 {
-    static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput);
-
-    static TxInput formatTxInput(const uint8_t* data);
-
-    static std::vector<uint8_t> serialiseUTXO(const UTXO& utxo);
-
-    static UTXO formatUTXO(const uint8_t* data);
-
-    static std::vector<uint8_t> serialiseTx(const Tx& tx);
-
-    static Tx formatTx(const uint8_t* data);
-
-    static std::vector<uint8_t> serialiseBlock(const Block& block);
-
-    static Block formatBlock(const uint8_t* data);
-
     // ----------------------------------------
     // TxInput
     // ----------------------------------------
@@ -87,7 +103,7 @@ namespace v1 {
             out.end() + txInput.UTXOTxHash.size(),
             reinterpret_cast<const uint8_t*>(&txInput.UTXOOutputIndex),
             reinterpret_cast<const uint8_t*>(&txInput.UTXOOutputIndex) + sizeof(txInput.UTXOOutputIndex)
-        );
+        ); 
         out.insert(
             out.end() + txInput.UTXOTxHash.size() + sizeof(txInput.UTXOOutputIndex),
             txInput.signature.begin(),

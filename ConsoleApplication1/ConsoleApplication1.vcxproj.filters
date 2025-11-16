@@ -18,7 +18,7 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="verify_block.cpp">
+    <ClCompile Include="crypto_process.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="crypto_utils.cpp">
