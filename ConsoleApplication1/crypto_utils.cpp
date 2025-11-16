@@ -4,7 +4,6 @@
 #include <stdexcept>
 #include <sodium.h>
 
-// Hexadecimal string to byte array
 array256_t bytesFromHex(const std::string& hex) {
 	array256_t out;
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
@@ -27,7 +26,6 @@ array256_t bytesFromHex(const std::string& hex) {
 	return out;
 }
 
-// Byte array to hexadecimal string
 std::string hexFromBytes(const array256_t& bytes, const uint64_t& len) {
 	std::string out;
 	out.clear();
@@ -50,7 +48,6 @@ std::string hexFromBytes(const array256_t& bytes, const uint64_t& len) {
 	return out;
 }
 
-// SHA-256 Hashing
 array256_t sha256Of(const uint8_t* data, const uint64_t& len) {
 	array256_t out;
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
@@ -63,34 +60,32 @@ constexpr bool isLittleEndian() {
     return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
-// Make number big endian
+// Format number to native from little endian
 template <typename T>
-static std::array<uint8_t, sizeof(T)> putBe(const T &in) {
-    std::array<uint8_t, sizeof(T)> out{};
-    for (size_t i = 0; i < sizeof(T); i++) {
-        out[(sizeof(T) - 1) - i] = static_cast<uint8_t>(in >> (8 * i));
-    }
-    return out;
-}
-
-// Make number native from little endian
-template <typename T>
-std::array<uint8_t, sizeof(T)> FormatNumber(const T &in) {
+T formatNumber(const uint8_t* in) {
     if constexpr (isLittleEndian()) {
-        std::array<uint8_t, sizeof(T)> out{};
-        memcpy(out.data(), in, sizeof(T))
-        return out;
+        // Copy raw bytes directly into value for little-endian systems
+        T value;
+        memcpy(&value, in, sizeof(T));
+        return value;
     }
     else {
-        return putBe(in)
+        // Convert little-endian bytes to big-endian/native
+        T out = 0;
+        for (size_t i = 0; i < sizeof(T); i++) {
+            uint8_t byte = in[i];  // byte i from the pointer
+            out |= static_cast<T>(byte) << (8 * (sizeof(T) - 1 - i));
+        }
+        return out;
     }
 }
+
 
 // Serialise number to little endian
 template <typename T>
 std::array<uint8_t, sizeof(T)> serialiseNumber(const T &in) {
     std::array<uint8_t, sizeof(T)> out{};
-    for (uint64_t i = 0; i < sizeof(T); i++) {
+    for (size_t i = 0; i < sizeof(T); i++) {
         out[i] = static_cast<uint8_t>(in >> (i * 8));
     }
     return out;
@@ -104,21 +99,18 @@ namespace v1 {
     // TxInput
     // ----------------------------------------
     static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
-		std::vector<uint8_t> out;
+        std::vector<uint8_t> out;
         out.insert(out.end(), txInput.UTXOTxHash.begin(), txInput.UTXOTxHash.end());
-        std::array<uint8_t, sizeof(txInput.UTXOOutputIndex)> serializedIndex = serialiseNumber(txInput.UTXOOutputIndex);
-        out.insert(out.end() + sizeof(txInput.UTXOTxHash), serializedIndex.begin(), serializedIndex.end()); 
-        out.insert(out.end() + sizeof(txInput.signature) + sizeof(txInput.UTXOOutputIndex),txInput.signature.begin(),txInput.signature.end());
+        auto serializedIndex = serialiseNumber<decltype(txInput.UTXOOutputIndex)>(txInput.UTXOOutputIndex);
+        out.insert(out.end(), serializedIndex.begin(), serializedIndex.end());
+        out.insert(out.end(), txInput.signature.begin(), txInput.signature.end());
         return out;
-	}
+    }
 
     static TxInput formatTxInput(const uint8_t* data) {
         TxInput txInput;
         memcpy(txInput.UTXOTxHash.data(), data, sizeof(txInput.UTXOTxHash)); 
-        std::array<uint8_t, sizeof(txInput.UTXOOutputIndex)> FormattedIndex = reinterpret_cast<decltype(txInput.UTXOOutputIndex)>(data + sizeof(txInput.UTXOTxHash));
-        memcpy(indexBytes.data(), data + sizeof(txInput.UTXOTxHash), sizeof(txInput.UTXOOutputIndex));
-        
-        memcpy(&txInput.UTXOOutputIndex, data + sizeof(txInput.UTXOTxHash), sizeof(txInput.UTXOOutputIndex));
+        txInput.UTXOOutputIndex = formatNumber<decltype(txInput.UTXOOutputIndex)>(data + sizeof(txInput.UTXOTxHash));
         memcpy(txInput.signature.data(), data + sizeof(txInput.UTXOOutputIndex) + sizeof(txInput.UTXOTxHash), sizeof(txInput.signature));
         return txInput;
     }
@@ -128,17 +120,15 @@ namespace v1 {
     // ----------------------------------------
     static std::vector<uint8_t> serialiseUTXO(const UTXO& utxo) {
         std::vector<uint8_t> out;
-        out.insert(out.end(),
-            reinterpret_cast<const uint8_t*>(&utxo.amount),
-            reinterpret_cast<const uint8_t*>(&utxo.amount) + sizeof(utxo.amount)
-        );
-        out.insert(out.end() + sizeof(utxo.amount), utxo.recipient.begin(), utxo.recipient.end());
+        auto serializedAmount = serialiseNumber(utxo.amount);
+        out.insert(out.end(), serializedAmount.begin(), serializedAmount.end());
+        out.insert(out.end(), utxo.recipient.begin(), utxo.recipient.end());
         return out;
     }
 
     static UTXO formatUTXO(const uint8_t* data) {
         UTXO utxo;
-        memcpy(&utxo.amount, data, sizeof(utxo.amount));
+        utxo.amount = formatNumber<decltype(utxo.amount)>(data);
         memcpy(utxo.recipient.data(), data + sizeof(utxo.amount), sizeof(utxo.recipient));
         return utxo;
     }
@@ -150,30 +140,22 @@ namespace v1 {
         std::vector<uint8_t> out;
         std::vector<uint8_t> inputs;
         std::vector<uint8_t> outputs;
-
         uint32_t inputCount = 0;
         for (const TxInput& in : tx.txInputs) {
             inputCount++;
             auto v = serialiseTxInput(in);
             inputs.insert(inputs.end(), v.begin(), v.end());
         }
-
         uint32_t outputCount = 0;
         for (const UTXO& utxo : tx.txOutputs) {
             outputCount++;
             auto v = serialiseUTXO(utxo);
             outputs.insert(outputs.end(), v.begin(), v.end());
         }
-
-        out.insert(out.end(),
-            reinterpret_cast<uint8_t*>(&inputCount),
-            reinterpret_cast<uint8_t*>(&inputCount) + sizeof(inputCount)
-        );
-        out.insert(out.end(),
-            reinterpret_cast<uint8_t*>(&outputCount),
-            reinterpret_cast<uint8_t*>(&outputCount) + sizeof(outputCount)
-        );
-
+        auto serialisedinputAmount = serialiseNumber(inputCount);
+        out.insert(out.end(), serialisedinputAmount.begin(), serialisedinputAmount.end());
+        auto serialisedoutputAmount = serialiseNumber(outputCount);
+        out.insert(out.end(),serialisedoutputAmount.begin(), serialisedoutputAmount.end());
         out.insert(out.end(), inputs.begin(), inputs.end());
         out.insert(out.end(), outputs.begin(), outputs.end());
 
@@ -228,9 +210,9 @@ namespace v1 {
         std::vector<uint8_t> txBytes;
         uint32_t txCount = 0;
 
-        for (const Tx& t : block.transactions) {
+        for (const Tx& tx : block.transactions) {
             txCount++;
-            auto v = serialiseTx(t);
+            std::vector<uint8_t> v = serialiseTx(tx);
             txBytes.insert(txBytes.end(), v.begin(), v.end());
         }
 
