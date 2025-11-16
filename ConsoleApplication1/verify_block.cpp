@@ -8,18 +8,11 @@ void removeUTXO(){}
 bool processBlock(std::vector<uint8_t> serializedBlock) {
 	Block block = formatBlock(serializedBlock.data());
 	// Version 1 block verification
-	if (block.header.version == 1) {
+	if (block.version == 1) {
 		
 		// Calculate block hash
 		array256_t blockHash;
-		std::array<uint8_t, 96> serializedHeader;
-		memcpy(serializedHeader.data(), putUint64Le(block.header.version).data(), 8);
-		memcpy(serializedHeader.data() + 8, block.header.previousBlockHash.data(), 32);
-		memcpy(serializedHeader.data() + 40, block.header.merkleRoot.data(), 32);
-		memcpy(serializedHeader.data() + 72, putUint64Le(block.header.timestamp).data(), 8);
-		memcpy(serializedHeader.data() + 80, putUint64Le(block.header.difficulty).data(), 8);
-		memcpy(serializedHeader.data() + 88, putUint64Le(block.header.nonce).data(), 8);
-		sha256Of(blockHash, serializedHeader.data(), serializedHeader.size());
+
 
 		// Verify block header
 		// Already in chain
@@ -42,7 +35,7 @@ bool processBlock(std::vector<uint8_t> serializedBlock) {
 		bool isCoinbaseTx = true;
 		array256_t txHash;
 		std::vector<uint8_t> merkleLeaves;
-		for (const Transaction& tx : block.transactions) {
+		for (const Tx& tx : block.transactions) {
 
 			hashTransaction(txHash, tx);
 			merkleLeaves.insert(merkleLeaves.end(), txHash.begin(), txHash.end());
@@ -118,7 +111,7 @@ bool processBlock(std::vector<uint8_t> serializedBlock) {
 		blockChain[blockHash] = block;
 
 		// Remove used UTXOs
-		for (const Transaction& tx : block.transactions) {
+		for (const Tx& tx : block.transactions) {
 			for (TxInputSigned txInputSigned : tx.txInputs) {
 				UTXOKey key;
 				key.txHash = txInputSigned.txInput.prevTxHash;
@@ -128,7 +121,7 @@ bool processBlock(std::vector<uint8_t> serializedBlock) {
 		}
 
 		// Process transactions
-		for (const Transaction& tx : block.transactions) {
+		for (const Tx& tx : block.transactions) {
 			hashTransaction(txHash, tx);
 
 			// Remove used input UTXO

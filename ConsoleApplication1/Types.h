@@ -17,7 +17,7 @@ struct TxInput {
 	array256_t signature = {};
 };
 
-struct Transaction {
+struct Tx {
 	std::vector<TxInput> txInputs;
 	std::vector<UTXO> txOutputs;
 };
@@ -29,5 +29,5 @@ struct Block {
 	uint64_t timestamp;
 	array256_t difficulty = {};
 	array256_t nonce = {};
-	std::vector<Transaction> transactions;
+	std::vector<Tx> transactions;
 };
