@@ -63,19 +63,9 @@ constexpr bool isLittleEndian() {
     return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
-// Make number little endian
-template <typename T>
-std::array<uint8_t, sizeof(T)> putLe(T in) {
-    std::array<uint8_t, sizeof(T)> out{};
-    for (uint64_t i = 0; i < sizeof(T); i++) {
-        out[i] = static_cast<uint8_t>(in >> (i * 8));
-    }
-    return out;
-}
-
 // Make number big endian
 template <typename T>
-static std::array<uint8_t, sizeof(T)> putBe(T in) {
+static std::array<uint8_t, sizeof(T)> putBe(const T &in) {
     std::array<uint8_t, sizeof(T)> out{};
     for (size_t i = 0; i < sizeof(T); i++) {
         out[(sizeof(T) - 1) - i] = static_cast<uint8_t>(in >> (8 * i));
@@ -83,10 +73,27 @@ static std::array<uint8_t, sizeof(T)> putBe(T in) {
     return out;
 }
 
+// Make number native from little endian
 template <typename T>
-std::array<uint8_t, sizeof(T)> putNativeFromLe(T in) {
+std::array<uint8_t, sizeof(T)> FormatNumber(const T &in) {
+    if constexpr (isLittleEndian()) {
+        std::array<uint8_t, sizeof(T)> out{};
+        memcpy(out.data(), in, sizeof(T))
+        return out;
+    }
+    else {
+        return putBe(in)
+    }
+}
+
+// Serialise number to little endian
+template <typename T>
+std::array<uint8_t, sizeof(T)> serialiseNumber(const T &in) {
     std::array<uint8_t, sizeof(T)> out{};
-    if constexpr (isLittleEndian()) return
+    for (uint64_t i = 0; i < sizeof(T); i++) {
+        out[i] = static_cast<uint8_t>(in >> (i * 8));
+    }
+    return out;
 }
 
 // ============================================================================
@@ -97,24 +104,20 @@ namespace v1 {
     // TxInput
     // ----------------------------------------
     static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
-        std::vector<uint8_t> out;
+		std::vector<uint8_t> out;
         out.insert(out.end(), txInput.UTXOTxHash.begin(), txInput.UTXOTxHash.end());
-        out.insert(
-            out.end() + txInput.UTXOTxHash.size(),
-            reinterpret_cast<const uint8_t*>(&txInput.UTXOOutputIndex),
-            reinterpret_cast<const uint8_t*>(&txInput.UTXOOutputIndex) + sizeof(txInput.UTXOOutputIndex)
-        ); 
-        out.insert(
-            out.end() + txInput.UTXOTxHash.size() + sizeof(txInput.UTXOOutputIndex),
-            txInput.signature.begin(),
-            txInput.signature.end()
-        );
+        std::array<uint8_t, sizeof(txInput.UTXOOutputIndex)> serializedIndex = serialiseNumber(txInput.UTXOOutputIndex);
+        out.insert(out.end() + sizeof(txInput.UTXOTxHash), serializedIndex.begin(), serializedIndex.end()); 
+        out.insert(out.end() + sizeof(txInput.signature) + sizeof(txInput.UTXOOutputIndex),txInput.signature.begin(),txInput.signature.end());
         return out;
-    }
+	}
 
     static TxInput formatTxInput(const uint8_t* data) {
         TxInput txInput;
-        memcpy(txInput.UTXOTxHash.data(), data, sizeof(txInput.UTXOTxHash));
+        memcpy(txInput.UTXOTxHash.data(), data, sizeof(txInput.UTXOTxHash)); 
+        std::array<uint8_t, sizeof(txInput.UTXOOutputIndex)> FormattedIndex = reinterpret_cast<decltype(txInput.UTXOOutputIndex)>(data + sizeof(txInput.UTXOTxHash));
+        memcpy(indexBytes.data(), data + sizeof(txInput.UTXOTxHash), sizeof(txInput.UTXOOutputIndex));
+        
         memcpy(&txInput.UTXOOutputIndex, data + sizeof(txInput.UTXOTxHash), sizeof(txInput.UTXOOutputIndex));
         memcpy(txInput.signature.data(), data + sizeof(txInput.UTXOOutputIndex) + sizeof(txInput.UTXOTxHash), sizeof(txInput.signature));
         return txInput;
@@ -136,7 +139,7 @@ namespace v1 {
     static UTXO formatUTXO(const uint8_t* data) {
         UTXO utxo;
         memcpy(&utxo.amount, data, sizeof(utxo.amount));
-        memcpy(utxo.recipient.data(), data + 32, sizeof(utxo.recipient));
+        memcpy(utxo.recipient.data(), data + sizeof(utxo.amount), sizeof(utxo.recipient));
         return utxo;
     }
 
