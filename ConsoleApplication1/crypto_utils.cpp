@@ -61,6 +61,21 @@ array256_t sha256Of(const void* data, const uint64_t& len) {
 // v1 SERIALISERS + PARSERS
 // ============================================================================
 namespace v1 {
+    static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput);
+
+    static TxInput formatTxInput(const uint8_t* data);
+
+    static std::vector<uint8_t> serialiseUTXO(const UTXO& utxo);
+
+    static UTXO formatUTXO(const uint8_t* data);
+
+    static std::vector<uint8_t> serialiseTx(const Tx& tx);
+
+    static Tx formatTx(const uint8_t* data);
+
+    static std::vector<uint8_t> serialiseBlock(const Block& block);
+
+    static Block formatBlock(const uint8_t* data);
 
     // ----------------------------------------
     // TxInput
