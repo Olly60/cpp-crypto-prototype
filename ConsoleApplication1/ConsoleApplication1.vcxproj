@@ -123,6 +123,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="network.cpp" />
+    <ClCompile Include="storage.cpp" />
     <ClCompile Include="verify_block.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="crypto_utils.cpp" />
