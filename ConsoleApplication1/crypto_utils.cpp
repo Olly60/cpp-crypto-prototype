@@ -302,27 +302,3 @@ Block formatBlock(const uint8_t* data) {
     default: throw std::runtime_error("Unsupported Block version");
     }
 }
-
-
-// Block hash
-static array256_t blockHashV1(const Block &block) {
-	std::vector<uint8_t> serialisedBlock;
-	serialisedBlock.insert(serialisedBlock.end(), reinterpret_cast<const uint8_t*>(&block.version), reinterpret_cast<const uint8_t*>(&block.version) + sizeof(block.version));
-	serialisedBlock.insert(serialisedBlock.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
-	serialisedBlock.insert(serialisedBlock.end(), block.merkleRoot.begin(), block.merkleRoot.end());
-	serialisedBlock.insert(serialisedBlock.end(), reinterpret_cast<const uint8_t*>(&block.timestamp), reinterpret_cast<const uint8_t*>(&block.timestamp) + sizeof(block.timestamp));
-	serialisedBlock.insert(serialisedBlock.end(), block.difficulty.begin(), block.difficulty.end());
-	serialisedBlock.insert(serialisedBlock.end(), block.nonce.begin(), block.nonce.end());
-	return sha256Of(serialisedBlock.data(), serialisedBlock.size());
-}
-
-array256_t blockHash(const Block &block) {
-	uint64_t version = block.version;
-	switch (version) {
-	case 1:
-		return blockHashV1(block);
-		break;
-	}
-}
-
-// MerkleRoot
