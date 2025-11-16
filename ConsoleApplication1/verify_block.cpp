@@ -1,19 +1,15 @@
 #include <sodium.h>
 #include "types.h"
-#include "utils.h"
-#include <fstream>
+#include "crypto_utils.h"
 
 void addUTXO(){}
 void removeUTXO(){}
 
 bool processBlock(std::vector<uint8_t> serializedBlock) {
-	Block block = formatBlock("enter block here");
+	Block block = formatBlock(serializedBlock.data());
 	// Version 1 block verification
 	if (block.header.version == 1) {
 		
-		std::ifstream blockchainFile("blockchain", std::ios::out);
-		std::fstream UTXOFile("UTXOs", std::ios::out)
-
 		// Calculate block hash
 		array256_t blockHash;
 		std::array<uint8_t, 96> serializedHeader;

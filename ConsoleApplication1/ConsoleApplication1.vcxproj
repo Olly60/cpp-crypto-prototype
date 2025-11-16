@@ -123,12 +123,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="process_block.cpp" />
+    <ClCompile Include="verify_block.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="crypto_utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="process_block.h" />
+    <ClInclude Include="verify_block.h" />
     <ClInclude Include="crypto_utils.h" />
     <ClInclude Include="types.h" />
   </ItemGroup>

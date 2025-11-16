@@ -18,7 +18,7 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="process_block.cpp">
+    <ClCompile Include="verify_block.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="crypto_utils.cpp">
@@ -29,7 +29,7 @@
     <ClInclude Include="types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="process_block.h">
+    <ClInclude Include="verify_block.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="crypto_utils.h">
