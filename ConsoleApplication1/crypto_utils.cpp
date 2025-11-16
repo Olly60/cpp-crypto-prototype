@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <sodium.h>
 
-// Convert hexadecimal string to byte array
+// Hexadecimal string to byte array
 array256_t bytesFromHex(const std::string& hex) {
 	array256_t out;
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
@@ -27,7 +27,7 @@ array256_t bytesFromHex(const std::string& hex) {
 	return out;
 }
 
-// Convert byte array to hexadecimal string
+// Byte array to hexadecimal string
 std::string hexFromBytes(const array256_t& bytes, const uint64_t& len) {
 	std::string out;
 	out.clear();
