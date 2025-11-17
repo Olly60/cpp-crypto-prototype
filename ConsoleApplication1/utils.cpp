@@ -158,9 +158,9 @@ namespace v1 {
 		}
 		auto serialisedinputAmount = serialiseNumber(inputCount);
 		out.insert(out.end(), serialisedinputAmount.begin(), serialisedinputAmount.end());
+		out.insert(out.end(), inputs.begin(), inputs.end());
 		auto serialisedoutputAmount = serialiseNumber(outputCount);
 		out.insert(out.end(), serialisedoutputAmount.begin(), serialisedoutputAmount.end());
-		out.insert(out.end(), inputs.begin(), inputs.end());
 		out.insert(out.end(), outputs.begin(), outputs.end());
 
 		return out;
@@ -169,7 +169,7 @@ namespace v1 {
 	static Tx formatTx(const uint8_t* data) {
 		Tx tx;
 		const uint32_t inputCount = formatNumber<uint32_t>(data);
-		const uint32_t outputCount = formatNumber<uint32_t>(data + sizeof(inputCount));
+		const uint32_t outputCount = formatNumber<uint32_t>(data + (inputCount * inputSize));
 		for (uint32_t i = 0; i < inputCount; i++) {
 			tx.txInputs.push_back(
 				formatTxInput(data + sizeof(inputCount) + i * inputSize)
