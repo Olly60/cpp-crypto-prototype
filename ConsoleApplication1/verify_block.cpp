@@ -5,8 +5,7 @@
 
 
 namespace v1 {
-		static bool verifyBlock(std::vector<uint8_t> serializedBlock) {
-		Block block = formatBlock(serializedBlock.data());
+		static bool verifyBlock(Block block) {
 		// Calculate block hash
 		array256_t blockHash;
 
@@ -161,8 +160,9 @@ namespace v1 {
 }
 	
 bool verifyBlock(std::vector<uint8_t> serializedBlock) {
+	Block block = formatBlock(serializedBlock.data());
 	switch (formatNumber<uint64_t>(serializedBlock.data())) {
-	case 1: return v1::verifyBlock(serializedBlock);
+	case 1: return v1::verifyBlock(block);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
 }
