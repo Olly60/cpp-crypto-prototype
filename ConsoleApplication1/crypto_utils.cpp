@@ -75,7 +75,8 @@ T formatNumber(const uint8_t* in) {
 		// Reverse bytes for big-endian CPUs
 		T out{};
 		for (size_t i = 0; i < sizeof(T); i++) {
-			out |= static_cast<T>(static_cast<T>(in[i]) << (8 * (sizeof(T) - 1 - i)));
+			T byte = (value >> (8 * i)) & 0xFF;
+			out |= (byte << (8 * (sizeof(T) - 1 - i)));
 		}
 		return out;
 	}
