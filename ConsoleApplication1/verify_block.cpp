@@ -1,6 +1,6 @@
 #include <sodium.h>
 #include "types.h"
-#include "crypto_utils.h"
+#include "utils.h"
 #include <stdexcept>
 
 

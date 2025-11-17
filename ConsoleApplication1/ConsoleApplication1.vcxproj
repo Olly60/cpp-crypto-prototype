@@ -127,12 +127,11 @@
     <ClCompile Include="network.cpp" />
     <ClCompile Include="storage.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="crypto_utils.cpp" />
+    <ClCompile Include="utils.cpp" />
     <ClCompile Include="verify_block.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="verify_block.h" />
-    <ClInclude Include="crypto_utils.h" />
+    <ClInclude Include="utils.h" />
     <ClInclude Include="types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

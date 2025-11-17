@@ -1,18 +1,18 @@
 ﻿#include <filesystem>
 #include <fstream>
 #include "types.h"
+#include "utils.h"
 
 namespace fs = std::filesystem;
 
-namespace v1 {
 
-    fs::path findOrMakeFile(const fs::path& baseDir, uintmax_t limitBytes, std::string &fileName) {
+static fs::path findOrMakeFile(const fs::path& baseDir, uintmax_t limitBytes) {
         // Ensure the directory exists
         fs::create_directories(baseDir);
         for (uint64_t i = 0;; i++) {
             // Build file path: baseDir/block<i>.dat
             std::ostringstream name;
-            name << fileName << std::to_string(i) << ".dat";
+            name << i << ".dat";
             fs::path p = baseDir / name.str();
             // If file doesn't exist → this is the new one
             if (!fs::exists(p)) return p;
@@ -26,24 +26,17 @@ namespace v1 {
         }
     }
 
+namespace v1 {
 	static void addUXTO()
 	{
 		fs::create_directories("chain/blocks");
 	}
-	static void addBlock() {
-		fs::create_directories("chain/blocks");
-		fs:create_file
-		bool findValidBlockFile();
-		while (smallEnough) {
-			std::error_code ec;
-			uintmax_t size = fs::file_size(p, ec);
-			if (ec) {
-				smallEnough = false; // file missing or unreadable
-			}
+	static void addBlock(Block block) {
+        std::ofstream file(findOrMakeFile("chain/blocks", 128000000), std::iostream::binary | std::iostream::app);
 
-			const uintmax_t limit = 128000000; // 128 million bytes
+        uint64_t blockAmount = formatNumber<uint64_t>(std::getline(file, "e"));
+		
 
-			smallEnough = size <= limit;
-		}
+		
 	}
 }
