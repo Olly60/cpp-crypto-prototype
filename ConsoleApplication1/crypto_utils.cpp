@@ -56,23 +56,26 @@ array256_t sha256Of(const uint8_t* data, const uint64_t& len) {
 
 // Detect endianness at compile time
 static constexpr bool isLittleEndian() {
-	const uint16_t x = 1;
+	constexpr uint16_t x = 1;
 	return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
 // Format number to native from little endian
 template <typename T>
-static T formatNumber(const uint8_t* in) {
+T formatNumber(const uint8_t* in) {
+	T value{};
+
+	// First copy raw bytes into the value (safe for alignment)
+	std::memcpy(&value, in, sizeof(T));
+
 	if constexpr (isLittleEndian()) {
-		// Copy raw bytes directly into value for little-endian systems
-		return *reinterpret_cast<T>(in);
+		return value; // Already correct
 	}
 	else {
-		// Convert little-endian bytes to big-endian/native
-		T out = 0;
+		// Reverse bytes for big-endian CPUs
+		T out{};
 		for (size_t i = 0; i < sizeof(T); i++) {
-			uint8_t byte = in[i];  // byte i from the pointer
-			out |= static_cast<T>(byte) << (8 * (sizeof(T) - 1 - i));
+			out |= static_cast<T>(static_cast<T>(in[i]) << (8 * (sizeof(T) - 1 - i)));
 		}
 		return out;
 	}
@@ -81,7 +84,7 @@ static T formatNumber(const uint8_t* in) {
 
 // Serialise number to little endian
 template <typename T>
-static std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in) {
+std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in) {
 	std::array<uint8_t, sizeof(T)> out{};
 	for (size_t i = 0; i < sizeof(T); i++) {
 		out[i] = static_cast<uint8_t>(in >> (i * 8));
@@ -93,6 +96,14 @@ static std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in) {
 // v1 SERIALISERS + PARSERS
 // ============================================================================
 namespace v1 {
+	static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput);
+	static TxInput formatTxInput(const uint8_t* data);
+	static std::vector<uint8_t> serialiseUTXO(const UTXO& utxo);
+	static UTXO formatUTXO(const uint8_t* data);
+	static std::vector<uint8_t> serialiseTx(const Tx& tx);
+	static Tx formatTx(const uint8_t* data);
+	static std::vector<uint8_t> serialiseBlock(const Block& block);
+	static Block formatBlock(const uint8_t* data);
 	static constexpr uint8_t inputSize = 65;
 	static constexpr uint8_t outputSize = 40;
 	// ----------------------------------------
@@ -288,8 +299,7 @@ Tx formatTx(const uint8_t* data, uint64_t version) {
 }
 
 Block formatBlock(const uint8_t* data) {
-	uint64_t version = *reinterpret_cast<const uint64_t*>(data);
-	switch (version) {
+	switch (formatNumber<uint64_t>(data)) {
 	case 1: return v1::formatBlock(data);
 	default: throw std::runtime_error("Unsupported Block version");
 	}

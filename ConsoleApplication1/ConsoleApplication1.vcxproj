@@ -125,9 +125,9 @@
   <ItemGroup>
     <ClCompile Include="network.cpp" />
     <ClCompile Include="storage.cpp" />
-    <ClCompile Include="crypto_process.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="crypto_utils.cpp" />
+    <ClCompile Include="verify_block.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="verify_block.h" />
