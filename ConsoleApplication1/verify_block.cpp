@@ -159,9 +159,8 @@ namespace v1 {
 	return false;
 }
 	
-bool verifyBlock(std::vector<uint8_t> serializedBlock) {
-	Block block = formatBlock(serializedBlock.data());
-	switch (formatNumber<uint64_t>(serializedBlock.data())) {
+bool verifyBlock(Block block) {
+	switch (block.version) {
 	case 1: return v1::verifyBlock(block);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
