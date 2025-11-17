@@ -3,18 +3,16 @@
 #include <vector>
 #include <string>
 typedef std::array<uint8_t, 32> array256_t;
-constexpr uint8_t inputSize = 65;
-constexpr uint8_t outputSize = 40;
 
 struct UTXO {
-	uint64_t amount = 0;
-	array256_t recipient = {};
+	uint64_t amount{0};
+	array256_t recipient{};
 };
 
 struct TxInput {
-	array256_t UTXOTxHash = {};
-	uint32_t UTXOOutputIndex = 0;
-	array256_t signature = {};
+	array256_t UTXOTxHash{};
+	uint32_t UTXOOutputIndex{0};
+	array256_t signature{};
 };
 
 struct Tx {
@@ -23,11 +21,11 @@ struct Tx {
 };
 
 struct Block {
-	uint64_t version = 1;
-	array256_t previousBlockHash = {};
-	array256_t merkleRoot = {};
-	uint64_t timestamp;
-	array256_t difficulty = {};
-	array256_t nonce = {};
+	uint64_t version{1};
+	array256_t previousBlockHash{};
+	array256_t merkleRoot{};
+	uint64_t timestamp{};
+	array256_t difficulty{};
+	array256_t nonce{};
 	std::vector<Tx> transactions;
 };

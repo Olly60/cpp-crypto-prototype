@@ -95,6 +95,8 @@ std::array<uint8_t, sizeof(T)> serialiseNumber(const T &in) {
 // v1 SERIALISERS + PARSERS
 // ============================================================================
 namespace v1 {
+    static constexpr uint8_t inputSize = 65;
+    static constexpr uint8_t outputSize = 40;
     // ----------------------------------------
     // TxInput
     // ----------------------------------------
@@ -164,16 +166,13 @@ namespace v1 {
 
     static Tx formatTx(const uint8_t* data) {
         Tx tx;
-
         const uint32_t inputCount = *reinterpret_cast<const uint32_t*>(data);
         const uint32_t outputCount = *reinterpret_cast<const uint32_t*>(data + sizeof(inputCount));
-
         for (uint32_t i = 0; i < inputCount; i++) {
             tx.txInputs.push_back(
                 formatTxInput(data + sizeof(inputCount) + i * inputSize)
             );
         }
-
         for (uint32_t i = 0; i < outputCount; i++) {
             tx.txOutputs.push_back(
                 formatUTXO(
@@ -182,9 +181,8 @@ namespace v1 {
                     + inputCount * inputSize
                     + i * outputSize
                 )
-            );
+			);
         }
-
         return tx;
     }
 
@@ -193,9 +191,9 @@ namespace v1 {
     // ----------------------------------------
     static std::vector<uint8_t> serialiseBlock(const Block& block) {
         std::vector<uint8_t> out;
-
+        auto serializedVersion = serialiseNumber(block.version);
         out.insert(out.end(),
-            reinterpret_cast<const uint8_t*>(&block.version),
+            serializedVersion.begin(),
             reinterpret_cast<const uint8_t*>(&block.version) + sizeof(block.version)
         );
         out.insert(out.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
