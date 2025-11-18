@@ -1,83 +1,49 @@
 ﻿#include <filesystem>
 #include <fstream>
+#include <leveldb/db.h>
 #include "types.h"
 #include "utils.h"
 
 namespace fs = std::filesystem;
 
-static fs::path findOrMakeFile(const fs::path& baseDir) {
-    fs::create_directories(baseDir);
+static array256_t getLatestBlockHash() {
+    std::filesystem::create_directories("chain");
+    array256_t latestBlockHash{};
+    std::fstream tipFile("chain/tip", std::ios::binary);
+    tipFile.read(reinterpret_cast<char*>(latestBlockHash.data()), sizeof(array256_t));
+    tipFile.close();
+    return latestBlockHash;
+}
 
-    uint64_t maxIndex = 0;
+static fs::path getLatestAvailableFile() {
 
-    for (const auto& entry : fs::directory_iterator(baseDir)) {
-        std::vector<uint8_t> readBuf;
+        leveldb::DB* db;
+        leveldb::Options options;
+        options.create_if_missing = true;
 
-        if (!entry.is_regular_file()) continue;
+        leveldb::DB::Open(options, "chain/index", &db);
+        std::filesystem::create_directories("chain/index");
+        array256_t latestBlockFile{};
 
-        std::ifstream file(entry.path(), std::ios::binary);
-        if (!file) continue;
-
-        // File version
-        uint64_t fileVersion;
-        readBuf.resize(sizeof(fileVersion));
-        file.read(reinterpret_cast<char*>(readBuf.data()), sizeof(fileVersion));
-        if (!file) continue;
-        fileVersion = formatNumber<uint64_t>(reinterpret_cast<uint8_t*>(readBuf.data()));
+        for (auto &file: fs::directory_iterator("chain/index"))
+            std::fstream indexFile("chain/index", std::ios::binary | std::ios::ate);
 
 
-        // File Index
-        uint64_t fileIndex{};
-        readBuf.resize(sizeof(fileIndex));
-        file.read(reinterpret_cast<char*>(readBuf.data()), sizeof(fileIndex));
-        if (!file) continue;
-        fileIndex = formatNumber<uint64_t>(reinterpret_cast<uint8_t*>(fileIndex));
 
-        // Update max index
-        if (fileIndex >= maxIndex) maxIndex = fileIndex + 1;
+        std::streamsize indexFileSize = indexFile.tellg();
+        indexFile.seekg(indexFileSize - 32 - 64, std::ios::beg);
 
-        // Check file size
-        std::error_code ec;
-        uintmax_t size = fs::file_size(entry.path(), ec);
-        if (ec) continue;
-
-        // Apply version-specific rules
-        switch (fileVersion) {
-        case 1:
-            if (size <= 128000000) { // 128 MB limit for version 1
-                return entry.path();
-            }
-            break;
-        default:
-            continue; // unsupported versions cannot be reused
-        }
-    }
-
-    // No reusable file found → create new
-    std::ostringstream name;
-    name << maxIndex << ".dat";
-    fs::path newFile = baseDir / name.str();
-
-    std::ofstream out(newFile, std::ios::binary);
-
-    // Write file version (1)
-    auto versionBytes = serialiseNumber<uint64_t>(1);
-    out.write(reinterpret_cast<char*>(versionBytes.data()), versionBytes.size());
-
-    // Write file index
-    auto indexBytes = serialiseNumber<uint64_t>(maxIndex);
-    out.write(reinterpret_cast<char*>(indexBytes.data()), indexBytes.size());
-
-    out.close();
-
-    return newFile;
+        array256_t latestBlockHash = indexFile.read(latestBlockFile, 32);
+        indexFile.close();
+        
+    return ;
 }
 
 namespace v1 {
 
     static void addBlock(const std::vector<uint8_t> &blockBytes) {
         std::vector<uint8_t> readBuf;
-        std::fstream file(findOrMakeFile("chain/blocks", 128000000), std::fstream::binary | std::fstream::app | std::fstream::in);
+        std::fstream file(getLatestAvailableFile("chain/blocks", 128000000), std::fstream::binary | std::fstream::app | std::fstream::in);
 
         // Block amount
         uint64_t blockAmount{};
@@ -99,7 +65,7 @@ namespace v1 {
 }
 
 void addBlock(const std::vector<uint8_t> &blockBytes) {
-    std::fstream file(findOrMakeFile("chain/blocks", 128000000), std::fstream::binary | std::fstream::app | std::fstream::in);
+    std::fstream file(getLatestAvailableFile("chain/blocks"), std::fstream::binary | std::fstream::app | std::fstream::in);
     // File version
     uint64_t fileVersion{};
     std::vector<uint8_t> readBuf;
