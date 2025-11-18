@@ -27,15 +27,23 @@ static fs::path findOrMakeFile(const fs::path& baseDir, uintmax_t limitBytes) {
     }
 
 namespace v1 {
-	static void addUXTO()
+	static void addUXTO(UTXO &utxo)
 	{
 		fs::create_directories("chain/blocks");
 	}
-	static void addBlock(Block block) {
-        std::ofstream file(findOrMakeFile("chain/blocks", 128000000), std::iostream::binary | std::iostream::app);
+    static void addBlock(const Block& block) {
+        std::fstream file(findOrMakeFile("chain/blocks", 128000000), std::fstream::binary | std::fstream::app | std::fstream::in);
 
-        uint64_t blockAmount = formatNumber<uint64_t>(std::getline(file, "e"));
-		
+        std::vector<uint8_t> buf;
+
+        uint64_t blockAmount{};
+        buf.resize(sizeof(uint64_t));
+        file.read(reinterpret_cast<char*>(buf.data()), sizeof(uint64_t));
+        blockAmount = formatNumber<uint64_t>(buf.data());
+
+        for (uint64_t i = 0; i < blockAmount; i++) {
+
+        }
 
 		
 	}

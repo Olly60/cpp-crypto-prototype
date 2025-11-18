@@ -169,7 +169,7 @@ namespace v1 {
 	static Tx formatTx(const uint8_t* data) {
 		Tx tx;
 		const uint32_t inputCount = formatNumber<uint32_t>(data);
-		const uint32_t outputCount = formatNumber<uint32_t>(data + (inputCount * inputSize));
+		const uint32_t outputCount = formatNumber<uint32_t>(data + sizeof(inputCount) + (inputCount * inputSize));
 		for (uint32_t i = 0; i < inputCount; i++) {
 			tx.txInputs.push_back(
 				formatTxInput(data + sizeof(inputCount) + i * inputSize)

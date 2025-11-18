@@ -15,7 +15,6 @@ array256_t sha256Of(const uint8_t* data, const uint64_t& len);
 template <typename T>
 T formatNumber(const uint8_t* in);
 
-
 // Serialise number to little endian
 template <typename T>
 std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in);
