@@ -5,6 +5,7 @@
 #include <sodium.h>
 
 array256_t bytesFromHex(const std::string& hex) {
+	if (hex.size() % 2 == 0) return;
 	array256_t out;
 	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
 		uint8_t high = toupper(hex[i]);
@@ -111,11 +112,11 @@ namespace v1 {
 		return out;
 	}
 
-	static TxInput formatTxInput(const uint8_t* data) {
+	static TxInput formatTxInput(const uint8_t* txInputBytes) {
 		TxInput txInput;
-		memcpy(txInput.UTXOTxHash.data(), data, sizeof(txInput.UTXOTxHash));
-		txInput.UTXOOutputIndex = formatNumber<decltype(txInput.UTXOOutputIndex)>(data + sizeof(txInput.UTXOTxHash));
-		memcpy(txInput.signature.data(), data + sizeof(txInput.UTXOOutputIndex) + sizeof(txInput.UTXOTxHash), sizeof(txInput.signature));
+		memcpy(txInput.UTXOTxHash.data(), txInputBytes, sizeof(txInput.UTXOTxHash));
+		txInput.UTXOOutputIndex = formatNumber<decltype(txInput.UTXOOutputIndex)>(txInputBytes + sizeof(txInput.UTXOTxHash));
+		memcpy(txInput.signature.data(), txInputBytes + sizeof(txInput.UTXOOutputIndex) + sizeof(txInput.UTXOTxHash), sizeof(txInput.signature));
 		return txInput;
 	}
 
@@ -130,10 +131,10 @@ namespace v1 {
 		return out;
 	}
 
-	static UTXO formatUTXO(const uint8_t* data) {
+	static UTXO formatUTXO(const uint8_t* utxoBytes) {
 		UTXO utxo;
-		utxo.amount = formatNumber<decltype(utxo.amount)>(data);
-		memcpy(utxo.recipient.data(), data + sizeof(utxo.amount), sizeof(utxo.recipient));
+		utxo.amount = formatNumber<decltype(utxo.amount)>(utxoBytes);
+		memcpy(utxo.recipient.data(), utxoBytes + sizeof(utxo.amount), sizeof(utxo.recipient));
 		return utxo;
 	}
 
@@ -156,29 +157,29 @@ namespace v1 {
 			auto v = serialiseUTXO(utxo);
 			outputs.insert(outputs.end(), v.begin(), v.end());
 		}
-		auto serialisedinputAmount = serialiseNumber(inputCount);
-		out.insert(out.end(), serialisedinputAmount.begin(), serialisedinputAmount.end());
+		auto inputAmountData = serialiseNumber(inputCount);
+		out.insert(out.end(), inputAmountData.begin(), inputAmountData.end());
 		out.insert(out.end(), inputs.begin(), inputs.end());
-		auto serialisedoutputAmount = serialiseNumber(outputCount);
-		out.insert(out.end(), serialisedoutputAmount.begin(), serialisedoutputAmount.end());
+		auto outputAmountData = serialiseNumber(outputCount);
+		out.insert(out.end(), outputAmountData.begin(), outputAmountData.end());
 		out.insert(out.end(), outputs.begin(), outputs.end());
 
 		return out;
 	}
 
-	static Tx formatTx(const uint8_t* data) {
+	static Tx formatTx(const uint8_t* txBytes) {
 		Tx tx;
-		const uint32_t inputCount = formatNumber<uint32_t>(data);
-		const uint32_t outputCount = formatNumber<uint32_t>(data + sizeof(inputCount) + (inputCount * inputSize));
+		const uint32_t inputCount = formatNumber<uint32_t>(txBytes);
+		const uint32_t outputCount = formatNumber<uint32_t>(txBytes + sizeof(inputCount) + (inputCount * inputSize));
 		for (uint32_t i = 0; i < inputCount; i++) {
 			tx.txInputs.push_back(
-				formatTxInput(data + sizeof(inputCount) + i * inputSize)
+				formatTxInput(txBytes + sizeof(inputCount) + i * inputSize)
 			);
 		}
 		for (uint32_t i = 0; i < outputCount; i++) {
 			tx.txOutputs.push_back(
 				formatUTXO(
-					data + sizeof(inputCount)
+					txBytes + sizeof(inputCount)
 					+ sizeof(outputCount)
 					+ inputCount * inputSize
 					+ i * outputSize
@@ -193,12 +194,12 @@ namespace v1 {
 	// ----------------------------------------
 	static std::vector<uint8_t> serialiseBlock(const Block& block) {
 		std::vector<uint8_t> out;
-		auto serializedVersion = serialiseNumber(block.version);
-		out.insert(out.end(),serializedVersion.begin(),serializedVersion.end());
+		auto versionBytes = serialiseNumber(block.version);
+		out.insert(out.end(),versionBytes.begin(),versionBytes.end());
 		out.insert(out.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
 		out.insert(out.end(), block.merkleRoot.begin(), block.merkleRoot.end());
-		auto serialisedTimestamp = serialiseNumber(block.timestamp);
-		out.insert(out.end(),serialisedTimestamp.begin(),serialisedTimestamp.end());
+		auto timestampBytes = serialiseNumber(block.timestamp);
+		out.insert(out.end(),timestampBytes.begin(),timestampBytes.end());
 		out.insert(out.end(), block.difficulty.begin(), block.difficulty.end());
 		out.insert(out.end(), block.nonce.begin(), block.nonce.end());
 
@@ -210,41 +211,41 @@ namespace v1 {
 			std::vector<uint8_t> v = serialiseTx(tx);
 			txBytes.insert(txBytes.end(), v.begin(), v.end());
 		}
-		auto serialisedTxAmount = serialiseNumber(txCount);
-		out.insert(out.end(),serialisedTxAmount.begin(),serialisedTxAmount.end());
+		auto txAmountBytes = serialiseNumber(txCount);
+		out.insert(out.end(),txAmountBytes.begin(),txAmountBytes.end());
 		out.insert(out.end(), txBytes.begin(), txBytes.end());
 		return out;
 	}
 
-	static Block formatBlock(const uint8_t* data) {
+	static Block formatBlock(const uint8_t* blockBytes) {
 		Block block;
 		uint64_t offset = 0;
-		block.version = formatNumber<decltype(block.version)>(data);
+		block.version = formatNumber<decltype(block.version)>(blockBytes);
 		offset += sizeof(block.version);
-		memcpy(block.previousBlockHash.data(), data + offset, sizeof(block.previousBlockHash));
+		memcpy(block.previousBlockHash.data(), blockBytes + offset, sizeof(block.previousBlockHash));
 		offset += sizeof(block.previousBlockHash);
-		memcpy(block.merkleRoot.data(), data + offset, sizeof(block.merkleRoot));
+		memcpy(block.merkleRoot.data(), blockBytes + offset, sizeof(block.merkleRoot));
 		offset += sizeof(block.merkleRoot);
-		block.timestamp = formatNumber<decltype(block.timestamp)>(data + offset);
+		block.timestamp = formatNumber<decltype(block.timestamp)>(blockBytes + offset);
 		offset += sizeof(block.timestamp);
-		memcpy(block.difficulty.data(), data + offset, sizeof(block.difficulty));
+		memcpy(block.difficulty.data(), blockBytes + offset, sizeof(block.difficulty));
 		offset += sizeof(block.difficulty);
-		memcpy(block.nonce.data(), data + offset, sizeof(block.nonce));
+		memcpy(block.nonce.data(), blockBytes + offset, sizeof(block.nonce));
 		offset += sizeof(block.nonce);
-		const uint32_t txCount = formatNumber<uint32_t>(data + offset);
+		const uint32_t txCount = formatNumber<uint32_t>(blockBytes + offset);
 		offset += sizeof(txCount);
 		for (uint32_t i = 0; i < txCount; i++) {
-			block.transactions.push_back(formatTx(data + offset));
-			offset += (sizeof(uint32_t) * 2) + formatNumber<uint32_t>(data + offset) + formatNumber<uint32_t>(data + offset + sizeof(uint32_t));
+			block.transactions.push_back(formatTx(blockBytes + offset));
+			offset += (sizeof(uint32_t) * 2) + formatNumber<uint32_t>(blockBytes + offset) + formatNumber<uint32_t>(blockBytes + offset + sizeof(uint32_t));
 		}
 		return block;
 	}
 
 } // namespace v1
 
-std::vector<uint8_t> serialiseTxInput(const TxInput& in, uint64_t version) {
+std::vector<uint8_t> serialiseTxInput(const TxInput& txInput, uint64_t version) {
 	switch (version) {
-	case 1: return v1::serialiseTxInput(in);
+	case 1: return v1::serialiseTxInput(txInput);
 	default: throw std::runtime_error("Unsupported TxInput version");
 	}
 }
@@ -270,30 +271,30 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 	}
 }
 
-TxInput formatTxInput(const uint8_t* data, uint64_t version) {
+TxInput formatTxInput(const uint8_t* txInputBytes, uint64_t version) {
 	switch (version) {
-	case 1: return v1::formatTxInput(data);
+	case 1: return v1::formatTxInput(txInputBytes);
 	default: throw std::runtime_error("Unsupported TxInput version");
 	}
 }
 
-UTXO formatUTXO(const uint8_t* data, uint64_t version) {
+UTXO formatUTXO(const uint8_t* utxoBytes, uint64_t version) {
 	switch (version) {
-	case 1: return v1::formatUTXO(data);
+	case 1: return v1::formatUTXO(utxoBytes);
 	default: throw std::runtime_error("Unsupported UTXO version");
 	}
 }
 
-Tx formatTx(const uint8_t* data, uint64_t version) {
+Tx formatTx(const uint8_t* txBytes, uint64_t version) {
 	switch (version) {
-	case 1: return v1::formatTx(data);
+	case 1: return v1::formatTx(txBytes);
 	default: throw std::runtime_error("Unsupported Tx version");
 	}
 }
 
-Block formatBlock(const uint8_t* data) {
-	switch (formatNumber<uint64_t>(data)) {
-	case 1: return v1::formatBlock(data);
+Block formatBlock(const uint8_t* blockBytes) {
+	switch (formatNumber<uint64_t>(blockBytes)) {
+	case 1: return v1::formatBlock(blockBytes);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
 }
