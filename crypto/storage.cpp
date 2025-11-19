@@ -9,6 +9,7 @@ namespace fs = std::filesystem;
 struct BlockPos {
     uint64_t file{};
     uint64_t offset{};
+    uint64_t size{};
 };
 
 static array256_t getLatestBlockHash() {
@@ -30,7 +31,7 @@ static void setLatestBlockHash(const array256_t& blockHash) {
 static BlockPos getBlock(const array256_t &blockHash) {
         std::filesystem::create_directories("chain/index");
         leveldb::Slice key(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
-        leveldb::DB* db;
+        leveldb::DB* db = nullptr;
         leveldb::Options options;
         options.create_if_missing = true;
 
@@ -45,24 +46,35 @@ static BlockPos getBlock(const array256_t &blockHash) {
         if (db->Get(leveldb::ReadOptions(), key, &value).ok()) {
             blockPos.file = formatNumber<decltype(blockPos.file)>(reinterpret_cast<const uint8_t*>(value.data()));
             blockPos.offset = formatNumber<decltype(blockPos.offset)>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file)));
+            blockPos.size = formatNumber<decltype(blockPos.size)>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file) + sizeof(blockPos.offset)));
             return blockPos;
         } else { throw std::runtime_error("Corrupted value for block hash"); }
            
            
 }
 
-db->Delete(leveldb::WriteOptions(), "blockhash123"); // Delete key
+static void addBlock(const uint8_t* blockBytes) {
 
-static void addBlock(const std::vector<uint8_t> &blockBytes) {
-    uint64_t version{ 1 };
-    array256_t previousBlockHash{};
-    array256_t merkleRoot{};
-    uint64_t timestamp{};
-    array256_t difficulty{};
-    array256_t nonce{};
-        leveldb::Slice key(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
+
+
+
+
+    array256_t blockHash = getBlockHash(blockBytes);
+    leveldb::Slice key(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
+    std::filesystem::create_directories("chain/index");
+    leveldb::DB* db = nullptr;
+    leveldb::Options options;
+    options.create_if_missing = true;
+
+    std::unique_ptr<leveldb::DB> lifeDb(db);
+
+    leveldb::DB::Open(options, "chain/index", &db);
+
         // Put key-value
-        db->Put(leveldb::WriteOptions(), leveldb::Slice("hello123", 12), "");
+    if (db->Put(leveldb::WriteOptions(), leveldb::Slice("hello123", 12), "").ok()) {
+
+    }
+    else { throw std::runtime_error("Corrupted value for block hash"); };
 
 
 		

@@ -268,7 +268,7 @@ namespace v1 {
 		return block;
 	}
 
-	static array256_t getHashBlock(const uint8_t* blockBytes) {
+	static array256_t getBlockHash(const uint8_t* blockBytes) {
 		return sha256Of(blockBytes, blockHeaderSize);
 	}
 } // namespace v1
@@ -288,9 +288,9 @@ Block formatBlock(const uint8_t* blockBytes) {
 }
 
 // Block hash from header
-array256_t hashBlock(const uint8_t* blockBytes) {
+array256_t getBlockHash(const uint8_t* blockBytes) {
 	switch (formatNumber<uint64_t>(blockBytes)) {
-	case 1: return v1::getHashBlock(blockBytes);
+	case 1: return v1::getBlockHash(blockBytes);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
 }
