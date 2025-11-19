@@ -9,7 +9,7 @@
 namespace fs = std::filesystem;
 
 struct BlockPos {
-    fs::path blockPath;
+    uint64_t file{};
     uint64_t offset{};
 };
 
@@ -22,8 +22,9 @@ static array256_t getLatestBlockHash() {
     return latestBlockHash;
 }
 
-static BlockPos getBlock(array256_t blockHash) {
+static BlockPos getBlock(const array256_t &blockHash) {
         std::filesystem::create_directories("chain/index");
+        leveldb::Slice stringBlockHash(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
         leveldb::DB* db;
         leveldb::Options options;
         options.create_if_missing = true;
@@ -31,14 +32,15 @@ static BlockPos getBlock(array256_t blockHash) {
         leveldb::DB::Open(options, "chain/index", &db);
 
         // Put key-value
-        db->Put(leveldb::WriteOptions(), "blockhash123", "file=0;offset=1024;size=512");
+        
+        db->Put(leveldb::WriteOptions(), leveldb::Slice("hello123", 12), "file=0;offset=1024");
 
         // Get key-value
         std::string value;
-        if (db->Get(leveldb::ReadOptions(), "blockhash123", &value).ok()) {
+        if (db->Get(leveldb::ReadOptions(), leveldb::Slice(stringBlockHash), &value).ok()) {
             std::cout << "Value: " << value << "\n";
         }
-        new int(10) x;
+        
         // Delete key
         db->Delete(leveldb::WriteOptions(), "blockhash123");
         
