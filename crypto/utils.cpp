@@ -6,53 +6,47 @@
 #include <span>
 
 array256_t bytesFromHex(const std::string& hex) {
-	if (hex.size() % 2 == 0) return;
-	array256_t out;
-	for (uint64_t i = 0; i < hex.size(); i = i + 2) {
-		uint8_t high = toupper(hex[i]);
-		uint8_t low = toupper(hex[i + 1]);
-		if (high >= '0' && high <= '9') {
-			high = high - '0';
-		}
-		else if (high >= 'A' && high <= 'F') {
-			high = (high - 'A') + 10;
-		}
-		if (low >= '0' && low <= '9') {
-			low = low - '0';
-		}
-		else if (low >= 'A' && low <= 'F') {
-			low = (low - 'A') + 10;
-		}
-		out[i / 2] = (high << 4) | low;
+	if (hex.size() != array256_t{}.size() * 2) {
+		throw std::runtime_error("bytesFromHex: invalid hex string length");
 	}
+
+	array256_t out{};
+	auto hexCharToNibble = [](char c) -> uint8_t {
+		c = toupper(c);
+		if (c >= '0' && c <= '9') return c - '0';
+		if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+		throw std::runtime_error("bytesFromHex: invalid hex character");
+		};
+
+	for (size_t i = 0; i < out.size(); ++i) {
+		uint8_t high = hexCharToNibble(hex[i * 2]);
+		uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
+		out[i] = (high << 4) | low;
+	}
+
 	return out;
 }
 
-std::string hexFromBytes(const array256_t& bytes, const size_t& len) {
+std::string hexFromBytes(const array256_t& bytes) {
+	static const char hexChars[] = "0123456789ABCDEF";
 	std::string out;
-	out.clear();
-	out.resize(len * 2);
-	for (uint64_t i = 0; i < len; i++) {
-		uint8_t high = bytes[i] >> 4;
-		uint8_t low = bytes[i] & 0x0F;
+	out.resize(bytes.size() * 2);
 
-		if (high >= 0 && high <= 9) {
-			high += '0';
-		}
-		else if (high >= 10) high += ('A' - 10);
-		if (low >= 0 && low <= 9) {
-			low += '0';
-		}
-		else if (low >= 10) low += ('A' - 10);
-		out[i * 2] = high;
-		out[(i * 2) + 1] = low;
+	for (size_t i = 0; i < bytes.size(); i++) {
+		uint8_t b = bytes[i];
+		out[i * 2] = hexChars[b >> 4];  // high nibble
+		out[i * 2 + 1] = hexChars[b & 0x0F]; // low nibble
 	}
+
 	return out;
 }
 
-array256_t sha256Of(const uint8_t* data, const size_t& len) {
+
+
+
+array256_t sha256Of(std::span<const uint8_t> data) {
 	array256_t out;
-	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
+	crypto_hash_sha256(out.data(), data.data(), data.size());
 	return out;
 }
 
@@ -63,45 +57,32 @@ static constexpr bool isLittleEndian() {
 }
 
 
-// Fomat number to native endianness
 template <typename T>
-T formatNumber(const uint8_t* in) {
-	// Create a value of type T and initialize to zero
+T formatNumber(std::span<const uint8_t> in) {
+	if (in.size() < sizeof(T)) {
+		throw std::runtime_error("formatNumber: not enough bytes in input span");
+	}
+
 	T value{};
+	std::memcpy(&value, in.data(), sizeof(T));
 
-	// Copy raw bytes from the input pointer into the value
-	// This is safe even if the input is unaligned
-	std::memcpy(&value, in, sizeof(T));
-
-	// Check if the CPU is little-endian at compile time
 	if constexpr (isLittleEndian()) {
-		// If the CPU is little-endian, the byte order matches the input
-		// so we can just return the value directly
 		return value;
 	}
 	else {
-		// For big-endian CPUs, we need to reverse the byte order
-		T out{}; // Initialize output value
-
-		// Loop over each byte of the original value
+		T out{};
 		for (size_t i = 0; i < sizeof(T); ++i) {
-			// Extract the i-th byte from 'value'
-			// (0 = least significant byte)
 			T byte = (value >> (8 * i)) & 0xFF;
-
-			// Place the extracted byte into the mirrored position in 'out'
-			// sizeof(T) - 1 - i → flips the byte order:
-			//   LSB moves to MSB, MSB moves to LSB
 			out |= (byte << (8 * (sizeof(T) - 1 - i)));
 		}
-
-		// Return the correctly reordered number
 		return out;
 	}
 }
 
+
 // Serialise number to little endian
 template <typename T>
+requires std::is_integral_v<T>
 std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in) {
 	// Create an array of bytes with the same size as the input type
 	// '{}' ensures all bytes are initialized to 0
@@ -133,10 +114,15 @@ namespace v1 {
 	// ----------------------------------------
 	static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
 		std::vector<uint8_t> out;
-		out.insert(out.end(), txInput.UTXOTxHash.begin(), txInput.UTXOTxHash.end());
-		auto serializedIndex = serialiseNumber<decltype(txInput.UTXOOutputIndex)>(txInput.UTXOOutputIndex);
-		out.insert(out.end(), serializedIndex.begin(), serializedIndex.end());
-		out.insert(out.end(), txInput.signature.begin(), txInput.signature.end());
+
+		auto append = [&](auto&& data) {
+			out.insert(out.end(), data.begin(), data.end());
+			};
+
+		append(txInput.UTXOTxHash);
+		append(serialiseNumber(txInput.UTXOOutputIndex));
+		append(txInput.signature);
+
 		return out;
 	}
 
@@ -172,9 +158,14 @@ namespace v1 {
 	// ----------------------------------------
 	static std::vector<uint8_t> serialiseUTXO(const UTXO& utxo) {
 		std::vector<uint8_t> out;
-		auto serializedAmount = serialiseNumber(utxo.amount);
-		out.insert(out.end(), serializedAmount.begin(), serializedAmount.end());
-		out.insert(out.end(), utxo.recipient.begin(), utxo.recipient.end());
+
+		auto append = [&](auto&& data) {
+			out.insert(out.end(), data.begin(), data.end());
+			};
+
+		append(serialiseNumber(utxo.amount));
+		append(utxo.recipient);
+
 		return out;
 	}
 
@@ -206,51 +197,32 @@ namespace v1 {
 	// ----------------------------------------
 	static std::vector<uint8_t> serialiseTx(const Tx& tx) {
 		std::vector<uint8_t> out;
-		std::vector<uint8_t> inputs;
-		std::vector<uint8_t> outputs;
-		uint32_t inputCount = 0;
-		for (const TxInput& in : tx.txInputs) {
-			inputCount++;
-			auto v = serialiseTxInput(in);
-			inputs.insert(inputs.end(), v.begin(), v.end());
+
+		auto append = [&](auto&& data) {
+			out.insert(out.end(), data.begin(), data.end());
+			};
+
+		// Transaction input count
+		uint32_t inputCount = static_cast<uint32_t>(tx.txInputs.size());
+		append(serialiseNumber(inputCount));
+
+		// Serialize each input
+		for (const auto& in : tx.txInputs) {
+			append(serialiseTxInput(in));
 		}
-		uint32_t outputCount = 0;
-		for (const UTXO& utxo : tx.txOutputs) {
-			outputCount++;
-			auto v = serialiseUTXO(utxo);
-			outputs.insert(outputs.end(), v.begin(), v.end());
+
+		// Transaction output count
+		uint32_t outputCount = static_cast<uint32_t>(tx.txOutputs.size());
+		append(serialiseNumber(outputCount));
+
+		// Serialize each output
+		for (const auto& outTx : tx.txOutputs) {
+			append(serialiseUTXO(outTx));
 		}
-		auto inputAmountData = serialiseNumber(inputCount);
-		out.insert(out.end(), inputAmountData.begin(), inputAmountData.end());
-		out.insert(out.end(), inputs.begin(), inputs.end());
-		auto outputAmountData = serialiseNumber(outputCount);
-		out.insert(out.end(), outputAmountData.begin(), outputAmountData.end());
-		out.insert(out.end(), outputs.begin(), outputs.end());
 
 		return out;
 	}
 
-	static Tx formatTx(const uint8_t* txBytes) {
-		Tx tx;
-		const uint32_t inputCount = formatNumber<uint32_t>(txBytes);
-		const uint32_t outputCount = formatNumber<uint32_t>(txBytes + sizeof(inputCount) + (inputCount * inputSize));
-		for (uint32_t i = 0; i < inputCount; i++) {
-			tx.txInputs.push_back(
-				formatTxInput(txBytes + sizeof(inputCount) + i * inputSize)
-			);
-		}
-		for (uint32_t i = 0; i < outputCount; i++) {
-			tx.txOutputs.push_back(
-				formatUTXO(
-					txBytes + sizeof(inputCount)
-					+ sizeof(outputCount)
-					+ inputCount * inputSize
-					+ i * outputSize
-				)
-			);
-		}
-		return tx;
-	}
 
 	static Tx formatTx(std::span<const uint8_t> txBytes) {
 		Tx tx;
@@ -292,28 +264,30 @@ namespace v1 {
 
 	static std::vector<uint8_t> serialiseBlock(const Block& block) {
 		std::vector<uint8_t> out;
-		auto versionBytes = serialiseNumber(block.version);
-		out.insert(out.end(), versionBytes.begin(), versionBytes.end());
-		out.insert(out.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
-		out.insert(out.end(), block.merkleRoot.begin(), block.merkleRoot.end());
-		auto timestampBytes = serialiseNumber(block.timestamp);
-		out.insert(out.end(), timestampBytes.begin(), timestampBytes.end());
-		out.insert(out.end(), block.difficulty.begin(), block.difficulty.end());
-		out.insert(out.end(), block.nonce.begin(), block.nonce.end());
 
-		std::vector<uint8_t> txBytes;
-		uint32_t txCount = 0;
+		auto append = [&](auto&& data) {
+			out.insert(out.end(), data.begin(), data.end());
+			};
 
-		for (const Tx& tx : block.transactions) {
-			txCount++;
-			std::vector<uint8_t> v = serialiseTx(tx);
-			txBytes.insert(txBytes.end(), v.begin(), v.end());
+		append(serialiseNumber(block.version));
+		append(block.previousBlockHash);
+		append(block.merkleRoot);
+		append(serialiseNumber(block.timestamp));
+		append(block.difficulty);
+		append(block.nonce);
+
+		// Transaction count
+		uint32_t txCount = static_cast<uint32_t>(block.transactions.size());
+		append(serialiseNumber(txCount));
+
+		// Serialize each transaction
+		for (const auto& tx : block.transactions) {
+			append(serialiseTx(tx));
 		}
-		auto txAmountBytes = serialiseNumber(txCount);
-		out.insert(out.end(), txAmountBytes.begin(), txAmountBytes.end());
-		out.insert(out.end(), txBytes.begin(), txBytes.end());
+
 		return out;
 	}
+
 
 	static Block formatBlock(std::span<const uint8_t> bytes) {
 		Block block;
@@ -387,7 +361,7 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 	}
 }
 
-Block formatBlock(const std::vector<uint8_t>& blockBytes) {
+Block formatBlock(std::span<const uint8_t> & blockBytes) {
 	switch (formatNumber<uint64_t>(blockBytes.data())) {
 	case 1: return v1::formatBlock(blockBytes);
 	default: throw std::runtime_error("Unsupported Block version");
