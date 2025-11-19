@@ -16,15 +16,20 @@ struct BlockPos {
 static array256_t getLatestBlockHash() {
     std::filesystem::create_directories("chain");
     array256_t latestBlockHash{};
-    std::fstream tipFile("chain/tip", std::ios::binary);
-    tipFile.read(reinterpret_cast<char*>(latestBlockHash.data()), sizeof(array256_t));
-    tipFile.close();
+    std::fstream tipFile("chain/tip", std::ios::in | std::ios::binary);
+    tipFile.read(reinterpret_cast<char*>(latestBlockHash.data()), latestBlockHash.size());
     return latestBlockHash;
+}
+
+static void setLatestBlockHash(const array256_t& blockHash) {
+    std::filesystem::create_directories("chain");
+    std::fstream tipFile("chain/tip", std::ios::trunc);
+    tipFile.write(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
 }
 
 static BlockPos getBlock(const array256_t &blockHash) {
         std::filesystem::create_directories("chain/index");
-        leveldb::Slice stringBlockHash(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
+        leveldb::Slice stringBlockHash(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
         leveldb::DB* db;
         leveldb::Options options;
         options.create_if_missing = true;
@@ -49,13 +54,7 @@ static BlockPos getBlock(const array256_t &blockHash) {
         for (auto &file: fs::directory_iterator("chain/index"))
             std::fstream indexFile("chain/index", std::ios::binary | std::ios::ate);
 
-
-
-        std::streamsize indexFileSize = indexFile.tellg();
-        indexFile.seekg(indexFileSize - 32 - 64, std::ios::beg);
-
-        array256_t latestBlockHash = indexFile.read(latestBlockFile, 32);
-        indexFile.close();
+        delete db;
         
     return ;
 }
