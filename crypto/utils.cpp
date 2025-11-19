@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "utils.h"
 #include "types.h"
 #include <stdexcept>
@@ -27,7 +27,7 @@ array256_t bytesFromHex(const std::string& hex) {
 	return out;
 }
 
-std::string hexFromBytes(const array256_t& bytes, const uint64_t& len) {
+std::string hexFromBytes(const array256_t& bytes, const size_t& len) {
 	std::string out;
 	out.clear();
 	out.resize(len * 2);
@@ -49,7 +49,7 @@ std::string hexFromBytes(const array256_t& bytes, const uint64_t& len) {
 	return out;
 }
 
-array256_t sha256Of(const uint8_t* data, const uint64_t& len) {
+array256_t sha256Of(const uint8_t* data, const size_t& len) {
 	array256_t out;
 	crypto_hash_sha256(out.data(), reinterpret_cast<const uint8_t*>(data), len);
 	return out;
@@ -61,24 +61,40 @@ static constexpr bool isLittleEndian() {
 	return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
+
 // Fomat number to native endianness
 template <typename T>
 T formatNumber(const uint8_t* in) {
+	// Create a value of type T and initialize to zero
 	T value{};
 
-	// First copy raw bytes into the value (safe for alignment)
+	// Copy raw bytes from the input pointer into the value
+	// This is safe even if the input is unaligned
 	std::memcpy(&value, in, sizeof(T));
 
+	// Check if the CPU is little-endian at compile time
 	if constexpr (isLittleEndian()) {
-		return value; // Already correct
+		// If the CPU is little-endian, the byte order matches the input
+		// so we can just return the value directly
+		return value;
 	}
 	else {
-		// Reverse bytes for big-endian CPUs
-		T out{};
-		for (size_t i = 0; i < sizeof(T); i++) {
+		// For big-endian CPUs, we need to reverse the byte order
+		T out{}; // Initialize output value
+
+		// Loop over each byte of the original value
+		for (size_t i = 0; i < sizeof(T); ++i) {
+			// Extract the i-th byte from 'value'
+			// (0 = least significant byte)
 			T byte = (value >> (8 * i)) & 0xFF;
+
+			// Place the extracted byte into the mirrored position in 'out'
+			// sizeof(T) - 1 - i → flips the byte order:
+			//   LSB moves to MSB, MSB moves to LSB
 			out |= (byte << (8 * (sizeof(T) - 1 - i)));
 		}
+
+		// Return the correctly reordered number
 		return out;
 	}
 }
@@ -86,10 +102,19 @@ T formatNumber(const uint8_t* in) {
 // Serialise number to little endian
 template <typename T>
 std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in) {
+	// Create an array of bytes with the same size as the input type
+	// '{}' ensures all bytes are initialized to 0
 	std::array<uint8_t, sizeof(T)> out{};
+
+	// Loop over each byte of the input number
 	for (size_t i = 0; i < sizeof(T); i++) {
+		// Shift the input 'in' right by i*8 bits to bring the i-th byte
+		// into the least significant byte position
+		// Then cast to uint8_t to store only that byte
 		out[i] = static_cast<uint8_t>(in >> (i * 8));
 	}
+
+	// Return the array of bytes (little-endian order: LSB first)
 	return out;
 }
 
@@ -99,8 +124,9 @@ std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in) {
 // v1 SERIALISERS + PARSERS
 // ============================================================================
 namespace v1 {
-	static constexpr uint8_t inputSize = 65;
-	static constexpr uint8_t outputSize = 40;
+	static constexpr uint8_t inputSize = sizeof(array256_t) + sizeof(uint64_t);
+	static constexpr uint8_t outputSize = sizeof(array256_t) + sizeof(uint64_t) + sizeof(array256_t);
+	static constexpr uint8_t blockHeaderSize = sizeof(uint64_t) + sizeof(array256_t) + sizeof(array256_t) + sizeof(uint64_t) + sizeof(array256_t) + sizeof(array256_t);
 	// ----------------------------------------
 	// TxInput
 	// ----------------------------------------
@@ -242,28 +268,10 @@ namespace v1 {
 		return block;
 	}
 
+	static array256_t getHashBlock(const uint8_t* blockBytes) {
+		return sha256Of(blockBytes, blockHeaderSize);
+	}
 } // namespace v1
-
-std::vector<uint8_t> serialiseTxInput(const TxInput& txInput, uint64_t version) {
-	switch (version) {
-	case 1: return v1::serialiseTxInput(txInput);
-	default: throw std::runtime_error("Unsupported TxInput version");
-	}
-}
-
-std::vector<uint8_t> serialiseUTXO(const UTXO& utxo, uint64_t version) {
-	switch (version) {
-	case 1: return v1::serialiseUTXO(utxo);
-	default: throw std::runtime_error("Unsupported UTXO version");
-	}
-}
-
-std::vector<uint8_t> serialiseTx(const Tx& tx, uint64_t version) {
-	switch (version) {
-	case 1: return v1::serialiseTx(tx);
-	default: throw std::runtime_error("Unsupported Tx version");
-	}
-}
 
 std::vector<uint8_t> serialiseBlock(const Block& block) {
 	switch (block.version) {
@@ -272,30 +280,17 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 	}
 }
 
-TxInput formatTxInput(const uint8_t* txInputBytes, uint64_t version) {
-	switch (version) {
-	case 1: return v1::formatTxInput(txInputBytes);
-	default: throw std::runtime_error("Unsupported TxInput version");
-	}
-}
-
-UTXO formatUTXO(const uint8_t* utxoBytes, uint64_t version) {
-	switch (version) {
-	case 1: return v1::formatUTXO(utxoBytes);
-	default: throw std::runtime_error("Unsupported UTXO version");
-	}
-}
-
-Tx formatTx(const uint8_t* txBytes, uint64_t version) {
-	switch (version) {
-	case 1: return v1::formatTx(txBytes);
-	default: throw std::runtime_error("Unsupported Tx version");
-	}
-}
-
 Block formatBlock(const uint8_t* blockBytes) {
 	switch (formatNumber<uint64_t>(blockBytes)) {
 	case 1: return v1::formatBlock(blockBytes);
+	default: throw std::runtime_error("Unsupported Block version");
+	}
+}
+
+// Block hash from header
+array256_t hashBlock(const uint8_t* blockBytes) {
+	switch (formatNumber<uint64_t>(blockBytes)) {
+	case 1: return v1::getHashBlock(blockBytes);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
 }
