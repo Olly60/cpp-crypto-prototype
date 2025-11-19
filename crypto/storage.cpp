@@ -4,7 +4,14 @@
 #include "types.h"
 #include "utils.h"
 
+
+
 namespace fs = std::filesystem;
+
+struct BlockPos {
+    fs::path blockPath;
+    uint64_t offset{};
+};
 
 static array256_t getLatestBlockHash() {
     std::filesystem::create_directories("chain");
@@ -15,14 +22,26 @@ static array256_t getLatestBlockHash() {
     return latestBlockHash;
 }
 
-static fs::path getLatestAvailableFile() {
-
+static BlockPos getBlock(array256_t blockHash) {
+        std::filesystem::create_directories("chain/index");
         leveldb::DB* db;
         leveldb::Options options;
         options.create_if_missing = true;
 
         leveldb::DB::Open(options, "chain/index", &db);
-        std::filesystem::create_directories("chain/index");
+
+        // Put key-value
+        db->Put(leveldb::WriteOptions(), "blockhash123", "file=0;offset=1024;size=512");
+
+        // Get key-value
+        std::string value;
+        if (db->Get(leveldb::ReadOptions(), "blockhash123", &value).ok()) {
+            std::cout << "Value: " << value << "\n";
+        }
+        new int(10) x;
+        // Delete key
+        db->Delete(leveldb::WriteOptions(), "blockhash123");
+        
         array256_t latestBlockFile{};
 
         for (auto &file: fs::directory_iterator("chain/index"))

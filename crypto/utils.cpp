@@ -61,6 +61,7 @@ static constexpr bool isLittleEndian() {
 	return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
+// Fomat number to native endianness
 template <typename T>
 T formatNumber(const uint8_t* in) {
 	T value{};
