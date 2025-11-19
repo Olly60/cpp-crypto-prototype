@@ -3,6 +3,7 @@
 #include "types.h"
 #include <stdexcept>
 #include <sodium.h>
+#include <span>
 
 array256_t bytesFromHex(const std::string& hex) {
 	if (hex.size() % 2 == 0) return;
@@ -139,11 +140,30 @@ namespace v1 {
 		return out;
 	}
 
-	static TxInput formatTxInput(const uint8_t* txInputBytes) {
+	static TxInput formatTxInput(std::span<const uint8_t> txInputBytes) {
 		TxInput txInput;
-		memcpy(txInput.UTXOTxHash.data(), txInputBytes, sizeof(txInput.UTXOTxHash));
-		txInput.UTXOOutputIndex = formatNumber<decltype(txInput.UTXOOutputIndex)>(txInputBytes + sizeof(txInput.UTXOTxHash));
-		memcpy(txInput.signature.data(), txInputBytes + sizeof(txInput.UTXOOutputIndex) + sizeof(txInput.UTXOTxHash), sizeof(txInput.signature));
+		size_t offset = 0;
+
+		auto take = [&](size_t n) -> std::span<const uint8_t> {
+			if (offset + n > txInputBytes.size())
+				throw std::runtime_error("formatTxInput: out of range");
+			auto s = txInputBytes.subspan(offset, n);
+			offset += n;
+			return s;
+			};
+
+		// Copy UTXO transaction hash
+		auto hashBytes = take(sizeof(txInput.UTXOTxHash));
+		memcpy(txInput.UTXOTxHash.data(), hashBytes.data(), hashBytes.size());
+
+		// Read output index
+		auto indexBytes = take(sizeof(txInput.UTXOOutputIndex));
+		txInput.UTXOOutputIndex = formatNumber<decltype(txInput.UTXOOutputIndex)>(indexBytes.data());
+
+		// Copy signature
+		auto sigBytes = take(sizeof(txInput.signature));
+		memcpy(txInput.signature.data(), sigBytes.data(), sigBytes.size());
+
 		return txInput;
 	}
 
@@ -158,10 +178,26 @@ namespace v1 {
 		return out;
 	}
 
-	static UTXO formatUTXO(const uint8_t* utxoBytes) {
+	static UTXO formatUTXO(std::span<const uint8_t> utxoBytes) {
 		UTXO utxo;
-		utxo.amount = formatNumber<decltype(utxo.amount)>(utxoBytes);
-		memcpy(utxo.recipient.data(), utxoBytes + sizeof(utxo.amount), sizeof(utxo.recipient));
+		size_t offset = 0;
+
+		auto take = [&](size_t n) -> std::span<const uint8_t> {
+			if (offset + n > utxoBytes.size())
+				throw std::runtime_error("formatUTXO: out of range");
+			auto s = utxoBytes.subspan(offset, n);
+			offset += n;
+			return s;
+			};
+
+		// Read amount
+		auto amountBytes = take(sizeof(utxo.amount));
+		utxo.amount = formatNumber<decltype(utxo.amount)>(amountBytes.data());
+
+		// Copy recipient hash
+		auto recipientBytes = take(sizeof(utxo.recipient));
+		memcpy(utxo.recipient.data(), recipientBytes.data(), recipientBytes.size());
+
 		return utxo;
 	}
 
@@ -216,17 +252,52 @@ namespace v1 {
 		return tx;
 	}
 
+	static Tx formatTx(std::span<const uint8_t> txBytes) {
+		Tx tx;
+		size_t offset = 0;
+
+		auto take = [&](size_t n) -> std::span<const uint8_t> {
+			if (offset + n > txBytes.size())
+				throw std::runtime_error("formatTx: out of range");
+			auto s = txBytes.subspan(offset, n);
+			offset += n;
+			return s;
+			};
+
+		// Read input and output counts
+		uint32_t inputCount = formatNumber<uint32_t>(take(sizeof(uint32_t)).data());
+
+
+		// Read inputs
+		for (uint32_t i = 0; i < inputCount; i++) {
+			auto inputBytes = take(inputSize);  // inputSize = size of one TxInput
+			tx.txInputs.push_back(formatTxInput(inputBytes));
+		}
+
+		// Read output count (after inputs)
+		uint32_t outputCount = formatNumber<uint32_t>(take(sizeof(uint32_t)).data());
+
+		// Read outputs
+		for (uint32_t i = 0; i < outputCount; i++) {
+			auto outputBytes = take(outputSize); // outputSize = size of one UTXO
+			tx.txOutputs.push_back(formatUTXO(outputBytes));
+		}
+
+		return tx;
+	}
+
 	// ----------------------------------------
 	// Block
 	// ----------------------------------------
+
 	static std::vector<uint8_t> serialiseBlock(const Block& block) {
 		std::vector<uint8_t> out;
 		auto versionBytes = serialiseNumber(block.version);
-		out.insert(out.end(),versionBytes.begin(),versionBytes.end());
+		out.insert(out.end(), versionBytes.begin(), versionBytes.end());
 		out.insert(out.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
 		out.insert(out.end(), block.merkleRoot.begin(), block.merkleRoot.end());
 		auto timestampBytes = serialiseNumber(block.timestamp);
-		out.insert(out.end(),timestampBytes.begin(),timestampBytes.end());
+		out.insert(out.end(), timestampBytes.begin(), timestampBytes.end());
 		out.insert(out.end(), block.difficulty.begin(), block.difficulty.end());
 		out.insert(out.end(), block.nonce.begin(), block.nonce.end());
 
@@ -239,37 +310,73 @@ namespace v1 {
 			txBytes.insert(txBytes.end(), v.begin(), v.end());
 		}
 		auto txAmountBytes = serialiseNumber(txCount);
-		out.insert(out.end(),txAmountBytes.begin(),txAmountBytes.end());
+		out.insert(out.end(), txAmountBytes.begin(), txAmountBytes.end());
 		out.insert(out.end(), txBytes.begin(), txBytes.end());
 		return out;
 	}
 
-	static Block formatBlock(const uint8_t* blockBytes) {
+	static Block formatBlock(std::span<const uint8_t> bytes) {
 		Block block;
-		uint64_t offset = 0;
-		block.version = formatNumber<decltype(block.version)>(blockBytes);
-		offset += sizeof(block.version);
-		memcpy(block.previousBlockHash.data(), blockBytes + offset, sizeof(block.previousBlockHash));
-		offset += sizeof(block.previousBlockHash);
-		memcpy(block.merkleRoot.data(), blockBytes + offset, sizeof(block.merkleRoot));
-		offset += sizeof(block.merkleRoot);
-		block.timestamp = formatNumber<decltype(block.timestamp)>(blockBytes + offset);
-		offset += sizeof(block.timestamp);
-		memcpy(block.difficulty.data(), blockBytes + offset, sizeof(block.difficulty));
-		offset += sizeof(block.difficulty);
-		memcpy(block.nonce.data(), blockBytes + offset, sizeof(block.nonce));
-		offset += sizeof(block.nonce);
-		const uint32_t txCount = formatNumber<uint32_t>(blockBytes + offset);
-		offset += sizeof(txCount);
+		size_t offset = 0;
+
+		auto take = [&](size_t readSize) -> std::span<const uint8_t> {
+			if (offset + readSize > bytes.size())
+				throw std::runtime_error("block format error: out of range");
+			auto s = bytes.subspan(offset, readSize);
+			offset += readSize;
+			return s;
+			};
+
+		// Read fields
+		block.version = formatNumber<uint64_t>(take(sizeof(block.version)).data());
+
+		std::memcpy(block.previousBlockHash.data(),
+			take(block.previousBlockHash.size()).data(),
+			block.previousBlockHash.size());
+
+		std::memcpy(block.merkleRoot.data(),
+			take(block.merkleRoot.size()).data(),
+			block.merkleRoot.size());
+
+		block.timestamp = formatNumber<uint64_t>(take(sizeof(block.timestamp)).data());
+
+		std::memcpy(block.difficulty.data(),
+			take(block.difficulty.size()).data(),
+			block.difficulty.size());
+
+		std::memcpy(block.nonce.data(),
+			take(block.nonce.size()).data(),
+			block.nonce.size());
+
+		const uint32_t txCount = formatNumber<uint32_t>(take(sizeof(uint32_t)).data());
+
+		// Parse transactions
 		for (uint32_t i = 0; i < txCount; i++) {
-			block.transactions.push_back(formatTx(blockBytes + offset));
-			offset += (sizeof(uint32_t) * 2) + formatNumber<uint32_t>(blockBytes + offset) + formatNumber<uint32_t>(blockBytes + offset + sizeof(uint32_t));
+			// formatTx must know how much data one transaction uses internally
+			// and must throw if it's malformed
+			block.transactions.push_back(formatTx(bytes.subspan(offset)));
+
+			// Advance offset by the transaction’s size
+			offset += sizeof(uint32_t) * 2 + inputSize + outputSize;
+			if (offset > bytes.size())
+				throw std::runtime_error("block format error: transaction out of range");
 		}
+
 		return block;
 	}
 
-	static array256_t getBlockHash(const uint8_t* blockBytes) {
-		return sha256Of(blockBytes, blockHeaderSize);
+
+	static array256_t getBlockHash(const Block block) {
+		std::vector<uint8_t> headerBytes;
+		auto versionBytes = serialiseNumber(block.version);
+		headerBytes.insert(headerBytes.end(), versionBytes.begin(), versionBytes.end());
+		headerBytes.insert(headerBytes.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
+		headerBytes.insert(headerBytes.end(), block.merkleRoot.begin(), block.merkleRoot.end());
+		auto timestampBytes = serialiseNumber(block.timestamp);
+		headerBytes.insert(headerBytes.end(), timestampBytes.begin(), timestampBytes.end());
+		headerBytes.insert(headerBytes.end(), block.difficulty.begin(), block.difficulty.end());
+		headerBytes.insert(headerBytes.end(), block.nonce.begin(), block.nonce.end());
+		return sha256Of(headerBytes.data(), headerBytes.size());
 	}
 } // namespace v1
 
@@ -280,17 +387,17 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 	}
 }
 
-Block formatBlock(const uint8_t* blockBytes) {
-	switch (formatNumber<uint64_t>(blockBytes)) {
+Block formatBlock(const std::vector<uint8_t>& blockBytes) {
+	switch (formatNumber<uint64_t>(blockBytes.data())) {
 	case 1: return v1::formatBlock(blockBytes);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
 }
 
 // Block hash from header
-array256_t getBlockHash(const uint8_t* blockBytes) {
-	switch (formatNumber<uint64_t>(blockBytes)) {
-	case 1: return v1::getBlockHash(blockBytes);
+array256_t getBlockHash(const Block& block) {
+	switch (block.version) {
+	case 1: return v1::getBlockHash(block);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
 }

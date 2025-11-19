@@ -9,7 +9,11 @@ namespace fs = std::filesystem;
 struct BlockPos {
     uint64_t file{};
     uint64_t offset{};
-    uint64_t size{};
+};
+
+struct UTCXIndex {
+    uint64_t amount{0};
+    array256_t recipient{};
 };
 
 static array256_t getLatestBlockHash() {
@@ -45,42 +49,39 @@ static BlockPos getBlockPos(const array256_t &blockHash) {
         // Get key-value
         BlockPos blockPos;
         std::string value;
-        value.resize(sizeof(blockPos.file) + sizeof(blockPos.offset) + sizeof(blockPos.size));
+        value.resize(sizeof(blockPos.file) + sizeof(blockPos.offset));
         if (db->Get(leveldb::ReadOptions(), key, &value).ok()) {
             blockPos.file = formatNumber<decltype(blockPos.file)>(reinterpret_cast<const uint8_t*>(value.data()));
             blockPos.offset = formatNumber<decltype(blockPos.offset)>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file)));
-            blockPos.size = formatNumber<decltype(blockPos.size)>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file) + sizeof(blockPos.offset)));
             return blockPos;
         } else { throw std::runtime_error("Corrupted value for block hash"); }
            
            
 }
 
-static void addBlock(const uint8_t* blockBytes) {
-    array256_t latestBlockHash = getLatestBlockHash();
-    BlockPos LatestBlock = getBlockPos(latestBlockHash);
-    fs::create_directories("chain/blocks");
+static void addBlock(Block block) {
 
+    // Tip block file
+    array256_t prevBlockHash = getLatestBlockHash();
+    uint64_t prevfile = getBlockPos(prevBlockHash).file;
 
+    
 
-    array256_t blockHash = getBlockHash(blockBytes);
-    leveldb::Slice key(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
+    Block Bytes = serialiseBlock(block)
+    // Add Block key to database
+    array256_t latestBlockHash = getBlockHash(blockBytes);
+    leveldb::Slice key(reinterpret_cast<const char*>(latestBlockHash.data()), sizeof(latestBlockHash));
+    leveldb::Slice Value(reinterpret_cast<const char*>(blockBytes), sizeof(latestBlockHash));
     fs::create_directories("chain/index");
     leveldb::DB* db = nullptr;
     leveldb::Options options;
     options.create_if_missing = true;
-
-    std::unique_ptr<leveldb::DB> lifeDb(db);
-
+    std::unique_ptr<leveldb::DB> lifeDb(db); // Auto Delete DB* db
     leveldb::DB::Open(options, "chain/index", &db);
+    // Put key-value
+    if (!db->Put(leveldb::WriteOptions(), key, ).ok()) { throw std::runtime_error("Corrupted value for block hash"); };
 
-        // Put key-value
-    if (db->Put(leveldb::WriteOptions(), leveldb::Slice("hello123", 12), "").ok()) {
+    fs::create_directories("chain/blocks");
 
-    }
-    else { throw std::runtime_error("Corrupted value for block hash"); };
-
-
-		
-	}
+}
 

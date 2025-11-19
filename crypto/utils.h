@@ -19,6 +19,8 @@ T formatNumber(const uint8_t* in);
 template <typename T>
 std::array<uint8_t, sizeof(T)> serialiseNumber(const T& in);
 
+std::vector<uint8_t> serialiseBlock(const Block& block);
+
 Block formatBlock(const uint8_t* data);
 
 array256_t getBlockHash(const uint8_t* blockBytes);
