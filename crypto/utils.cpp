@@ -340,17 +340,22 @@ namespace v1 {
 	}
 
 
-	static array256_t getBlockHash(const Block block) {
+	static array256_t getBlockHash(const Block& block) {
 		std::vector<uint8_t> headerBytes;
-		auto versionBytes = serialiseNumber(block.version);
-		headerBytes.insert(headerBytes.end(), versionBytes.begin(), versionBytes.end());
-		headerBytes.insert(headerBytes.end(), block.previousBlockHash.begin(), block.previousBlockHash.end());
-		headerBytes.insert(headerBytes.end(), block.merkleRoot.begin(), block.merkleRoot.end());
-		auto timestampBytes = serialiseNumber(block.timestamp);
-		headerBytes.insert(headerBytes.end(), timestampBytes.begin(), timestampBytes.end());
-		headerBytes.insert(headerBytes.end(), block.difficulty.begin(), block.difficulty.end());
-		headerBytes.insert(headerBytes.end(), block.nonce.begin(), block.nonce.end());
-		return sha256Of(headerBytes.data(), headerBytes.size());
+
+		auto append = [&](auto&& data) {
+			headerBytes.insert(headerBytes.end(), data.begin(), data.end());
+			};
+
+		append(serialiseNumber(block.version));
+		append(block.previousBlockHash);
+		append(block.merkleRoot);
+		append(serialiseNumber(block.timestamp));
+		append(block.difficulty);
+		append(block.nonce);
+
+		// Use std::span for safety
+		return sha256Of(std::span<const uint8_t>(headerBytes));
 	}
 } // namespace v1
 
