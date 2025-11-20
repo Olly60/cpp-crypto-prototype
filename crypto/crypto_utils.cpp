@@ -156,6 +156,14 @@ namespace v1 {
 		return out;
 	}
 
+	std::vector<uint8_t> LEB128(size_t number) {
+
+		std::array<uint8_t, sizeof(size_t)> numberBytes = serialiseNumber(number);
+		numberBytesLEB std::vector<uint8_t>
+		for (size_t i = 0; i < sizeof(size_t); i++) {
+			numberBytesLEB
+		}
+	}
 
 	static Tx formatTx(std::span<const uint8_t> txBytes) {
 		Tx tx;
@@ -214,7 +222,7 @@ namespace v1 {
 		size_t offset = 0;
 
 		// Header
-		block.version = formatNumber<uint64_t>(takeBytes(blockBytes, sizeof(block.version), offset).data());
+		block.version = formatNumber<uint64_t>(takeBytes(blockBytes, sizeof(block.version), offset));
 
 		auto prevBlockHashBytes = takeBytes(blockBytes, sizeof(block.prevBlockHash), offset);
 		std::memcpy(block.prevBlockHash.data(), prevBlockHashBytes.data(), prevBlockHashBytes.size());
@@ -222,7 +230,7 @@ namespace v1 {
 		auto merkleRootBytes = takeBytes(blockBytes, sizeof(block.merkleRoot), offset);
 		std::memcpy(block.merkleRoot.data(), merkleRootBytes.data(), merkleRootBytes.size());
 
-		block.timestamp = formatNumber<uint64_t>(takeBytes(blockBytes, sizeof(block.timestamp), offset).data());
+		block.timestamp = formatNumber<uint64_t>(takeBytes(blockBytes, sizeof(block.timestamp), offset));
 
 		auto difficultyBytes = takeBytes(blockBytes, sizeof(block.difficulty), offset);
 		std::memcpy(block.difficulty.data(), difficultyBytes.data(), difficultyBytes.size());
@@ -231,7 +239,7 @@ namespace v1 {
 		std::memcpy(block.nonce.data(), nonceBytes.data(), nonceBytes.size());
 
 		// Transactions
-		const uint32_t txCount = formatNumber<uint32_t>(takeBytes(blockBytes, sizeof(txCount), offset).data());
+		const uint32_t txCount = formatNumber<uint32_t>(takeBytes(blockBytes, sizeof(txCount), offset));
 		block.transactions.reserve(txCount);
 
 		for (uint32_t i = 0; i < txCount; i++) {
@@ -265,7 +273,7 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 }
 
 Block formatBlock(std::span<const uint8_t>& blockBytes) {
-	switch (formatNumber<uint64_t>(blockBytes.data())) {
+	switch (formatNumber<uint64_t>(blockBytes)) {
 	case 1: return v1::formatBlock(blockBytes);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
