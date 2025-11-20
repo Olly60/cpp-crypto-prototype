@@ -1,7 +1,6 @@
 #pragma once
 #include <array>
 #include <vector>
-#include <string>
 typedef std::array<uint8_t, 32> array256_t;
 
 struct UTXO {
@@ -22,7 +21,7 @@ struct Tx {
 
 struct Block {
 	uint64_t version{1};
-	array256_t previousBlockHash{};
+	array256_t prevBlockHash{};
 	array256_t merkleRoot{};
 	uint64_t timestamp{};
 	array256_t difficulty{};

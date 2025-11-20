@@ -18,7 +18,7 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="utils.cpp">
+    <ClCompile Include="crypto_utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="storage.cpp">
@@ -35,7 +35,7 @@
     <ClInclude Include="types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="utils.h">
+    <ClInclude Include="crypto_utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

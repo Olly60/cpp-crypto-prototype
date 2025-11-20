@@ -2,18 +2,21 @@
 #include <fstream>
 #include <leveldb/db.h>
 #include "types.h"
-#include "utils.h"
+#include "crypto_utils.h"
 
 namespace fs = std::filesystem;
 
 struct BlockPos {
     uint64_t file{};
     uint64_t offset{};
+    uint32_t size{};
 };
 
 struct UTCXIndex {
     uint64_t amount{0};
     array256_t recipient{};
+    array256_t prevTxHash{};
+    uint32_t outputIndex{};
 };
 
 static array256_t getLatestBlockHash() {
