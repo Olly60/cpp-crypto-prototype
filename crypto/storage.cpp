@@ -55,10 +55,10 @@ static BlockPos getBlockPos(const array256_t& blockHash) {
 	std::string value;
 	value.resize(sizeof(blockPos.file) + sizeof(blockPos.offset));
 	if (db->Get(leveldb::ReadOptions(), key, &value).ok()) {
-		blockPos.file = formatNumber<decltype(blockPos.file)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data()),sizeof(blockPos.file))
+		blockPos.file = formatNumberNative<decltype(blockPos.file)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data()),sizeof(blockPos.file))
 		);
-		blockPos.offset = formatNumber<decltype(blockPos.offset)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file)), sizeof(blockPos.offset)));
-		blockPos.size = formatNumber<decltype(blockPos.size)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file) + sizeof(blockPos.offset)), sizeof(blockPos.size)));
+		blockPos.offset = formatNumberNative<decltype(blockPos.offset)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file)), sizeof(blockPos.offset)));
+		blockPos.size = formatNumberNative<decltype(blockPos.size)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file) + sizeof(blockPos.offset)), sizeof(blockPos.size)));
 		return blockPos;
 	}
 	else { throw std::runtime_error("Corrupted value for block hash"); }
@@ -85,6 +85,7 @@ static void addBlock(const Block& block) {
     }
 
     uint64_t blockOffset = blockFileSize; // Use 0-based offset
+
     constexpr std::size_t MAX_BLOCK_FILE_SIZE = 128'000'000;
 
     // Rotate block file if too big
