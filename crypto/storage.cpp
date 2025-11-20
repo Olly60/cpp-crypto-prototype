@@ -70,7 +70,7 @@ static void addBlock(Block block) {
 
     
 
-    Block Bytes = serialiseBlock(block)
+    const auto Bytes = serialiseBlock(block)
     // Add Block key to database
     array256_t latestBlockHash = getBlockHash(blockBytes);
     leveldb::Slice key(reinterpret_cast<const char*>(latestBlockHash.data()), sizeof(latestBlockHash));

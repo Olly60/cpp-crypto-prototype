@@ -10,7 +10,6 @@ std::string hexFromBytes(const array256_t& bytes);
 
 array256_t sha256Of(std::span<const uint8_t> data);
 
-static std::span<const uint8_t> takeBytes(std::span<const uint8_t> data, size_t amount, size_t& offset);
 // Format bumber to native endianness
 template <typename T>
 T formatNumber(std::span<const uint8_t> in) {

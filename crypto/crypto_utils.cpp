@@ -186,7 +186,7 @@ namespace v1 {
 	// Block
 	// ----------------------------------------
 
-	static std::vector<uint8_t> serialiseBlock(const Block& block) {
+	static const std::vector<uint8_t> serialiseBlock(const Block& block) {
 		std::vector<uint8_t> out;
 
 		// Header
