@@ -54,6 +54,7 @@ static constexpr bool isLittleEndian() {
 	return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
+
 static std::span<const uint8_t> takeBytes(std::span<const uint8_t> data, size_t amount, size_t& offset)
 {
 	if (offset + amount > data.size())
@@ -156,21 +157,12 @@ namespace v1 {
 		return out;
 	}
 
-	std::vector<uint8_t> LEB128(size_t number) {
-
-		std::array<uint8_t, sizeof(size_t)> numberBytes = serialiseNumber(number);
-		numberBytesLEB std::vector<uint8_t>
-		for (size_t i = 0; i < sizeof(size_t); i++) {
-			numberBytesLEB
-		}
-	}
-
 	static Tx formatTx(std::span<const uint8_t> txBytes) {
 		Tx tx;
 		size_t offset = 0;
 
 		// Read input and output counts
-		uint32_t inputCount = formatNumber<uint32_t>(takeBytes(txBytes, sizeof(inputCount), offset).data());
+		uint32_t inputCount = formatNumber<uint32_t>(takeBytes(txBytes, sizeof(inputCount), offset));
 		tx.txInputs.reserve(inputCount);
 
 		// Read inputs
@@ -179,7 +171,7 @@ namespace v1 {
 		}
 
 		// Read output count (after inputs)
-		uint32_t outputCount = formatNumber<uint32_t>(takeBytes(txBytes, sizeof(outputCount), offset).data());
+		uint32_t outputCount = formatNumber<uint32_t>(takeBytes(txBytes, sizeof(outputCount), offset));
 		tx.txOutputs.reserve(outputCount);
 
 		// Read outputs
