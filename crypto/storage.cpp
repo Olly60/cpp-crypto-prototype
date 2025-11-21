@@ -195,7 +195,7 @@ static void removeUtxo(const array256_t& txHash, const uint32_t outputIndex) {
 static UTXO getUtxoValue(const array256_t& txHash, const uint32_t outputIndex) {
     std::string keyString;
     auto outputIndexBytes = serialiseNumberLe(outputIndex);
-    keyString.append(reinterpret_cast<const char*>(outputIndexBytes.data()), outputIndexBytes.size());
+    keyString.append(reinterpret_cast<const char*>(outputIndexBytes.data()), sizeof(outputIndexBytes));
     keyString.append(reinterpret_cast<const char*>(&txHash), sizeof(txHash));
     leveldb::Slice key(reinterpret_cast<const char*>(keyString.data()), keyString.size());
     // Ensure utxo directory exists
