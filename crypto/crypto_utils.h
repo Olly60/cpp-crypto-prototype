@@ -54,7 +54,7 @@ std::array<uint8_t, sizeof(T)> serialiseNumberLe(const T in) {
 std::vector<uint8_t> serialiseBlock(const Block& block);
 
 // Deserialize bytes to Block
-Block formatBlock(std::span<const uint8_t>& blockBytes);
+Block formatBlock(std::span<const uint8_t> blockBytes);
 
 // Get block hash from header
 array256_t getBlockHash(const Block& block);
