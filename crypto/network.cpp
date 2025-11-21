@@ -24,15 +24,20 @@ std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
 
 void handleConnection(asio::ip::tcp::socket socket) {
 
-	// Block size is a 4-byte unsigned integer
+	// Read the protocol type (1 byte)
     std::vector<uint8_t> buffer(sizeof(uint8_t));
-    buffer = readExact(socket, 4);
+    buffer = readExact(socket, 1);
 
+    uint8_t protocolType = buffer[0];
 
+    switch (protocolType) {
+    case 1: reciveBlock(socket);
+    default: throw std::runtime_error("Unsupported protocol version");
+    }
     
 }
 
-std::vector<uint8_t> reciveBlock(asio::ip::tcp::socket& socket) {
+Block reciveBlock(asio::ip::tcp::socket& socket) {
     // Read the block size (4 bytes)
     std::vector<uint8_t> buffer(4);
 	buffer = readExact(socket, 4);
@@ -43,7 +48,7 @@ std::vector<uint8_t> reciveBlock(asio::ip::tcp::socket& socket) {
     // Read the block data
 	buffer.resize(blockSize);
     buffer = readExact(socket, blockSize);
-    return buffer;
+    return formatBlock(buffer);
 }
 
 int main() {

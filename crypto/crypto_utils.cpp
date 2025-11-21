@@ -257,6 +257,10 @@ namespace v1 {
 	}
 } // namespace v1
 
+// ============================================================================
+// GENERIC SERIALISERS + PARSERS
+// ============================================================================
+// Serialise Block to bytes
 std::vector<uint8_t> serialiseBlock(const Block& block) {
 	switch (block.version) {
 	case 1: return v1::serialiseBlock(block);
@@ -264,6 +268,7 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 	}
 }
 
+// Block from bytes
 Block formatBlock(std::span<const uint8_t>& blockBytes) {
 	switch (formatNumberNative<uint64_t>(blockBytes)) {
 	case 1: return v1::formatBlock(blockBytes);
