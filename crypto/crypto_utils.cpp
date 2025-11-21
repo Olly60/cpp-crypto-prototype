@@ -269,7 +269,7 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 }
 
 // Block from bytes
-Block formatBlock(std::span<const uint8_t>& blockBytes) {
+Block formatBlock(std::span<const uint8_t> blockBytes) {
 	switch (formatNumberNative<uint64_t>(blockBytes)) {
 	case 1: return v1::formatBlock(blockBytes);
 	default: throw std::runtime_error("Unsupported Block version");

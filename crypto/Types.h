@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include <vector>
-typedef std::array<uint8_t, 32> array256_t;
+using array256_t = std::array<uint8_t, 32>;
 
 struct UTXO {
 	uint64_t amount{0};
