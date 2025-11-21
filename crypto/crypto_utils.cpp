@@ -109,14 +109,14 @@ namespace v1 {
 	// ----------------------------------------
 	// UTXO
 	// ----------------------------------------
-	static std::vector<uint8_t> serialiseUTXO(const UTXO& utxo) {
+	static std::vector<uint8_t> serialiseUtxo(const UTXO& utxo) {
 		std::vector<uint8_t> out;
 		appendBytes(out, serialiseNumberLe(utxo.amount));
 		appendBytes(out, utxo.recipient);
 		return out;
 	}
 
-	static UTXO formatUTXO(std::span<const uint8_t> utxoBytes) {
+	static UTXO formatUtxo(std::span<const uint8_t> utxoBytes) {
 		UTXO utxo;
 		size_t offset = 0;
 
@@ -151,7 +151,7 @@ namespace v1 {
 
 		// Serialize each output
 		for (const auto& outTx : tx.txOutputs) {
-			appendBytes(out, serialiseUTXO(outTx));
+			appendBytes(out, serialiseUtxo(outTx));
 		}
 
 		return out;
@@ -176,7 +176,7 @@ namespace v1 {
 
 		// Read outputs
 		for (uint32_t i = 0; i < outputCount; i++) {
-			tx.txOutputs.push_back(formatUTXO(takeBytes(txBytes, outputSize, offset)));
+			tx.txOutputs.push_back(formatUtxo(takeBytes(txBytes, outputSize, offset)));
 		}
 
 		return tx;

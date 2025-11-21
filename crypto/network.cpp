@@ -1,7 +1,7 @@
 #include <asio.hpp>
 #include "crypto_utils.h"
 #include <span>
-std::vector<uint8_t> beeee;
+
 // Reads exactly `numBytes` from the socket into the buffer
 std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
     std::vector<uint8_t> buffer(numBytes);
