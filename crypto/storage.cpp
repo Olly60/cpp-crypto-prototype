@@ -9,8 +9,8 @@ namespace fs = std::filesystem;
 
 struct BlockPos {
 	uint64_t file{};
-	uint64_t offset{};
-	uint64_t size{};
+	uint32_t offset{};
+	uint32_t size{};
 };
 
 struct UTCXIndex {

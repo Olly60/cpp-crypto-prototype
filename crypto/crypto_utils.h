@@ -4,10 +4,13 @@
 #include <string>
 #include <span>
 
+// Convert hex string to byte array
 array256_t bytesFromHex(const std::string& hex);
 
+// Convert byte array to hex string
 std::string hexFromBytes(const array256_t& bytes);
 
+// Compute SHA-256 hash of data
 array256_t sha256Of(std::span<const uint8_t> data);
 
 // Format bumber to native endianness
@@ -47,9 +50,11 @@ std::array<uint8_t, sizeof(T)> serialiseNumberLe(const T in) {
 	return out;
 }
 
-
+// Serialize Block to bytes
 std::vector<uint8_t> serialiseBlock(const Block& block);
 
+// Deserialize bytes to Block
 Block formatBlock(std::span<const uint8_t>& blockBytes);
 
+// Get block hash from header
 array256_t getBlockHash(const Block& block);
