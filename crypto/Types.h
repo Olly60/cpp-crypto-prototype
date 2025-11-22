@@ -9,6 +9,7 @@ struct UTXO {
 };
 
 struct TxInput {
+	uint64_t version{1};
 	array256_t UTXOTxHash{};
 	uint32_t UTXOOutputIndex{0};
 	array256_t signature{};

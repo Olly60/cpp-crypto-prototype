@@ -2,6 +2,13 @@
 #include "crypto_utils.h"
 #include <span>
 
+// Protocols
+enum ProtocolType : uint8_t {
+    ProtocolBlock = 1,
+	ProtocolTx = 2,
+	ProtocolAskForBlocks = 3,
+    // Future protocols can be added here
+};
 // Reads exactly `numBytes` from the socket into the buffer
 std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
     std::vector<uint8_t> buffer(numBytes);
@@ -49,6 +56,31 @@ Block reciveBlock(asio::ip::tcp::socket& socket) {
 	buffer.resize(blockSize);
     buffer = readExact(socket, blockSize);
     return formatBlock(buffer);
+}
+
+void sendBlock(asio::ip::tcp::socket& socket, const Block& block) {
+    // Serialize the block
+    std::vector<uint8_t> blockBytes = serialiseBlock(block);
+    // Prepare the size prefix
+    uint32_t blockSize = static_cast<uint32_t>(blockBytes.size());
+    std::array<uint8_t, 4> sizeBytes = serialiseNumberLe(blockSize);
+    // Send the size prefix
+    asio::write(socket, asio::buffer(sizeBytes));
+    // Send the block data
+    asio::write(socket, asio::buffer(blockBytes));
+}
+
+void sendTxToMempool(asio::ip::tcp::socket& socket, const Tx& tx) {
+
+    // Serialize the transaction
+    std::vector<uint8_t> txBytes = serialiseTx(tx);
+    // Prepare the size prefix
+    uint32_t txSize = static_cast<uint32_t>(txBytes.size());
+    std::array<uint8_t, 4> sizeBytes = serialiseNumberLe(txSize);
+    // Send the size prefix
+    asio::write(socket, asio::buffer(sizeBytes));
+    // Send the transaction data
+    asio::write(socket, asio::buffer(txBytes));
 }
 
 int main() {

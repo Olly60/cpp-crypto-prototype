@@ -136,6 +136,9 @@ namespace v1 {
 	static std::vector<uint8_t> serialiseTx(const Tx& tx) {
 		std::vector<uint8_t> out;
 
+		// Version
+		appendBytes(out, serialiseNumberLe(tx.version));
+
 		// Transaction input count
 		uint32_t inputCount = static_cast<uint32_t>(tx.txInputs.size());
 		appendBytes(out, serialiseNumberLe(inputCount));
@@ -160,6 +163,9 @@ namespace v1 {
 	static Tx formatTx(std::span<const uint8_t> txBytes) {
 		Tx tx;
 		size_t offset = 0;
+
+		// Version
+		tx.version = formatNumberNative<uint64_t>(takeBytes(txBytes, sizeof(tx.version), offset));
 
 		// Read input and output counts
 		uint32_t inputCount = formatNumberNative<uint32_t>(takeBytes(txBytes, sizeof(inputCount), offset));
@@ -255,11 +261,35 @@ namespace v1 {
 		// Use std::span for safety
 		return sha256Of(std::span<const uint8_t>(headerBytes));
 	}
+
+	static array256_t getTxHash(const Tx& tx) {
+		std::vector<uint8_t> txBytes;
+
+		// Serialize each input
+		for (const auto& in : tx.txInputs) {
+			appendBytes(txBytes, serialiseTxInput(in));
+		}
+
+		// Serialize each output
+		for (const auto& outTx : tx.txOutputs) {
+			appendBytes(txBytes, serialiseUtxo(outTx));
+		}
+
+		return sha256Of(std::span<const uint8_t>(txBytes));
+	}
 } // namespace v1
 
 // ============================================================================
 // GENERIC SERIALISERS + PARSERS
 // ============================================================================
+
+std::vector<uint8_t> serialiseTx(const Tx& tx) {
+	switch (tx.version) {
+	case 1: return v1::serialiseTx(tx);
+	default: throw std::runtime_error("Unsupported Transaction version");
+	}
+}
+
 // Serialise Block to bytes
 std::vector<uint8_t> serialiseBlock(const Block& block) {
 	switch (block.version) {

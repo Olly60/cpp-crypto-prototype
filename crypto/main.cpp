@@ -1,12 +1,11 @@
 #include <sodium.h>
 #include <iostream>
 #include <string>
-#include <unordered_map>
 #include <array>
 #include <fstream>
 #include "types.h"
-#include "utils.h"
-#include "blockchain.h"
+#include "crypto_utils.h"
+
 
 using namespace std;
 array<uint8_t, crypto_box_SECRETKEYBYTES> bytesPrivateKey;
