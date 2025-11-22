@@ -14,7 +14,7 @@ std::string hexFromBytes(const array256_t& bytes);
 array256_t sha256Of(std::span<const uint8_t> data);
 
 // Format bumber to native endianness
-template <typename T>
+template <typename T> requires (std::is_integral_v<T>&& std::is_trivially_copyable_v<T>)
 T formatNumberNative(std::span<const uint8_t> in) {
 	if (in.size() < sizeof(T)) {
 		throw std::runtime_error("formatNumber: not enough bytes in input span");
