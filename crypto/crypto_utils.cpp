@@ -208,7 +208,7 @@ namespace v1 {
 
 		// Serialize each transaction
 		for (const auto& tx : block.transactions) {
-			appendBytes(out, serialiseTx(tx));
+			appendBytes(out, v1::serialiseTx(tx));
 		}
 
 		return out;

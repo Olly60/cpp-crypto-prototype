@@ -35,8 +35,6 @@ static void setLatestBlockHash(const array256_t& blockHash) {
 	tipFile.write(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
 }
 
-
-
 static void addBlock(const Block& block) {
     // Serialize the block
     const auto blockBytes = serialiseBlock(block);
@@ -265,6 +263,61 @@ static bool utxoExists(const array256_t& txHash, const uint32_t outputIndex) {
     status = db->Get(leveldb::ReadOptions(), key, &value);
     return status.ok();
 }
+
+static void removeBlockUtxos(const Block& block) {
+    for (const auto& tx : block.transactions) {
+        // Remove UTXOs created by this transaction
+        for (uint32_t outputIndex = 0; outputIndex < tx.outputs.size(); ++outputIndex) {
+            const array256_t txHash = getTransactionHash(tx);
+            removeUtxo(txHash, outputIndex);
+        }
+        // Restore UTXOs spent by this transaction
+        for (const auto& txInput : tx.inputs) {
+            const array256_t utxoTxHash = txInput.UTXOTxHash;
+            const uint32_t utxoOutputIndex = txInput.UTXOOutputIndex;
+            const UTXO utxoValue = getUtxoValue(utxoTxHash, utxoOutputIndex); // Assuming we have a way to retrieve the original UTXO value
+            addUtxo(utxoValue, utxoTxHash, utxoOutputIndex);
+        }
+    }
+}
+
+static void removeLatestBlock( {
+    array256_t latestBlockHash = getLatestBlockHash();
+    BlockPosValue blockPos = getBlockPos(latestBlockHash);
+    // Open block file
+    fs::path blockFilePath = blockchainPath / std::to_string(blockPos.file);
+    std::ifstream blockFile(blockFilePath, std::ios::binary);
+    if (!blockFile) {
+        throw std::runtime_error("Failed to open block file: " + blockFilePath.string());
+    }
+    // Seek to block position
+    blockFile.seekg(blockPos.offset, std::ios::beg);
+    // Read block bytes
+    std::vector<uint8_t> blockBytes(blockPos.size);
+    blockFile.read(reinterpret_cast<char*>(blockBytes.data()), blockPos.size);
+    // Deserialize block
+    Block block = formatBlock(std::span<const uint8_t>(blockBytes.data(), blockBytes.size()));
+    // Remove UTXOs associated with this block
+    removeBlockUtxos(block);
+    // Remove block metadata from LevelDB
+    fs::create_directories(blockchainIndexPath);
+    leveldb::Slice key(reinterpret_cast<const char*>(latestBlockHash.data()), latestBlockHash.size());
+    leveldb::DB* dbRaw = nullptr;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, (blockchainIndexPath / "leveldb").string(), &dbRaw);
+    if (!status.ok() || dbRaw == nullptr) {
+        throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
+    }
+    std::unique_ptr<leveldb::DB> db(dbRaw); // RAII ownership
+    status = db->Delete(leveldb::WriteOptions(), key);
+    if (!status.ok()) {
+        throw std::runtime_error("Failed to delete block metadata: " + status.ToString());
+    }
+    // Update latest block hash to previous block's hash
+    setLatestBlockHash(block.prevBlockHash);
+	})
+
 
 
 
