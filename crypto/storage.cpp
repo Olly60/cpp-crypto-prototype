@@ -35,32 +35,7 @@ static void setLatestBlockHash(const array256_t& blockHash) {
 	tipFile.write(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
 }
 
-static BlockPosValue getBlockPos(const array256_t& blockHash) {
-	fs::create_directories(blockchainIndexPath);
-	leveldb::Slice key(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
-	leveldb::DB* db = nullptr;
-	leveldb::Options options;
-	options.create_if_missing = true;
 
-	std::unique_ptr<leveldb::DB> lifeDb(db);
-
-	leveldb::DB::Open(options, blockchainIndexPath.string(), &db);
-
-	// Get key-value
-	BlockPosValue blockPos;
-	std::string value;
-	value.resize(sizeof(blockPos.file) + sizeof(blockPos.offset));
-	if (db->Get(leveldb::ReadOptions(), key, &value).ok()) {
-		blockPos.file = formatNumberNative<decltype(blockPos.file)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data()),sizeof(blockPos.file))
-		);
-		blockPos.offset = formatNumberNative<decltype(blockPos.offset)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file)), sizeof(blockPos.offset)));
-		blockPos.size = formatNumberNative<decltype(blockPos.size)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file) + sizeof(blockPos.offset)), sizeof(blockPos.size)));
-		return blockPos;
-	}
-	else { throw std::runtime_error("Corrupted value for block hash"); }
-
-
-}
 
 static void addBlock(const Block& block) {
     // Serialize the block
@@ -133,6 +108,51 @@ static void addBlock(const Block& block) {
     if (!status.ok()) {
         throw std::runtime_error("Failed to put block metadata: " + status.ToString());
     }
+}
+
+static BlockPosValue getBlockPos(const array256_t& blockHash) {
+	fs::create_directories(blockchainIndexPath);
+	leveldb::Slice key(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
+	leveldb::DB* db = nullptr;
+	leveldb::Options options;
+	options.create_if_missing = true;
+
+	std::unique_ptr<leveldb::DB> lifeDb(db);
+
+	leveldb::DB::Open(options, blockchainIndexPath.string(), &db);
+
+	// Get key-value
+	BlockPosValue blockPos;
+	std::string value;
+	value.resize(sizeof(blockPos.file) + sizeof(blockPos.offset));
+	if (db->Get(leveldb::ReadOptions(), key, &value).ok()) {
+		blockPos.file = formatNumberNative<decltype(blockPos.file)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data()),sizeof(blockPos.file))
+		);
+		blockPos.offset = formatNumberNative<decltype(blockPos.offset)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file)), sizeof(blockPos.offset)));
+		blockPos.size = formatNumberNative<decltype(blockPos.size)>(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(value.data() + sizeof(blockPos.file) + sizeof(blockPos.offset)), sizeof(blockPos.size)));
+		return blockPos;
+	}
+	else { throw std::runtime_error("Corrupted value for block hash"); }
+
+
+}
+
+static bool blockExists(const array256_t& blockHash) {
+    fs::create_directories(blockchainIndexPath);
+    leveldb::Slice key(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
+    // Open LevelDB with RAII
+    leveldb::DB* dbRaw = nullptr;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, (blockchainIndexPath / "leveldb").string(), &dbRaw);
+    if (!status.ok() || dbRaw == nullptr) {
+        throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
+    }
+    std::unique_ptr<leveldb::DB> db(dbRaw); // RAII ownership
+    // Check if key exists
+    std::string value;
+    status = db->Get(leveldb::ReadOptions(), key, &value);
+    return status.ok();
 }
 
 static void addUtxo(const UTXO& utxo, const array256_t& txHash, const uint32_t outputIndex) {
@@ -221,6 +241,29 @@ static UTXO getUtxoValue(const array256_t& txHash, const uint32_t outputIndex) {
     else {
         throw std::runtime_error("UTXO not found");
 	}
+}
+
+static bool utxoExists(const array256_t& txHash, const uint32_t outputIndex) {
+    std::string keyString;
+    auto outputIndexBytes = serialiseNumberLe(outputIndex);
+    keyString.append(reinterpret_cast<const char*>(outputIndexBytes.data()), sizeof(outputIndexBytes));
+    keyString.append(reinterpret_cast<const char*>(&txHash), sizeof(txHash));
+    leveldb::Slice key(reinterpret_cast<const char*>(keyString.data()), keyString.size());
+    // Ensure utxo directory exists
+    fs::create_directories(blockchainUtxoPath);
+    // Open LevelDB with RAII
+    leveldb::DB* dbRaw = nullptr;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, (blockchainUtxoPath / "leveldb").string(), &dbRaw);
+    if (!status.ok() || dbRaw == nullptr) {
+        throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
+    }
+    std::unique_ptr<leveldb::DB> db(dbRaw); // RAII ownership
+    // Check if utxo exists
+    std::string value;
+    status = db->Get(leveldb::ReadOptions(), key, &value);
+    return status.ok();
 }
 
 
