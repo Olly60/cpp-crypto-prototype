@@ -21,15 +21,8 @@ static array256_t getBlockchainTip() {
 	return latestBlockHash;
 }
 
-static void setBlockchainTip(const array256_t& blockHash) {
-	fs::create_directories(blockchainTipPath);
-	std::ofstream tipFile(blockchainTipPath / "blockchain_tip", std::ios::trunc | std::ios::binary);
-	tipFile.exceptions(std::ios::failbit | std::ios::badbit);
-	tipFile.write(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
-}
-
 // Block management
-static void addBlock(const Block& block) {
+static void addBlock(const Block& block)  {
     // Serialize the block
     const auto blockBytes = serialiseBlock(block);
 
@@ -50,22 +43,30 @@ static void addBlock(const Block& block) {
     blockFile.write(reinterpret_cast<const char*>(blockBytes.data()), blockBytes.size());
 
 	// Update blockchain tip
-	setBlockchainTip(blockHash);
+    fs::create_directories(blockchainTipPath);
+    std::ofstream tipFile(blockchainTipPath / "blockchain_tip", std::ios::trunc | std::ios::binary);
+    tipFile.exceptions(std::ios::failbit | std::ios::badbit);
+    tipFile.write(reinterpret_cast<const char*>(blockHash.data()), sizeof(blockHash));
 
     // Create undo file
 	fs::create_directories(blockchainPath / "undo");
     fs::path undoFilePath = blockchainPath / "undo" / (bytesToHex(blockHash) + ".undo");
     std::ofstream undoFile(undoFilePath, std::ios::app | std::ios::binary);
-    if (!undoFile) {
-        throw std::runtime_error("Failed to create undo file: " + undoFilePath.string());
-	}
+    undoFile.exceptions(std::ios::failbit | std::ios::badbit);
+
+    // Get UTXO amount
+    uint32_t utxoCount = 0;
+
+	// Write UTXO references to undo file
     for (const auto& tx : block.txs) {
+		undoFile.put(tx.version); // Write transaction version
+		undoFile.write(reinterpret_cast<const char*>(serialiseNumberLe(static_cast<uint32_t>(tx.txInputs.size())).data()), sizeof(tx.txInputs)); // Write input count
         for (const auto& input : tx.txInputs) {
-            // Serialize UTXO reference
             undoFile.write(reinterpret_cast<const char*>(input.UTXOTxHash.data()), input.UTXOTxHash.size());
             auto outputIndexBytes = serialiseNumberLe(input.UTXOOutputIndex);
             undoFile.write(reinterpret_cast<const char*>(outputIndexBytes.data()), outputIndexBytes.size());
 		}
+		
     }
 }
 
@@ -75,24 +76,45 @@ static bool blockExists(const array256_t& blockHash) {
 }
 
 static void undoBlock(const Block& block) {
+	// Ensure block directory exists
+	fs::create_directories(blockchainPath);
+
+	// Delete block file
+	fs::path blockFilePath = blockchainPath / (bytesToHex(getBlockHash(block)) + ".block");
+    if (fs::exists(blockFilePath)) {
+        fs::remove(blockFilePath);
+	}
+
     // Open undo file for reading
     fs::path undoFilePath = blockchainPath / "undo" / (bytesToHex(getBlockHash(block)) + ".undo");
     std::ifstream undoFile(undoFilePath, std::ios::binary);
-    if (!undoFile) {
-        throw std::runtime_error("Failed to open undo file: " + undoFilePath.string());
-    }
+    undoFile.exceptions(std::ios::failbit | std::ios::badbit);
+    if (!undoFile) throw std::runtime_error("Failed to open undo file: " + undoFilePath.string());
 
     // Read UTXO references from undo file
-    while (undoFile) {
-        array256_t utxoTxHash;
-        undoFile.read(reinterpret_cast<char*>(txout), utxoTxHash.size());
-        if (undoFile.eof()) break;
+    for (const auto& tx : block.txs) {
+        uint8_t txVersion;
+        undoFile.read(reinterpret_cast<char*>(&txVersion), sizeof(txVersion)); // Read transaction version
+        uint32_t utxoamount;
+		undoFile.read(reinterpret_cast<char*>(&utxoamount), sizeof(utxoamount)); // Read UTXO count
+        
+        switch (txVersion) {
+            case 1: {
+                for (uint32_t i = 0; i < utxoamount; i++) {
+                    array256_t txHash;
+                    undoFile.read(reinterpret_cast<char*>(txHash.data()), txHash.size());
+                    uint32_t outputIndex;
+                    undoFile.read(reinterpret_cast<char*>(&outputIndex), sizeof(outputIndex));
+                    removeUtxo(txHash, outputIndex);
+                }
+                break;
+            }
+            default:
+                throw std::runtime_error("Unsupported Transaction version in undo file");
+		}
+		
+		
 
-        uint32_t utxoOutputIndex;
-        undoFile.read(reinterpret_cast<char*>(&utxoOutputIndex), sizeof(utxoOutputIndex));
-
-        // Remove UTXO
-        removeUtxo(utxoTxHash, utxoOutputIndex);
     }
 }
 
@@ -161,7 +183,7 @@ static UTXO getUtxoValue(const array256_t& txHash, const uint32_t outputIndex) {
 	}
 }
 
-static bool utxoExists(const array256_t& txHash, const uint32_t outputIndex) {
+static bool utxoValid(const array256_t& txHash, const uint32_t outputIndex) {
 	// Construct key
     std::string keyString;
     auto outputIndexBytes = serialiseNumberLe(outputIndex);
