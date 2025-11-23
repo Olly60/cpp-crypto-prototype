@@ -97,7 +97,6 @@ static void undoBlock(const Block& block) {
 }
 
 // UTXO management
-    
 static void addUtxo(const UTXO& utxo, const array256_t& txHash, const uint32_t outputIndex) {
 
 	std::string keyString; 
