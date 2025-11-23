@@ -22,14 +22,14 @@ int main()
 	cin >> userInput;
 	if (userInput == "new") {
 		crypto_box_keypair(bytesPublicKey.data(), bytesPrivateKey.data());
-		hexFromBytes(hexPublicKey, bytesPublicKey, crypto_box_PUBLICKEYBYTES);
-		hexFromBytes(hexPrivateKey, bytesPrivateKey, crypto_box_SECRETKEYBYTES);
+		bytesToHex(hexPublicKey, bytesPublicKey, crypto_box_PUBLICKEYBYTES);
+		bytesToHex(hexPrivateKey, bytesPrivateKey, crypto_box_SECRETKEYBYTES);
 	}
 	else {
-		bytesFromHex(bytesPrivateKey, userInput);
+		hexToBytes(bytesPrivateKey, userInput);
 		crypto_scalarmult_base(bytesPublicKey.data(), bytesPrivateKey.data());
-		hexFromBytes(hexPublicKey, bytesPublicKey, crypto_box_PUBLICKEYBYTES);
-		hexFromBytes(hexPrivateKey, bytesPrivateKey, crypto_box_SECRETKEYBYTES);
+		bytesToHex(hexPublicKey, bytesPublicKey, crypto_box_PUBLICKEYBYTES);
+		bytesToHex(hexPrivateKey, bytesPrivateKey, crypto_box_SECRETKEYBYTES);
 	}
 	cout << "Public Key: " << hexPublicKey << endl << "Private Key: " << hexPrivateKey << endl;
 }

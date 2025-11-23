@@ -31,7 +31,7 @@ namespace v1 {
 		bool isCoinbaseTx = true;
 		array256_t txHash;
 		std::vector<uint8_t> merkleLeaves;
-		for (const Tx& tx : block.transactions) {
+		for (const Tx& tx : block.txs) {
 
 			hashTransaction(txHash, tx);
 			merkleLeaves.insert(merkleLeaves.end(), txHash.begin(), txHash.end());
@@ -88,14 +88,14 @@ namespace v1 {
 		// Verify coinbase transaction
 		{
 			// Coinbase transaction should have no inputs
-			if (!block.transactions[0].txInputs.empty()) return false;
+			if (!block.txs[0].txInputs.empty()) return false;
 
 			// Coinbase transaction should have exactly one output
-			if (block.transactions[0].txOutputs.size() != 1) return false;
+			if (block.txs[0].txOutputs.size() != 1) return false;
 
 			// Coinbase transaction output amount should equal total fees
 			uint64_t coinabaseAmount = 0;
-			for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
+			for (const UTXO& coinbaseTxOutput : block.txs[0].txOutputs) {
 				coinabaseAmount += coinbaseTxOutput.amount;
 			}
 			// Coinbase amount exceeds total fees
@@ -107,7 +107,7 @@ namespace v1 {
 		blockChain[blockHash] = block;
 
 		// Remove used UTXOs
-		for (const Tx& tx : block.transactions) {
+		for (const Tx& tx : block.txs) {
 			for (TxInputSigned txInputSigned : tx.txInputs) {
 				UTXOKey key;
 				key.txHash = txInputSigned.txInput.prevTxHash;
@@ -117,7 +117,7 @@ namespace v1 {
 		}
 
 		// Process transactions
-		for (const Tx& tx : block.transactions) {
+		for (const Tx& tx : block.txs) {
 			hashTransaction(txHash, tx);
 
 			// Remove used input UTXO
@@ -141,10 +141,10 @@ namespace v1 {
 		}
 
 		// Create UTXOs for Coinbase Transaction outputs
-		hashTransaction(txHash, block.transactions[0]);
+		hashTransaction(txHash, block.txs[0]);
 		UTXOKey key;
 		uint64_t index = 0;
-		for (const UTXO& coinbaseTxOutput : block.transactions[0].txOutputs) {
+		for (const UTXO& coinbaseTxOutput : block.txs[0].txOutputs) {
 			key.txHash = txHash;
 			//key.outputIndex = //*reinterpret_cast<uint64_t*>(putUint64Le(index).data());
 			//UTXOs[key] = coinbaseTxOutput;

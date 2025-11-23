@@ -5,10 +5,10 @@
 #include <span>
 
 // Convert hex string to byte array
-array256_t bytesFromHex(const std::string& hex);
+array256_t hexToBytes(const std::string& hex);
 
 // Convert byte array to hex string
-std::string hexFromBytes(const array256_t& bytes);
+std::string bytesToHex(const array256_t& bytes);
 
 // Compute SHA-256 hash of data
 array256_t sha256Of(std::span<const uint8_t> data);

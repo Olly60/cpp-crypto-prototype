@@ -6,7 +6,7 @@
 #include <span>
 #include <cstring>
 
-array256_t bytesFromHex(const std::string& hex) {
+array256_t hexToBytes(const std::string& hex) {
 	if (hex.size() != array256_t{}.size() * 2) {
 		throw std::runtime_error("bytesFromHex: invalid hex string length");
 	}
@@ -28,7 +28,7 @@ array256_t bytesFromHex(const std::string& hex) {
 	return out;
 }
 
-std::string hexFromBytes(const array256_t& bytes) {
+std::string bytesToHex(const array256_t& bytes) {
 	static const char hexChars[] = "0123456789ABCDEF";
 	std::string out;
 	out.resize(bytes.size() * 2);
@@ -204,10 +204,10 @@ namespace v1 {
 		appendBytes(out, block.nonce);
 
 		// Transaction count
-		appendBytes(out, serialiseNumberLe(static_cast<uint32_t>(block.transactions.size())));
+		appendBytes(out, serialiseNumberLe(static_cast<uint32_t>(block.txs.size())));
 
 		// Serialize each transaction
-		for (const auto& tx : block.transactions) {
+		for (const auto& tx : block.txs) {
 			appendBytes(out, v1::serialiseTx(tx));
 		}
 
@@ -238,10 +238,10 @@ namespace v1 {
 
 		// Transactions
 		const uint32_t txCount = formatNumberNative<uint32_t>(takeBytes(blockBytes, sizeof(txCount), offset));
-		block.transactions.reserve(txCount);
+		block.txs.reserve(txCount);
 
 		for (uint32_t i = 0; i < txCount; i++) {
-			block.transactions.push_back(formatTx(takeBytes(blockBytes, inputSize, offset)));
+			block.txs.push_back(formatTx(takeBytes(blockBytes, inputSize, offset)));
 		}
 
 		return block;

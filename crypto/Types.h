@@ -27,5 +27,5 @@ struct Block {
 	uint64_t timestamp{};
 	array256_t difficulty{};
 	array256_t nonce{};
-	std::vector<Tx> transactions;
+	std::vector<Tx> txs;
 };
