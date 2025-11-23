@@ -75,9 +75,9 @@ appendBytes(std::vector<uint8_t>& out, const Container& data) {
 // ============================================================================
 namespace v1 {
 
-	static constexpr uint8_t inputSize = sizeof(TxInput::UTXOTxHash) + sizeof(TxInput::UTXOOutputIndex) + sizeof(TxInput::signature);
-	static constexpr uint8_t outputSize = sizeof(UTXO::amount) + sizeof(UTXO::recipient);
-	static constexpr uint8_t blockHeaderSize = sizeof(Block::version) + sizeof(Block::prevBlockHash) + sizeof(Block::merkleRoot) + sizeof(Block::timestamp) + sizeof(Block::difficulty) + sizeof(Block::nonce);
+	static constexpr uint8_t inputSize = sizeof(decltype(TxInput::UTXOTxHash)) + sizeof(decltype(TxInput::UTXOOutputIndex)) + sizeof(decltype(TxInput::signature));
+	static constexpr uint8_t outputSize = sizeof(decltype(UTXO::amount)) + sizeof(decltype(UTXO::recipient));
+	static constexpr uint8_t blockHeaderSize = sizeof(decltype(Block::version)) + sizeof(decltype(Block::prevBlockHash)) + sizeof(decltype(Block::merkleRoot)) + sizeof(decltype(Block::timestamp)) + sizeof(decltype(Block::difficulty)) + sizeof(decltype(Block::nonce));
 	// ----------------------------------------
 	// TxInput
 	// ----------------------------------------
