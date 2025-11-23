@@ -50,6 +50,8 @@ std::array<uint8_t, sizeof(T)> serialiseNumberLe(const T in) {
 	return out;
 }
 
+std::vector<uint8_t> serialiseTx(const Tx& tx);
+
 // Serialize Block to bytes
 std::vector<uint8_t> serialiseBlock(const Block& block);
 

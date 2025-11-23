@@ -85,7 +85,7 @@ static void undoBlock(const Block& block) {
     // Read UTXO references from undo file
     while (undoFile) {
         array256_t utxoTxHash;
-        undoFile.read(reinterpret_cast<char*>(utxoTxHash.data()), utxoTxHash.size());
+        undoFile.read(reinterpret_cast<char*>(txout), utxoTxHash.size());
         if (undoFile.eof()) break;
 
         uint32_t utxoOutputIndex;

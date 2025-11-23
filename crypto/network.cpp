@@ -3,12 +3,10 @@
 #include <span>
 
 // Protocols
-enum ProtocolType : uint8_t {
-    ProtocolBlock = 1,
-	ProtocolTx = 2,
-	ProtocolAskForBlocks = 3,
-    // Future protocols can be added here
-};
+constexpr uint8_t ProtocolBlock = 1;
+constexpr uint8_t ProtocolTx = 2;
+constexpr uint8_t ProtocolAskForBlocks = 3;
+
 // Reads exactly `numBytes` from the socket into the buffer
 std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
     std::vector<uint8_t> buffer(numBytes);
