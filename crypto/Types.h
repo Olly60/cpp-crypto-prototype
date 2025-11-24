@@ -15,13 +15,13 @@ struct TxInput {
 };
 
 struct Tx {
-	uint8_t version{1};
+	uint32_t version{1};
 	std::vector<TxInput> txInputs;
 	std::vector<UTXO> txOutputs;
 };
 
 struct Block {
-	uint8_t version{1};
+	uint32_t version{1};
 	array256_t prevBlockHash{};
 	array256_t merkleRoot{};
 	uint64_t timestamp{};

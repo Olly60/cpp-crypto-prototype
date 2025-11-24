@@ -3,9 +3,14 @@
 #include <span>
 
 // Protocols
-constexpr uint8_t ProtocolBlock = 1;
-constexpr uint8_t ProtocolTx = 2;
-constexpr uint8_t ProtocolAskForBlocks = 3;
+struct NetworkPacket {
+    uint32_t protocolType{};
+	uint32_t networkId;
+    uint32_t services;
+	uint32_t nonce;
+    array256_t blockchainTip;
+
+};
 
 // Reads exactly `numBytes` from the socket into the buffer
 std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
@@ -29,11 +34,10 @@ std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
 
 void handleConnection(asio::ip::tcp::socket socket) {
     
-	// Read the protocol type (1 byte)
-    std::vector<uint8_t> buffer(sizeof(uint8_t));
-    buffer = readExact(socket, 1);
+    std::vector<uint8_t> buffer(sizeof(uint32_t));
+    buffer = readExact(socket, 4);
 
-    uint8_t protocolType = buffer[0];
+    uint32_t protocolType = formatNumberNative<uint32_t>(std::span<const uint8_t>(buffer.data(), buffer.size()));
 
     switch (protocolType) {
     case 1: reciveBlock(socket);

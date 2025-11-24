@@ -266,6 +266,9 @@ namespace v1 {
 	static array256_t getTxHash(const Tx& tx) {
 		std::vector<uint8_t> txBytes;
 
+		// Version
+		appendBytes(txBytes, serialiseNumberLe(tx.version));
+
 		// Serialize each input
 		for (const auto& in : tx.txInputs) {
 			appendBytes(txBytes, serialiseTxInput(in));
