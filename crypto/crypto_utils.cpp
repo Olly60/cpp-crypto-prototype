@@ -7,12 +7,12 @@
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
-array256_t hexToBytes(const std::string& hex) {
-	if (hex.size() != array256_t{}.size() * 2) {
+Array256_t hexToBytes(const std::string& hex) {
+	if (hex.size() != Array256_t{}.size() * 2) {
 		throw std::runtime_error("bytesFromHex: invalid hex string length");
 	}
 
-	array256_t out{};
+	Array256_t out{};
 	auto hexCharToNibble = [](char c) -> uint8_t {
 		c = toupper(c);
 		if (c >= '0' && c <= '9') return c - '0';
@@ -29,7 +29,7 @@ array256_t hexToBytes(const std::string& hex) {
 	return out;
 }
 
-std::string bytesToHex(const array256_t& bytes) {
+std::string bytesToHex(const Array256_t& bytes) {
 	static const char hexChars[] = "0123456789ABCDEF";
 	std::string out;
 	out.resize(bytes.size() * 2);
@@ -43,8 +43,8 @@ std::string bytesToHex(const array256_t& bytes) {
 	return out;
 }
 
-array256_t sha256Of(std::span<const uint8_t> data) {
-	array256_t out;
+Array256_t sha256Of(std::span<const uint8_t> data) {
+	Array256_t out;
 	crypto_hash_sha256(out.data(), data.data(), data.size());
 	return out;
 }
@@ -71,15 +71,15 @@ static TxInput formatTxInput(std::span<const uint8_t> txInputBytes, size_t& offs
 // ----------------------------------------
 // UTXO
 // ----------------------------------------
-static std::vector<uint8_t> serialiseUtxo(const UTXO& utxo) {
+static std::vector<uint8_t> serialiseUtxo(const TxOutput& utxo) {
 	std::vector<uint8_t> out;
 	appendBytes(out, utxo.amount);
 	appendBytes(out, utxo.recipient);
 	return out;
 }
 
-static UTXO formatUtxo(std::span<const uint8_t> utxoBytes, size_t& offset) {
-	UTXO utxo;
+static TxOutput formatUtxo(std::span<const uint8_t> utxoBytes, size_t& offset) {
+	TxOutput utxo;
 	takeBytesInto(utxo.amount, utxoBytes, offset);
 	takeBytesInto(utxo.recipient, utxoBytes, offset);
 	return utxo;
@@ -176,7 +176,7 @@ Block formatBlock(std::span<const uint8_t> blockBytes) {
 }
 
 
-array256_t getBlockHash(const Block& block) {
+Array256_t getBlockHash(const Block& block) {
 	std::vector<uint8_t> headerBytes;
 	appendBytes(headerBytes, block.version);
 	appendBytes(headerBytes, block.prevBlockHash);
@@ -187,7 +187,7 @@ array256_t getBlockHash(const Block& block) {
 	return sha256Of(headerBytes);
 }
 
-array256_t getTxHash(const Tx& tx) {
+Array256_t getTxHash(const Tx& tx) {
 	std::vector<uint8_t> txBytes;
 
 	// Version
