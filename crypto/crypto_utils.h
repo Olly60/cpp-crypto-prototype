@@ -59,32 +59,32 @@ void appendBytes(std::vector<uint8_t>& out, const T& data) {
 	}
 }
 
-	struct UTXO {
-		uint64_t amount{ 1 };
-		array256_t recipient{};
-	};
-	struct TxInput {
-		array256_t UTXOTxHash{};
-		uint32_t UTXOOutputIndex{};
-		array256_t signature{};
-	};
-	struct Tx {
-		uint32_t version{ 1 };
-		std::vector<TxInput> txInputs;
-		std::vector<UTXO> txOutputs;
-	};
-	struct Block {
-		uint32_t version{ 1 };
-		array256_t prevBlockHash{};
-		array256_t merkleRoot{};
-		uint64_t timestamp{};
-		array256_t difficulty{};
-		array256_t nonce{};
-		std::vector<Tx> txs;
-	};
-	std::vector<uint8_t> serialiseBlock(const Block& block);
-	Block formatBlock(std::span<const uint8_t> blockBytes);
-	array256_t getBlockHash(const Block& block);
-	array256_t getTxHash(const Tx& tx);
+struct UTXO {
+	uint64_t amount{ 1 };
+	array256_t recipient{};
+};
+struct TxInput {
+	array256_t UTXOTxHash{};
+	uint32_t UTXOOutputIndex{};
+	array256_t signature{};
+};
+struct Tx {
+	uint32_t version{ 1 };
+	std::vector<TxInput> txInputs;
+	std::vector<UTXO> txOutputs;
+};
+struct Block {
+	uint32_t version{ 1 };
+	array256_t prevBlockHash{};
+	array256_t merkleRoot{};
+	uint64_t timestamp{};
+	array256_t difficulty{};
+	array256_t nonce{};
+	std::vector<Tx> txs;
+};
+std::vector<uint8_t> serialiseBlock(const Block& block);
+Block formatBlock(std::span<const uint8_t> blockBytes);
+array256_t getBlockHash(const Block& block);
+array256_t getTxHash(const Tx& tx);
 
 

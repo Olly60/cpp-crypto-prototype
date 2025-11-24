@@ -49,9 +49,6 @@ array256_t sha256Of(std::span<const uint8_t> data) {
 	return out;
 }
 
-static constexpr uint8_t inputSize = sizeof(decltype(TxInput::UTXOTxHash)) + sizeof(decltype(TxInput::UTXOOutputIndex)) + sizeof(decltype(TxInput::signature));
-static constexpr uint8_t outputSize = sizeof(decltype(UTXO::amount)) + sizeof(decltype(UTXO::recipient));
-static constexpr uint8_t blockHeaderSize = sizeof(decltype(Block::version)) + sizeof(decltype(Block::prevBlockHash)) + sizeof(decltype(Block::merkleRoot)) + sizeof(decltype(Block::timestamp)) + sizeof(decltype(Block::difficulty)) + sizeof(decltype(Block::nonce));
 // ----------------------------------------
 // TxInput
 // ----------------------------------------
@@ -63,9 +60,8 @@ static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
 	return out;
 }
 
-static TxInput formatTxInput(std::span<const uint8_t> txInputBytes) {
+static TxInput formatTxInput(std::span<const uint8_t> txInputBytes, size_t& offset) {
 	TxInput txInput;
-	size_t offset = 0;
 	takeBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
 	takeBytesInto(txInput.UTXOOutputIndex, txInputBytes, offset);
 	takeBytesInto(txInput.signature, txInputBytes, offset);
@@ -82,9 +78,8 @@ static std::vector<uint8_t> serialiseUtxo(const UTXO& utxo) {
 	return out;
 }
 
-static UTXO formatUtxo(std::span<const uint8_t> utxoBytes) {
+static UTXO formatUtxo(std::span<const uint8_t> utxoBytes, size_t& offset) {
 	UTXO utxo;
-	size_t offset = 0;
 	takeBytesInto(utxo.amount, utxoBytes, offset);
 	takeBytesInto(utxo.recipient, utxoBytes, offset);
 	return utxo;
@@ -110,9 +105,8 @@ static std::vector<uint8_t> serialiseTx(const Tx& tx) {
 	return out;
 }
 
-static Tx formatTx(std::span<const uint8_t> txBytes) {
+static Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset) {
 	Tx tx;
-	size_t offset = 0;
 	takeBytesInto(tx.version, txBytes, offset);
 
 	// Read input and output counts
@@ -122,8 +116,7 @@ static Tx formatTx(std::span<const uint8_t> txBytes) {
 
 	// Read inputs
 	for (uint32_t i = 0; i < inputCount; i++) {
-		tx.txInputs.push_back(formatTxInput(txBytes.subspan(offset, inputSize)));
-		offset += inputSize;  // advance to the next input
+		tx.txInputs.push_back(formatTxInput(txBytes, offset));
 	}
 
 	// Read output count (after inputs)
@@ -133,8 +126,7 @@ static Tx formatTx(std::span<const uint8_t> txBytes) {
 
 	// Read outputs
 	for (uint32_t i = 0; i < outputCount; i++) {
-		tx.txOutputs.push_back(formatUtxo(txBytes.subspan(offset, outputSize)));
-		offset += outputSize;  // advance to the next output
+		tx.txOutputs.push_back(formatUtxo(txBytes, offset));
 	}
 }
 
@@ -177,7 +169,7 @@ Block formatBlock(std::span<const uint8_t> blockBytes) {
 	block.txs.reserve(txCount);
 
 	for (uint32_t i = 0; i < txCount; i++) {
-		block.txs.push_back(formatTx());
+		block.txs.push_back(formatTx(blockBytes, offset));
 	}
 
 	return block;
