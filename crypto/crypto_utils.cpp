@@ -6,6 +6,8 @@
 #include <span>
 #include <cstring>
 
+using array256_t = std::array<uint8_t, 32>;
+
 array256_t hexToBytes(const std::string& hex) {
 	if (hex.size() != array256_t{}.size() * 2) {
 		throw std::runtime_error("bytesFromHex: invalid hex string length");
@@ -75,6 +77,33 @@ appendBytes(std::vector<uint8_t>& out, const Container& data) {
 // ============================================================================
 namespace v1 {
 
+	struct UTXO {
+		uint64_t amount{1};
+		array256_t recipient{};
+	};
+
+	struct TxInput {
+		array256_t UTXOTxHash{};
+		uint32_t UTXOOutputIndex{};
+		array256_t signature{};
+	};
+
+	struct Tx {
+		uint32_t version{ 1 };
+		std::vector<TxInput> txInputs;
+		std::vector<UTXO> txOutputs;
+	};
+
+	struct Block {
+		uint32_t version{1};
+		array256_t prevBlockHash{};
+		array256_t merkleRoot{};
+		uint64_t timestamp{};
+		array256_t difficulty{};
+		array256_t nonce{};
+		std::vector<Tx> txs;
+	};
+
 	static constexpr uint8_t inputSize = sizeof(decltype(TxInput::UTXOTxHash)) + sizeof(decltype(TxInput::UTXOOutputIndex)) + sizeof(decltype(TxInput::signature));
 	static constexpr uint8_t outputSize = sizeof(decltype(UTXO::amount)) + sizeof(decltype(UTXO::recipient));
 	static constexpr uint8_t blockHeaderSize = sizeof(decltype(Block::version)) + sizeof(decltype(Block::prevBlockHash)) + sizeof(decltype(Block::merkleRoot)) + sizeof(decltype(Block::timestamp)) + sizeof(decltype(Block::difficulty)) + sizeof(decltype(Block::nonce));
@@ -94,14 +123,14 @@ namespace v1 {
 		size_t offset = 0;
 
 		// Copy UTXO transaction hash
-		auto hashBytes = takeBytes(txInputBytes, sizeof(decltype(TxInput::UTXOTxHash)), offset);
+		auto hashBytes = takeBytes(txInputBytes, sizeof(txInput.UTXOTxHash), offset);
 		std::memcpy(txInput.UTXOTxHash.data(), hashBytes.data(), hashBytes.size());
 
 		// Read output index
-		txInput.UTXOOutputIndex = formatNumberNative<decltype(txInput.UTXOOutputIndex)>(takeBytes(txInputBytes, sizeof(decltype(TxInput::UTXOOutputIndex)), offset));
+		txInput.UTXOOutputIndex = formatNumberNative<decltype(txInput.UTXOOutputIndex)>(takeBytes(txInputBytes, sizeof(txInput.UTXOOutputIndex), offset));
 
 		// Copy signature
-		auto sigBytes = takeBytes(txInputBytes, sizeof(decltype(TxInput::signature)), offset);
+		auto sigBytes = takeBytes(txInputBytes, sizeof(txInput.signature), offset);
 		std::memcpy(txInput.signature.data(), sigBytes.data(), sigBytes.size());
 
 		return txInput;
@@ -122,10 +151,10 @@ namespace v1 {
 		size_t offset = 0;
 
 		// Read amount
-		utxo.amount = formatNumberNative<decltype(utxo.amount)>(takeBytes(utxoBytes, sizeof(decltype(UTXO::amount)), offset));
+		utxo.amount = formatNumberNative<decltype(utxo.amount)>(takeBytes(utxoBytes, sizeof(utxo.amount), offset));
 
 		// Copy recipient hash
-		auto recipientBytes = takeBytes(utxoBytes, sizeof(decltype(UTXO::recipient)), offset);
+		auto recipientBytes = takeBytes(utxoBytes, sizeof(utxo.recipient), offset);
 		std::memcpy(utxo.recipient.data(), recipientBytes.data(), recipientBytes.size());
 
 		return utxo;
@@ -166,7 +195,7 @@ namespace v1 {
 		size_t offset = 0;
 
 		// Version
-		tx.version = formatNumberNative<uint64_t>(takeBytes(txBytes, sizeof(decltype(Tx::version)), offset));
+		tx.version = formatNumberNative<uint64_t>(takeBytes(txBytes, sizeof(tx.version), offset));
 
 		// Read input and output counts
 		uint32_t inputCount = formatNumberNative<uint32_t>(takeBytes(txBytes, sizeof(inputCount), offset));
@@ -223,18 +252,18 @@ namespace v1 {
 		// Header
 		block.version = formatNumberNative<uint64_t>(takeBytes(blockBytes, sizeof(block.version), offset));
 
-		auto prevBlockHashBytes = takeBytes(blockBytes, sizeof(decltype(Block::prevBlockHash)), offset);
+		auto prevBlockHashBytes = takeBytes(blockBytes, sizeof(block.prevBlockHash), offset);
 		std::memcpy(block.prevBlockHash.data(), prevBlockHashBytes.data(), prevBlockHashBytes.size());
 
-		auto merkleRootBytes = takeBytes(blockBytes, sizeof(decltype(Block::merkleRoot)), offset);
+		auto merkleRootBytes = takeBytes(blockBytes, sizeof(block.merkleRoot), offset);
 		std::memcpy(block.merkleRoot.data(), merkleRootBytes.data(), merkleRootBytes.size());
 
 		block.timestamp = formatNumberNative<uint64_t>(takeBytes(blockBytes, sizeof(block.timestamp), offset));
 
-		auto difficultyBytes = takeBytes(blockBytes, sizeof(decltype(Block::difficulty)), offset);
+		auto difficultyBytes = takeBytes(blockBytes, sizeof(block.difficulty), offset);
 		std::memcpy(block.difficulty.data(), difficultyBytes.data(), difficultyBytes.size());
 
-		auto nonceBytes = takeBytes(blockBytes, sizeof(decltype(Block::nonce)), offset);
+		auto nonceBytes = takeBytes(blockBytes, sizeof(block.nonce), offset);
 		std::memcpy(block.nonce.data(), nonceBytes.data(), nonceBytes.size());
 
 		// Transactions

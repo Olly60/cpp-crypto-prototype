@@ -4,9 +4,9 @@
 
 // Protocols
 struct NetworkPacket {
-    uint32_t protocolType{};
-	uint32_t networkId;
-    uint32_t services;
+    uint32_t protocolVersion{1};
+    uint32_t networkId{1};
+    uint32_t services{1};
 	uint32_t nonce;
     array256_t blockchainTip;
 
