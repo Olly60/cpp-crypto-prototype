@@ -11,9 +11,9 @@ static const fs::path utxoPath = fs::path("blockchain") / "utxo";
 static const fs::path undoPath = fs::path("blockchain") / "undo";
 static const fs::path peersPath = fs::path("blockchain") / "peers";
 
-namespace block_v1 {
+
 	// Blockchain storage management
-	static void addBlock(const Block& block) {
+static void addBlock(const Block& block) {
 		// Serialize the block
 		const auto blockBytes = serialiseBlock(block);
 
@@ -68,13 +68,13 @@ namespace block_v1 {
 		}
 	}
 
-	static void undoBlock(const Block& block) {
+static void undoBlock(const Block& block) {
 
 		// Delete block file
 		deleteBlockFile(getBlockHash(block));
 
 		// Open undo file for reading
-		readUndoFile(getBlockHash(block));
+		auto undoData = readUndoFile(getBlockHash(block));
 
 		// Read UTXO references from undo file
 		for (const auto& tx : block.txs) {
@@ -98,13 +98,13 @@ namespace block_v1 {
 	}
 
 	// UTXO storage management
-	static void addUtxo(const UTXO& utxo, const array256_t& txHash, const uint32_t outputIndex) {
+static void addUtxo(const UTXO& utxo, const array256_t& txHash, const uint32_t outputIndex) {
 
 		// Construct key
 		std::string keyString;
 		keyString.append(reinterpret_cast<const char*>(serialiseNumberLe(outputIndex).data()), sizeof(outputIndex));
 		keyString.append(reinterpret_cast<const char*>(&txHash), sizeof(txHash));
-		leveldb::Slice key(reinterpret_cast<const char*>(keyString.data()), sizeof(keyString));
+		leveldb::Slice key(reinterpret_cast<const char*>(keyString.data()), keyString.size());
 
 		// Construct value
 		std::string valueString;
@@ -129,7 +129,7 @@ namespace block_v1 {
 		if (!status.ok()) throw std::runtime_error("Failed to put UTXO metadata: " + status.ToString());
 	}
 
-	static void removeUtxo(const array256_t& txHash, const uint32_t outputIndex) {
+static void removeUtxo(const array256_t& txHash, const uint32_t outputIndex) {
 		// Construct key
 		std::string keyString;
 		auto outputIndexBytes = serialiseNumberLe(outputIndex);
@@ -155,7 +155,7 @@ namespace block_v1 {
 	}
 
 	// Validation and retrieval
-	static UTXO getUtxoValue(const array256_t& txHash, const uint32_t outputIndex) {
+static UTXO getUtxoValue(const array256_t& txHash, const uint32_t outputIndex) {
 
 		// Construct key
 		std::string keyString;
@@ -189,7 +189,7 @@ namespace block_v1 {
 
 	}
 
-	static bool utxoValid(const array256_t& txHash, const uint32_t outputIndex) {
+static bool utxoValid(const array256_t& txHash, const uint32_t outputIndex) {
 		// Construct key
 		std::string keyString;
 		auto outputIndexBytes = serialiseNumberLe(outputIndex);
@@ -214,13 +214,6 @@ namespace block_v1 {
 		status = db->Get(leveldb::ReadOptions(), key, &value);
 		return status.ok();
 	}
-
-} // namespace v1
-
-
-// =============================================================
-// General storage management
-// =============================================================
 
 // validation and retrieval
 static bool blockExists(const array256_t& blockHash) {
@@ -264,10 +257,10 @@ static void changeBlockchainTip(const array256_t newTip) {
 	tipFile.write(reinterpret_cast<const char*>(newTip.data()), sizeof(newTip));
 }
 
-static void readUndoFile(std::ifstream, const array256_t blockHash) {
+static std::vector<uint8_t> readUndoFile(const array256_t blockHash) {
 	fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
 	if (!fs::exists(undoFilePath)) throw std::runtime_error("Undo file does not exist");
-	e
+	
 	std::ifstream undoFile(undoFilePath, std::ios::binary | std::ios::ate);
 	undoFile.exceptions(std::ios::failbit | std::ios::badbit);
 
@@ -278,6 +271,7 @@ static void readUndoFile(std::ifstream, const array256_t blockHash) {
 	undoFile.seekg(0, std::ios::beg);
 	undoFile.read(reinterpret_cast<char*>(undoData.data()), fileSize);
 
+	return undoData;
 }
 
 static std::vector<uint8_t> readBlockFile(const array256_t blockHash) {

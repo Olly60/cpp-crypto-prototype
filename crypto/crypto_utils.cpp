@@ -49,236 +49,163 @@ array256_t sha256Of(std::span<const uint8_t> data) {
 	return out;
 }
 
-// Detect endianness at compile time
-static constexpr bool isLittleEndian() {
-	constexpr uint16_t x = 1;
-	return *reinterpret_cast<const uint8_t*>(&x) == 1;
-}
-
-static std::span<const uint8_t> takeBytes(std::span<const uint8_t> data, size_t amount, size_t& offset)
-{
-	if (offset + amount > data.size())
-		throw std::runtime_error("out of range");
-	auto out = data.subspan(offset, amount);
-	offset += amount;
+static constexpr uint8_t inputSize = sizeof(decltype(TxInput::UTXOTxHash)) + sizeof(decltype(TxInput::UTXOOutputIndex)) + sizeof(decltype(TxInput::signature));
+static constexpr uint8_t outputSize = sizeof(decltype(UTXO::amount)) + sizeof(decltype(UTXO::recipient));
+static constexpr uint8_t blockHeaderSize = sizeof(decltype(Block::version)) + sizeof(decltype(Block::prevBlockHash)) + sizeof(decltype(Block::merkleRoot)) + sizeof(decltype(Block::timestamp)) + sizeof(decltype(Block::difficulty)) + sizeof(decltype(Block::nonce));
+// ----------------------------------------
+// TxInput
+// ----------------------------------------
+static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
+	std::vector<uint8_t> out;
+	appendBytes(out, txInput.UTXOTxHash);
+	appendBytes(out, txInput.UTXOOutputIndex);
+	appendBytes(out, txInput.signature);
 	return out;
 }
 
-template <typename Container> static void 
-appendBytes(std::vector<uint8_t>& out, const Container& data) {
-	out.insert(out.end(), data.begin(), data.end());
+static TxInput formatTxInput(std::span<const uint8_t> txInputBytes) {
+	TxInput txInput;
+	size_t offset = 0;
+	takeBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
+	takeBytesInto(txInput.UTXOOutputIndex, txInputBytes, offset);
+	takeBytesInto(txInput.signature, txInputBytes, offset);
+	return txInput;
+}
+
+// ----------------------------------------
+// UTXO
+// ----------------------------------------
+static std::vector<uint8_t> serialiseUtxo(const UTXO& utxo) {
+	std::vector<uint8_t> out;
+	appendBytes(out, utxo.amount);
+	appendBytes(out, utxo.recipient);
+	return out;
+}
+
+static UTXO formatUtxo(std::span<const uint8_t> utxoBytes) {
+	UTXO utxo;
+	size_t offset = 0;
+	takeBytesInto(utxo.amount, utxoBytes, offset);
+	takeBytesInto(utxo.recipient, utxoBytes, offset);
+	return utxo;
+}
+
+// ----------------------------------------
+// Tx
+// ----------------------------------------
+static std::vector<uint8_t> serialiseTx(const Tx& tx) {
+	std::vector<uint8_t> out;
+	// Version
+	appendBytes(out, tx.version);
+
+	// Input count
+	appendBytes(out, static_cast<uint32_t>(tx.txInputs.size()));
+	// Serialize each input
+	for (const auto& in : tx.txInputs) appendBytes(out, serialiseTxInput(in));
+
+	// Output count
+	appendBytes(out, static_cast<uint32_t>(tx.txOutputs.size()));
+	// Serialize each output
+	for (const auto& outTx : tx.txOutputs) appendBytes(out, serialiseUtxo(outTx));
+	return out;
+}
+
+static Tx formatTx(std::span<const uint8_t> txBytes) {
+	Tx tx;
+	size_t offset = 0;
+	takeBytesInto(tx.version, txBytes, offset);
+
+	// Read input and output counts
+	uint32_t inputCount;
+	takeBytesInto(inputCount, txBytes, offset);
+	tx.txInputs.reserve(inputCount);
+
+	// Read inputs
+	for (uint32_t i = 0; i < inputCount; i++) {
+		tx.txInputs.push_back(formatTxInput(txBytes.subspan(offset, inputSize)));
+		offset += inputSize;  // advance to the next input
+	}
+
+	// Read output count (after inputs)
+	uint32_t outputCount;
+	takeBytesInto(outputCount, txBytes, offset);
+	tx.txOutputs.reserve(outputCount);
+
+	// Read outputs
+	for (uint32_t i = 0; i < outputCount; i++) {
+		tx.txOutputs.push_back(formatUtxo(txBytes.subspan(offset, outputSize)));
+		offset += outputSize;  // advance to the next output
+	}
+}
+
+// ----------------------------------------
+// Block
+// ----------------------------------------
+
+std::vector<uint8_t> serialiseBlock(const Block& block) {
+	std::vector<uint8_t> out;
+	// Header
+	appendBytes(out, block.version);
+	appendBytes(out, block.prevBlockHash);
+	appendBytes(out, block.merkleRoot);
+	appendBytes(out, block.timestamp);
+	appendBytes(out, block.difficulty);
+	appendBytes(out, block.nonce);
+	// Transaction count
+	appendBytes(out, static_cast<uint32_t>(block.txs.size()));
+	// Serialize each transaction
+	for (const auto& tx : block.txs) appendBytes(out, serialiseTx(tx));
+	return out;
 }
 
 
-// ============================================================================
-// v1 SERIALISERS + PARSERS
-// ============================================================================
-namespace block_v1 {
+Block formatBlock(std::span<const uint8_t> blockBytes) {
+	Block block;
+	size_t offset = 0;
 
-	static constexpr uint8_t inputSize = sizeof(decltype(TxInput::UTXOTxHash)) + sizeof(decltype(TxInput::UTXOOutputIndex)) + sizeof(decltype(TxInput::signature));
-	static constexpr uint8_t outputSize = sizeof(decltype(UTXO::amount)) + sizeof(decltype(UTXO::recipient));
-	static constexpr uint8_t blockHeaderSize = sizeof(decltype(Block::version)) + sizeof(decltype(Block::prevBlockHash)) + sizeof(decltype(Block::merkleRoot)) + sizeof(decltype(Block::timestamp)) + sizeof(decltype(Block::difficulty)) + sizeof(decltype(Block::nonce));
-	// ----------------------------------------
-	// TxInput
-	// ----------------------------------------
-	static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
-		std::vector<uint8_t> out;
-		appendBytes(out, txInput.UTXOTxHash);
-		appendBytes(out, serialiseNumberLe(txInput.UTXOOutputIndex));
-		appendBytes(out, txInput.signature);
-		return out;
+	// Header
+	takeBytesInto(block.version, blockBytes, offset);
+	takeBytesInto(block.prevBlockHash, blockBytes, offset);
+	takeBytesInto(block.merkleRoot, blockBytes, offset);
+	takeBytesInto(block.timestamp, blockBytes, offset);
+	takeBytesInto(block.difficulty, blockBytes, offset);
+	takeBytesInto(block.nonce, blockBytes, offset);
+
+	// Transactions
+	uint32_t txCount = 0;
+	takeBytesInto(txCount, blockBytes, offset);
+	block.txs.reserve(txCount);
+
+	for (uint32_t i = 0; i < txCount; i++) {
+		block.txs.push_back(formatTx());
 	}
 
-	static TxInput formatTxInput(std::span<const uint8_t> txInputBytes) {
-		TxInput txInput;
-		size_t offset = 0;
-
-		// Copy UTXO transaction hash
-		auto hashBytes = takeBytes(txInputBytes, sizeof(txInput.UTXOTxHash), offset);
-		std::memcpy(txInput.UTXOTxHash.data(), hashBytes.data(), hashBytes.size());
-
-		// Read output index
-		txInput.UTXOOutputIndex = formatNumberNative<decltype(txInput.UTXOOutputIndex)>(takeBytes(txInputBytes, sizeof(txInput.UTXOOutputIndex), offset));
-
-		// Copy signature
-		auto sigBytes = takeBytes(txInputBytes, sizeof(txInput.signature), offset);
-		std::memcpy(txInput.signature.data(), sigBytes.data(), sigBytes.size());
-
-		return txInput;
-	}
-
-	// ----------------------------------------
-	// UTXO
-	// ----------------------------------------
-	static std::vector<uint8_t> serialiseUtxo(const UTXO& utxo) {
-		std::vector<uint8_t> out;
-		appendBytes(out, serialiseNumberLe(utxo.amount));
-		appendBytes(out, utxo.recipient);
-		return out;
-	}
-
-	static UTXO formatUtxo(std::span<const uint8_t> utxoBytes) {
-		UTXO utxo;
-		size_t offset = 0;
-
-		// Read amount
-		utxo.amount = formatNumberNative<decltype(utxo.amount)>(takeBytes(utxoBytes, sizeof(utxo.amount), offset));
-
-		// Copy recipient hash
-		auto recipientBytes = takeBytes(utxoBytes, sizeof(utxo.recipient), offset);
-		std::memcpy(utxo.recipient.data(), recipientBytes.data(), recipientBytes.size());
-
-		return utxo;
-	}
-
-	// ----------------------------------------
-	// Tx
-	// ----------------------------------------
-	static std::vector<uint8_t> serialiseTx(const Tx& tx) {
-		std::vector<uint8_t> out;
-
-		// Version
-		appendBytes(out, serialiseNumberLe(tx.version));
-
-		// Transaction input count
-		uint32_t inputCount = static_cast<uint32_t>(tx.txInputs.size());
-		appendBytes(out, serialiseNumberLe(inputCount));
-
-		// Serialize each input
-		for (const auto& in : tx.txInputs) {
-			appendBytes(out, serialiseTxInput(in));
-		}
-
-		// Transaction output count
-		uint32_t outputCount = static_cast<uint32_t>(tx.txOutputs.size());
-		appendBytes(out, serialiseNumberLe(outputCount));
-
-		// Serialize each output
-		for (const auto& outTx : tx.txOutputs) {
-			appendBytes(out, serialiseUtxo(outTx));
-		}
-
-		return out;
-	}
-
-	static Tx formatTx(std::span<const uint8_t> txBytes) {
-		Tx tx;
-		size_t offset = 0;
-
-		// Version
-		tx.version = formatNumberNative<uint64_t>(takeBytes(txBytes, sizeof(tx.version), offset));
-
-		// Read input and output counts
-		uint32_t inputCount = formatNumberNative<uint32_t>(takeBytes(txBytes, sizeof(inputCount), offset));
-		tx.txInputs.reserve(inputCount);
-
-		// Read inputs
-		for (uint32_t i = 0; i < inputCount; i++) {
-			tx.txInputs.push_back(formatTxInput(takeBytes(txBytes, inputSize, offset)));
-		}
-
-		// Read output count (after inputs)
-		uint32_t outputCount = formatNumberNative<uint32_t>(takeBytes(txBytes, sizeof(outputCount), offset));
-		tx.txOutputs.reserve(outputCount);
-
-		// Read outputs
-		for (uint32_t i = 0; i < outputCount; i++) {
-			tx.txOutputs.push_back(formatUtxo(takeBytes(txBytes, outputSize, offset)));
-		}
-
-		return tx;
-	}
-
-	// ----------------------------------------
-	// Block
-	// ----------------------------------------
-
-	std::vector<uint8_t> serialiseBlock(const Block& block) {
-		std::vector<uint8_t> out;
-
-		// Header
-		appendBytes(out, serialiseNumberLe(block.version));
-		appendBytes(out, block.prevBlockHash);
-		appendBytes(out, block.merkleRoot);
-		appendBytes(out, serialiseNumberLe(block.timestamp));
-		appendBytes(out, block.difficulty);
-		appendBytes(out, block.nonce);
-
-		// Transaction count
-		appendBytes(out, serialiseNumberLe(static_cast<uint32_t>(block.txs.size())));
-
-		// Serialize each transaction
-		for (const auto& tx : block.txs) {
-			appendBytes(out, block_v1::serialiseTx(tx));
-		}
-
-		return out;
-	}
+	return block;
+}
 
 
-	Block formatBlock(std::span<const uint8_t> blockBytes) {
-		Block block;
-		size_t offset = 0;
+array256_t getBlockHash(const Block& block) {
+	std::vector<uint8_t> headerBytes;
+	appendBytes(headerBytes, block.version);
+	appendBytes(headerBytes, block.prevBlockHash);
+	appendBytes(headerBytes, block.merkleRoot);
+	appendBytes(headerBytes, block.timestamp);
+	appendBytes(headerBytes, block.difficulty);
+	appendBytes(headerBytes, block.nonce);
+	return sha256Of(headerBytes);
+}
 
-		// Header
-		block.version = formatNumberNative<uint64_t>(takeBytes(blockBytes, sizeof(block.version), offset));
+array256_t getTxHash(const Tx& tx) {
+	std::vector<uint8_t> txBytes;
 
-		auto prevBlockHashBytes = takeBytes(blockBytes, sizeof(block.prevBlockHash), offset);
-		std::memcpy(block.prevBlockHash.data(), prevBlockHashBytes.data(), prevBlockHashBytes.size());
+	// Version
+	appendBytes(txBytes, tx.version);
 
-		auto merkleRootBytes = takeBytes(blockBytes, sizeof(block.merkleRoot), offset);
-		std::memcpy(block.merkleRoot.data(), merkleRootBytes.data(), merkleRootBytes.size());
+	// Serialize each input
+	for (const auto& in : tx.txInputs) appendBytes(txBytes, in);
 
-		block.timestamp = formatNumberNative<uint64_t>(takeBytes(blockBytes, sizeof(block.timestamp), offset));
+	// Serialize each output
+	for (const auto& outTx : tx.txOutputs) appendBytes(txBytes, outTx);
 
-		auto difficultyBytes = takeBytes(blockBytes, sizeof(block.difficulty), offset);
-		std::memcpy(block.difficulty.data(), difficultyBytes.data(), difficultyBytes.size());
-
-		auto nonceBytes = takeBytes(blockBytes, sizeof(block.nonce), offset);
-		std::memcpy(block.nonce.data(), nonceBytes.data(), nonceBytes.size());
-
-		// Transactions
-		const uint32_t txCount = formatNumberNative<uint32_t>(takeBytes(blockBytes, sizeof(txCount), offset));
-		block.txs.reserve(txCount);
-
-		for (uint32_t i = 0; i < txCount; i++) {
-			block.txs.push_back(formatTx(takeBytes(blockBytes, inputSize, offset)));
-		}
-
-		return block;
-	}
-
-
-	array256_t getBlockHash(const Block& block) {
-		std::vector<uint8_t> headerBytes;
-
-		appendBytes(headerBytes, serialiseNumberLe(block.version));
-		appendBytes(headerBytes, block.prevBlockHash);
-		appendBytes(headerBytes, block.merkleRoot);
-		appendBytes(headerBytes, serialiseNumberLe(block.timestamp));
-		appendBytes(headerBytes, block.difficulty);
-		appendBytes(headerBytes, block.nonce);
-
-		// Use std::span for safety
-		return sha256Of(std::span<const uint8_t>(headerBytes));
-	}
-
-	array256_t getTxHash(const Tx& tx) {
-		std::vector<uint8_t> txBytes;
-
-		// Version
-		appendBytes(txBytes, serialiseNumberLe(tx.version));
-
-		// Serialize each input
-		for (const auto& in : tx.txInputs) {
-			appendBytes(txBytes, serialiseTxInput(in));
-		}
-
-		// Serialize each output
-		for (const auto& outTx : tx.txOutputs) {
-			appendBytes(txBytes, serialiseUtxo(outTx));
-		}
-
-		return sha256Of(std::span<const uint8_t>(txBytes));
-	}
-} // namespace v1
+	return sha256Of(txBytes);
+}

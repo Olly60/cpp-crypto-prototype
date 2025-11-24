@@ -3,50 +3,37 @@
 #include <span>
 
 // Protocols
-uint32_t protocolVersion{ 1 };
+
 struct NetworkPacket {
+    uint32_t protocolVersion{ 1 };
     uint32_t networkId{1};
-    uint32_t services{1};
+    uint64_t services{1};
 	uint64_t nonce;
     array256_t blockchainTip;
 
 };
 
-    // Reads exactly `numBytes` from the socket into the buffer
-    std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
-    std::vector<uint8_t> buffer(numBytes);
-    size_t totalRead = 0;
-
-    while (totalRead < numBytes) {
-        size_t bytesRead = socket.read_some(
-            asio::buffer(buffer.data() + totalRead, numBytes - totalRead)
-        );
-
-        if (bytesRead == 0) {
-            throw std::runtime_error("Connection closed before reading full data");
-        }
-
-        totalRead += bytesRead;
-    }
-
-    return buffer;
-}
-
-    void handleConnection(asio::ip::tcp::socket socket) {
-
-        std::vector<uint8_t> buffer(sizeof(uint32_t));
-        buffer = readExact(socket, 4);
-
-        uint32_t protocolType = formatNumberNative<uint32_t>(std::span<const uint8_t>(buffer.data(), buffer.size()));
-
-        switch (protocolType) {
-        case 1: reciveBlock(socket);
-        default: throw std::runtime_error("Unsupported protocol version");
-        }
+void handleConnection(asio::ip::tcp::socket socket) {
+    
+    std::vector<uint8_t> buffer;
+    buffer.resize(4);
+    asio::read(socket, asio::buffer(buffer.data(), 2));
+    uint32_t protocolVersion = formatNumberNative<uint32_t>(std::span<const uint8_t>(buffer));
+	buffer.resize(4);
+	asio::read(socket, asio::buffer(buffer.data(), 4));
+	uint32_t networkId = formatNumberNative<uint32_t>(std::span<const uint8_t>(buffer));
+	buffer.resize(8);
+	uint64_t services = formatNumberNative<uint64_t>(std::span<const uint8_t>(buffer));
+	buffer.resize(8);
+	asio::read(socket, asio::buffer(buffer.data(), 8));
+	uint64_t nonce = formatNumberNative<uint64_t>(std::span<const uint8_t>(buffer));
+	asio::read(socket, asio::buffer(buffer.data(), 32));
+	array256_t blockchainTip;
+	std::copy(buffer.begin(), buffer.begin() + 32, blockchainTip.begin());
 
     }
 
-    void sendBlock(asio::ip::tcp::socket& socket, const Block& block) {
+void sendBlock(asio::ip::tcp::socket& socket, const Block& block) {
         // Serialize the block
         std::vector<uint8_t> blockBytes = serialiseBlock(block);
         // Prepare the size prefix
@@ -58,7 +45,7 @@ struct NetworkPacket {
         asio::write(socket, asio::buffer(blockBytes));
     }
 
-    void sendTxToMempool(asio::ip::tcp::socket& socket, const Tx& tx) {
+void sendTxToMempool(asio::ip::tcp::socket& socket, const Tx& tx) {
 
         // Serialize the transaction
         std::vector<uint8_t> txBytes = serialiseTx(tx);

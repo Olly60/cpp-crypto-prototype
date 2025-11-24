@@ -15,44 +15,50 @@ std::string bytesToHex(const array256_t& bytes);
 // Compute SHA-256 hash of data
 array256_t sha256Of(std::span<const uint8_t> data);
 
-// Format number to native endianness
-template <typename T> requires (std::is_integral_v<T>&& std::is_trivially_copyable_v<T>)
-T formatNumberNative(std::span<const uint8_t> in) {
-	if (in.size() < sizeof(T)) {
-		throw std::runtime_error("formatNumber: not enough bytes in input span");
+// Detect endianness at compile time
+static constexpr bool isLittleEndian() {
+	constexpr uint16_t x = 1;
+	return *reinterpret_cast<const uint8_t*>(&x) == 1;
+}
+
+template <typename T>
+static void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset)
+{
+	if (offset + sizeof(T) > data.size())
+		throw std::runtime_error("takeBytesInto: not enough bytes");
+
+	std::memcpy(&out, data.data() + offset, sizeof(T));
+	offset += sizeof(T);
+
+	// If T is an integral type, convert to native endianness
+	if constexpr (std::is_integral_v<T>) {
+		if constexpr (!isLittleEndian()) {
+			T temp = 0;
+			for (size_t i = 0; i < sizeof(T); ++i) {
+				T byte = (out >> (8 * i)) & 0xFF;
+				temp |= (byte << (8 * (sizeof(T) - 1 - i)));
+			}
+			out = temp;
+		}
 	}
+}
 
-	T value{};
-	std::memcpy(&value, in.data(), sizeof(T));
-
-	if constexpr (isLittleEndian()) {
-		return value;
+template <typename T>
+void appendBytes(std::vector<uint8_t>& out, const T& data) {
+	if constexpr (std::is_integral_v<T>) {
+		// Inline little-endian serialization
+		std::array<uint8_t, sizeof(T)> bytes{};
+		for (size_t i = 0; i < sizeof(T); i++) {
+			bytes[i] = static_cast<uint8_t>(data >> (i * 8));
+		}
+		out.insert(out.end(), bytes.begin(), bytes.end());
 	}
 	else {
-		T out{};
-		for (size_t i = 0; i < sizeof(T); ++i) {
-			T byte = (value >> (8 * i)) & 0xFF;
-			out |= (byte << (8 * (sizeof(T) - 1 - i)));
-		}
-		return out;
+		// Otherwise, assume it's a container of bytes
+		out.insert(out.end(), data.begin(), data.end());
 	}
 }
 
-// Serialise number to little endian
-template <typename T> requires std::is_integral_v<T>
-std::array<uint8_t, sizeof(T)> serialiseNumberLe(const T in) {
-	std::array<uint8_t, sizeof(T)> out{};
-
-	// Loop over each byte of the input number
-	for (size_t i = 0; i < sizeof(T); i++) {
-		out[i] = static_cast<uint8_t>(in >> (i * 8));
-	}
-
-	// Return the array of bytes (little-endian order: LSB first)
-	return out;
-}
-
-namespace block_v1 {
 	struct UTXO {
 		uint64_t amount{ 1 };
 		array256_t recipient{};
@@ -80,5 +86,5 @@ namespace block_v1 {
 	Block formatBlock(std::span<const uint8_t> blockBytes);
 	array256_t getBlockHash(const Block& block);
 	array256_t getTxHash(const Tx& tx);
-}
+
 
