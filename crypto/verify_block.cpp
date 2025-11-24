@@ -4,7 +4,7 @@
 #include <stdexcept>
 
 
-namespace v1 {
+namespace block_v1 {
 		static bool verifyBlock(Block block) {
 		// Calculate block hash
 		array256_t blockHash;
@@ -161,7 +161,7 @@ namespace v1 {
 	
 bool verifyBlock(Block block) {
 	switch (block.version) {
-	case 1: return v1::verifyBlock(block);
+	case 1: return block_v1::verifyBlock(block);
 	default: throw std::runtime_error("Unsupported Block version");
 	}
 }

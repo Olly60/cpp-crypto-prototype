@@ -1,8 +1,10 @@
 #pragma once
-#include "types.h"
 #include <vector>
 #include <string>
 #include <span>
+#include <array>
+
+using array256_t = std::array<uint8_t, 32>;
 
 // Convert hex string to byte array
 array256_t hexToBytes(const std::string& hex);
@@ -13,7 +15,7 @@ std::string bytesToHex(const array256_t& bytes);
 // Compute SHA-256 hash of data
 array256_t sha256Of(std::span<const uint8_t> data);
 
-// Format bumber to native endianness
+// Format number to native endianness
 template <typename T> requires (std::is_integral_v<T>&& std::is_trivially_copyable_v<T>)
 T formatNumberNative(std::span<const uint8_t> in) {
 	if (in.size() < sizeof(T)) {
@@ -50,13 +52,33 @@ std::array<uint8_t, sizeof(T)> serialiseNumberLe(const T in) {
 	return out;
 }
 
-std::vector<uint8_t> serialiseTx(const Tx& tx);
+namespace block_v1 {
+	struct UTXO {
+		uint64_t amount{ 1 };
+		array256_t recipient{};
+	};
+	struct TxInput {
+		array256_t UTXOTxHash{};
+		uint32_t UTXOOutputIndex{};
+		array256_t signature{};
+	};
+	struct Tx {
+		uint32_t version{ 1 };
+		std::vector<TxInput> txInputs;
+		std::vector<UTXO> txOutputs;
+	};
+	struct Block {
+		uint32_t version{ 1 };
+		array256_t prevBlockHash{};
+		array256_t merkleRoot{};
+		uint64_t timestamp{};
+		array256_t difficulty{};
+		array256_t nonce{};
+		std::vector<Tx> txs;
+	};
+	std::vector<uint8_t> serialiseBlock(const Block& block);
+	Block formatBlock(std::span<const uint8_t> blockBytes);
+	array256_t getBlockHash(const Block& block);
+	array256_t getTxHash(const Tx& tx);
+}
 
-// Serialize Block to bytes
-std::vector<uint8_t> serialiseBlock(const Block& block);
-
-// Deserialize bytes to Block
-Block formatBlock(std::span<const uint8_t> blockBytes);
-
-// Get block hash from header
-array256_t getBlockHash(const Block& block);

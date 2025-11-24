@@ -1,13 +1,12 @@
 ﻿#pragma once
 #include "crypto_utils.h"
-#include "types.h"
 #include <stdexcept>
 #include <sodium.h>
-#include <span>
 #include <cstring>
 
-using array256_t = std::array<uint8_t, 32>;
-
+// ============================================================================
+// BASIC UTILITIES
+// ============================================================================
 array256_t hexToBytes(const std::string& hex) {
 	if (hex.size() != array256_t{}.size() * 2) {
 		throw std::runtime_error("bytesFromHex: invalid hex string length");
@@ -56,7 +55,6 @@ static constexpr bool isLittleEndian() {
 	return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
-
 static std::span<const uint8_t> takeBytes(std::span<const uint8_t> data, size_t amount, size_t& offset)
 {
 	if (offset + amount > data.size())
@@ -75,34 +73,7 @@ appendBytes(std::vector<uint8_t>& out, const Container& data) {
 // ============================================================================
 // v1 SERIALISERS + PARSERS
 // ============================================================================
-namespace v1 {
-
-	struct UTXO {
-		uint64_t amount{1};
-		array256_t recipient{};
-	};
-
-	struct TxInput {
-		array256_t UTXOTxHash{};
-		uint32_t UTXOOutputIndex{};
-		array256_t signature{};
-	};
-
-	struct Tx {
-		uint32_t version{ 1 };
-		std::vector<TxInput> txInputs;
-		std::vector<UTXO> txOutputs;
-	};
-
-	struct Block {
-		uint32_t version{1};
-		array256_t prevBlockHash{};
-		array256_t merkleRoot{};
-		uint64_t timestamp{};
-		array256_t difficulty{};
-		array256_t nonce{};
-		std::vector<Tx> txs;
-	};
+namespace block_v1 {
 
 	static constexpr uint8_t inputSize = sizeof(decltype(TxInput::UTXOTxHash)) + sizeof(decltype(TxInput::UTXOOutputIndex)) + sizeof(decltype(TxInput::signature));
 	static constexpr uint8_t outputSize = sizeof(decltype(UTXO::amount)) + sizeof(decltype(UTXO::recipient));
@@ -222,7 +193,7 @@ namespace v1 {
 	// Block
 	// ----------------------------------------
 
-	static const std::vector<uint8_t> serialiseBlock(const Block& block) {
+	std::vector<uint8_t> serialiseBlock(const Block& block) {
 		std::vector<uint8_t> out;
 
 		// Header
@@ -238,14 +209,14 @@ namespace v1 {
 
 		// Serialize each transaction
 		for (const auto& tx : block.txs) {
-			appendBytes(out, v1::serialiseTx(tx));
+			appendBytes(out, block_v1::serialiseTx(tx));
 		}
 
 		return out;
 	}
 
 
-	static Block formatBlock(std::span<const uint8_t> blockBytes) {
+	Block formatBlock(std::span<const uint8_t> blockBytes) {
 		Block block;
 		size_t offset = 0;
 
@@ -278,7 +249,7 @@ namespace v1 {
 	}
 
 
-	static array256_t getBlockHash(const Block& block) {
+	array256_t getBlockHash(const Block& block) {
 		std::vector<uint8_t> headerBytes;
 
 		appendBytes(headerBytes, serialiseNumberLe(block.version));
@@ -292,7 +263,7 @@ namespace v1 {
 		return sha256Of(std::span<const uint8_t>(headerBytes));
 	}
 
-	static array256_t getTxHash(const Tx& tx) {
+	array256_t getTxHash(const Tx& tx) {
 		std::vector<uint8_t> txBytes;
 
 		// Version
@@ -311,38 +282,3 @@ namespace v1 {
 		return sha256Of(std::span<const uint8_t>(txBytes));
 	}
 } // namespace v1
-
-// ============================================================================
-// GENERIC SERIALISERS + PARSERS
-// ============================================================================
-
-std::vector<uint8_t> serialiseTx(const Tx& tx) {
-	switch (tx.version) {
-	case 1: return v1::serialiseTx(tx);
-	default: throw std::runtime_error("Unsupported Transaction version");
-	}
-}
-
-// Serialise Block to bytes
-std::vector<uint8_t> serialiseBlock(const Block& block) {
-	switch (block.version) {
-	case 1: return v1::serialiseBlock(block);
-	default: throw std::runtime_error("Unsupported Block version");
-	}
-}
-
-// Block from bytes
-Block formatBlock(std::span<const uint8_t> blockBytes) {
-	switch (formatNumberNative<uint64_t>(blockBytes)) {
-	case 1: return v1::formatBlock(blockBytes);
-	default: throw std::runtime_error("Unsupported Block version");
-	}
-}
-
-// Block hash from header
-array256_t getBlockHash(const Block& block) {
-	switch (block.version) {
-	case 1: return v1::getBlockHash(block);
-	default: throw std::runtime_error("Unsupported Block version");
-	}
-}

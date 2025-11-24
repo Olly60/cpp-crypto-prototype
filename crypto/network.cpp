@@ -3,17 +3,17 @@
 #include <span>
 
 // Protocols
+uint32_t protocolVersion{ 1 };
 struct NetworkPacket {
-    uint32_t protocolVersion{1};
     uint32_t networkId{1};
     uint32_t services{1};
-	uint32_t nonce;
+	uint64_t nonce;
     array256_t blockchainTip;
 
 };
 
-// Reads exactly `numBytes` from the socket into the buffer
-std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
+    // Reads exactly `numBytes` from the socket into the buffer
+    std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
     std::vector<uint8_t> buffer(numBytes);
     size_t totalRead = 0;
 
@@ -32,58 +32,45 @@ std::vector<uint8_t> readExact(asio::ip::tcp::socket& socket, size_t numBytes) {
     return buffer;
 }
 
-void handleConnection(asio::ip::tcp::socket socket) {
-    
-    std::vector<uint8_t> buffer(sizeof(uint32_t));
-    buffer = readExact(socket, 4);
+    void handleConnection(asio::ip::tcp::socket socket) {
 
-    uint32_t protocolType = formatNumberNative<uint32_t>(std::span<const uint8_t>(buffer.data(), buffer.size()));
+        std::vector<uint8_t> buffer(sizeof(uint32_t));
+        buffer = readExact(socket, 4);
 
-    switch (protocolType) {
-    case 1: reciveBlock(socket);
-    default: throw std::runtime_error("Unsupported protocol version");
+        uint32_t protocolType = formatNumberNative<uint32_t>(std::span<const uint8_t>(buffer.data(), buffer.size()));
+
+        switch (protocolType) {
+        case 1: reciveBlock(socket);
+        default: throw std::runtime_error("Unsupported protocol version");
+        }
+
     }
-    
-}
 
-Block reciveBlock(asio::ip::tcp::socket& socket) {
-    // Read the block size (4 bytes)
-    std::vector<uint8_t> buffer(4);
-	buffer = readExact(socket, 4);
+    void sendBlock(asio::ip::tcp::socket& socket, const Block& block) {
+        // Serialize the block
+        std::vector<uint8_t> blockBytes = serialiseBlock(block);
+        // Prepare the size prefix
+        uint32_t blockSize = static_cast<uint32_t>(blockBytes.size());
+        std::array<uint8_t, 4> sizeBytes = serialiseNumberLe(blockSize);
+        // Send the size prefix
+        asio::write(socket, asio::buffer(sizeBytes));
+        // Send the block data
+        asio::write(socket, asio::buffer(blockBytes));
+    }
 
-    // Convert and format size from bytes to uint32_t
-	uint32_t blockSize = formatNumberNative<uint32_t>(std::span<const uint8_t>(buffer.data(), buffer.size()));
+    void sendTxToMempool(asio::ip::tcp::socket& socket, const Tx& tx) {
 
-    // Read the block data
-	buffer.resize(blockSize);
-    buffer = readExact(socket, blockSize);
-    return formatBlock(buffer);
-}
+        // Serialize the transaction
+        std::vector<uint8_t> txBytes = serialiseTx(tx);
+        // Prepare the size prefix
+        uint32_t txSize = static_cast<uint32_t>(txBytes.size());
+        std::array<uint8_t, 4> sizeBytes = serialiseNumberLe(txSize);
+        // Send the size prefix
+        asio::write(socket, asio::buffer(sizeBytes));
+        // Send the transaction data
+        asio::write(socket, asio::buffer(txBytes));
+    }
 
-void sendBlock(asio::ip::tcp::socket& socket, const Block& block) {
-    // Serialize the block
-    std::vector<uint8_t> blockBytes = serialiseBlock(block);
-    // Prepare the size prefix
-    uint32_t blockSize = static_cast<uint32_t>(blockBytes.size());
-    std::array<uint8_t, 4> sizeBytes = serialiseNumberLe(blockSize);
-    // Send the size prefix
-    asio::write(socket, asio::buffer(sizeBytes));
-    // Send the block data
-    asio::write(socket, asio::buffer(blockBytes));
-}
-
-void sendTxToMempool(asio::ip::tcp::socket& socket, const Tx& tx) {
-
-    // Serialize the transaction
-    std::vector<uint8_t> txBytes = serialiseTx(tx);
-    // Prepare the size prefix
-    uint32_t txSize = static_cast<uint32_t>(txBytes.size());
-    std::array<uint8_t, 4> sizeBytes = serialiseNumberLe(txSize);
-    // Send the size prefix
-    asio::write(socket, asio::buffer(sizeBytes));
-    // Send the transaction data
-    asio::write(socket, asio::buffer(txBytes));
-}
 
 int main() {
     asio::io_context io;
