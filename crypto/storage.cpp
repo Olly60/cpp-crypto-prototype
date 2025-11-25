@@ -55,7 +55,7 @@ static void deleteFile(const fs::path& filePath) {
 	if (fs::exists(filePath)) fs::remove(filePath);
 }
 
-std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
+static std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
 	if (!fs::exists(filePath))
 		throw std::runtime_error("File does not exist: " + filePath.string());
 
@@ -79,6 +79,11 @@ std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
 	catch (const std::ios_base::failure& e) {
 		throw std::runtime_error("Failed to read file " + filePath.string() + ": " + e.what());
 	}
+}
+
+std::vector<uint8_t> readBlockFile(const Array256_t& blockHash) {
+	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
+	return readWholeFile(blockFilePath);
 }
 
 // ==========================================================
