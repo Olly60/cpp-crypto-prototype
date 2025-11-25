@@ -49,9 +49,11 @@ struct Inv {
 	std::vector<Array256_t> blockHashes;
 };
 
+// ===========================================================
+// Handshake procedures
+// ===========================================================
 
-
-void incomingHandshakeAsync(std::shared_ptr<asio::ip::tcp::socket> socket) {
+void incomingHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 	// Step 1: read peer handshake
 	auto buffer = std::make_unique<std::array<uint8_t,
 		sizeof(Handshake::protocolVersion) +
@@ -140,7 +142,7 @@ void incomingHandshakeAsync(std::shared_ptr<asio::ip::tcp::socket> socket) {
 		});
 }
 
-void outgoingHandshakeAsync(std::shared_ptr<asio::ip::tcp::socket> socket) {
+void outgoingHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 	// Step 0: prepare handshake data
 	auto myHandshake = std::make_unique<Handshake>();
 	myHandshake->protocolVersion = currentProtocolVersion;
@@ -235,13 +237,43 @@ void outgoingHandshakeAsync(std::shared_ptr<asio::ip::tcp::socket> socket) {
 		});
 }
 
-void requestBlockHashList(
-	std::shared_ptr<asio::ip::tcp::socket> socket,
-	std::function<void(std::error_code, std::vector<Array256_t>)> onDone)
+// ============================================
+// Service functions
+// ============================================
+
+void pingPeer(std::shared_ptr<asio::ip::tcp::socket> socket)
+{
+	auto pingMsg = std::make_shared<uint8_t>(1);
+	asio::async_write(*socket, asio::buffer(pingMsg.get(), 4),
+		[socket, pingMsg](std::error_code ec, std::size_t) {
+			if (ec) {
+				return;
+			}
+			auto theirResponse = std::make_shared<uint8_t>(1);
+			asio::async_read(*socket, asio::buffer(theirResponse.get(), 1),
+				[socket, theirResponse](std::error_code ec, std::size_t) {
+					if (ec) {
+						return;
+					}
+					if (*theirResponse == 1) {
+						// Update last seen
+						PeerAddress addr;
+						addr.address = socket->remote_endpoint().address().to_string();
+						addr.port = socket->remote_endpoint().port();
+						peers[addr].lastSeen = getCurrentTimestamp();
+					}
+					else {
+						return;
+					}
+				});
+		});
+}
+
+void requestBlockHashList(std::shared_ptr<asio::ip::tcp::socket> socket,std::function<void(std::error_code, std::vector<Array256_t>)> onDone)
 {
 	auto requestMsgType = std::make_shared<uint8_t>(1);
 
-	asio::async_write(*socket, asio::buffer(*requestMsgType),
+	asio::async_write(*socket, asio::buffer(requestMsgType.get(), 1),
 		[socket, requestMsgType, onDone](std::error_code ec, std::size_t) {
 			if (ec) {
 				onDone(ec, {});
@@ -250,7 +282,7 @@ void requestBlockHashList(
 
 			auto countBuf = std::make_shared<std::array<uint8_t, 8>>();
 
-			asio::async_read(*socket, asio::buffer(*countBuf),
+			asio::async_read(*socket, asio::buffer(countBuf.get(), 8),
 				[socket, countBuf, onDone](std::error_code ec, std::size_t) {
 					if (ec) {
 						onDone(ec, {});
@@ -259,7 +291,6 @@ void requestBlockHashList(
 
 					uint64_t count;
 					takeBytesInto(count, *countBuf);
-
 					auto rawBuf = std::make_shared<std::vector<uint8_t>>(count * 32);
 
 					asio::async_read(*socket, asio::buffer(*rawBuf),
@@ -270,6 +301,7 @@ void requestBlockHashList(
 							}
 
 							std::vector<Array256_t> hashes(count);
+
 							for (uint64_t i = 0; i < count; i++) {
 								std::memcpy(hashes[i].data(),
 									rawBuf->data() + i * 32,
@@ -280,9 +312,12 @@ void requestBlockHashList(
 						});
 				});
 		});
+
 }
 
-
+// ===========================================================
+// Handling incoming connections
+// ===========================================================
 
 void startAccepting(asio::ip::tcp::acceptor& acceptor) {
 	acceptor.async_accept(
@@ -324,16 +359,16 @@ void startAccepting(asio::ip::tcp::acceptor& acceptor) {
 											return;
 										}
 
-										auto response = std::make_shared<std::array<uint8_t, 1>>();
+										auto theirResponse = std::make_shared<uint8_t>(1);
 
-										asio::async_read(*sock, asio::buffer(*response),
-											[sock, response](std::error_code ec, std::size_t) {
+										asio::async_read(*sock, asio::buffer(theirResponse.get(), 1),
+											[sock, theirResponse](std::error_code ec, std::size_t) {
 												if (ec) {
 													sock->close();
 													return;
 												}
 
-												if ((*response)[0] == 0x01) {
+												if (*theirResponse == 1) {
 													PeerAddress addr;
 													addr.address = sock->remote_endpoint().address().to_string();
 													addr.port = sock->remote_endpoint().port();
@@ -345,9 +380,9 @@ void startAccepting(asio::ip::tcp::acceptor& acceptor) {
 
 							// =========== HANDLE GET BLOCK HASHES ===========
 							else if (messageType == 1) {
-								auto blockHashes = make_shared<std::vector<Array256_t>>(getAllBlockHashes());
-								asio::async_write(*sock, asio::buffer(*blockHashes), 
-									[sock, blockHashes](std::error_code ec, std::size_t) {
+								auto myBlockHashes = make_shared<std::vector<Array256_t>>(getAllBlockHashes());
+								asio::async_write(*sock, asio::buffer(*myBlockHashes), 
+									[sock, myBlockHashes](std::error_code ec, std::size_t) {
 										if (ec) {
 											sock->close();
 											return;
@@ -360,7 +395,7 @@ void startAccepting(asio::ip::tcp::acceptor& acceptor) {
 
 				// New peer → start handshake
 				else {
-					incomingHandshakeAsync(sock);
+					incomingHandshake(sock);
 				}
 			}
 
