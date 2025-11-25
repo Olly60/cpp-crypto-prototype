@@ -11,27 +11,44 @@
 namespace fs = std::filesystem;
 static const fs::path blockchainPath = fs::path("blockchain");
 
-static const fs::path tipPath = blockchainPath / "blockchain_tip";
-static const fs::path tipFilePath = tipPath / "blockchain_tip";
+static const fs::path tipFilePath = blockchainPath / "blockchain_tip" / "blockchain_tip";
 static const fs::path blocksPath = blockchainPath / "blocks";
 static const fs::path utxoPath = blockchainPath / "utxo";
 static const fs::path undoPath = blockchainPath / "undo";
-static const fs::path peersPath = blockchainPath / "peers";
-static const fs::path peersFilePath = peersPath / "peers_list";
+static const fs::path peersFilePath = blockchainPath / "peers" / "peers_list";
 
 // ==========================================================
 // File I/O utilities
 // ==========================================================
 
+// Open a file for appending, creating directories as needed
+static std::ofstream openFileForAppend(const fs::path& path) {
+	try {
+		fs::create_directories(path.parent_path());
+		std::ofstream file(path, std::ios::app | std::ios::binary);
+		file.exceptions(std::ios::failbit | std::ios::badbit);
+		return file;
+	}
+	catch (const std::ios_base::failure& e) {
+		throw std::runtime_error("Failed to open file '" + path.string() + "': " + e.what());
+	}
+	catch (const fs::filesystem_error& e) {
+		throw std::runtime_error("Filesystem error for path '" + path.string() + "': " + e.what());
+	}
+}
+
 // Append bytes of data to output container
+// Append an object to an already-open file safely
 template <typename T>
-void appendToFile(std::ofstream& file, const T& data) {
-
-	// Inline little-endian serialization
-	std::vector<uint8_t> temp(sizeof(T));
-	appendBytes(temp, data);
-
-	file.write(reinterpret_cast<const char*>(temp.data()), temp.size());
+void appendToFile(std::ofstream& file, const T& obj) {
+	try {
+		std::vector<uint8_t> buffer;
+		appendBytes(buffer, obj);
+		file.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+	}
+	catch (const std::ios_base::failure& e) {
+		throw std::runtime_error("Failed to append to file: " + std::string(e.what()));
+	}
 }
 
 std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
@@ -65,44 +82,41 @@ std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
 // ==========================================================
 
 static void addBlock(const Block& block) {
+
 	// Serialize the block
 	const auto blockBytes = serialiseBlock(block);
 
 	// Compute block hash
 	const auto blockHash = getBlockHash(block);
 
-	// Create block file
-	std::ofstream blockFile;
-	newBlockFile(blockFile, blockHash);
+	auto blockFile = openFileForAppend(blocksPath / (bytesToHex(blockHash) + ".block"));
 
 	// Write block bytes
-	blockFile.write(reinterpret_cast<const char*>(blockBytes.data()), blockBytes.size());
+	appendBytes(blockFile, blockBytes);
 
 	// Update blockchain tip
 	changeBlockchainTip(blockHash);
 
 	// Create undo file
-	std::ofstream undoFile;
-	newUndoFile(undoFile, blockHash);
-
+	auto undoFile = openFileForAppend(undoPath / (bytesToHex(blockHash) + ".undo"));
 
 	// Write UTXO references to undo file
 	for (const auto& tx : block.txs) {
 
-		numIntoFile(tx.version, undoFile); // Write transaction version
+		appendToFile(undoFile, tx.version); // Write transaction version
 
-		numIntoFile((tx.txInputs.size()), undoFile); // Write input count
+		appendToFile(undoFile, (tx.txInputs.size())); // Write input count
 
 		// For each input, write UTXO reference and value
 		for (const auto& input : tx.txInputs) {
 			// Write UTXO reference
-			undoFile.write(reinterpret_cast<const char*>(input.UTXOTxHash.data()), input.UTXOTxHash.size());
-			numIntoFile((input.UTXOOutputIndex), undoFile);
+			appendToFile(undoFile, input.UTXOTxHash);
+			appendToFile(undoFile, input.UTXOOutputIndex);
 
 			// Retrieve UTXO value
 			auto usedUtxo = getUtxoValue(input);
-			numIntoFile((usedUtxo.amount), undoFile);
-			undoFile.write(reinterpret_cast<const char*>(usedUtxo.recipient.data()), usedUtxo.recipient.size());
+			appendToFile(undoFile, usedUtxo.amount);
+			appendToFile(undoFile, usedUtxo.recipient);
 		}
 
 	}
@@ -175,16 +189,6 @@ static bool blockExists(const Array256_t& blockHash) {
 	return fs::exists(blockFilePath);
 }
 
-static void newBlockFile(std::ofstream& blockFile, const Array256_t blockHash) {
-	// Ensure block directory exists
-	fs::create_directories(blocksPath);
-	const fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-
-	// Open block file for appending binary data
-	blockFile.open(blockFilePath, std::ios::binary | std::ios::app);
-	blockFile.exceptions(std::ios::failbit | std::ios::badbit);
-}
-
 static void deleteBlockFile(const Array256_t blockHash) {
 	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
 	if (fs::exists(blockFilePath)) fs::remove(blockFilePath);
@@ -249,7 +253,7 @@ static void removeUtxo(const TxInput& txInput) {
 	if (!status.ok()) throw std::runtime_error("Failed to delete UTXO: " + status.ToString());
 }
 
-static TxOutput getUtxoValue(const TxInput &txInput) {
+static TxOutput getUtxoValue(const TxInput& txInput) {
 
 	// Construct key
 	std::string keyString;
@@ -259,6 +263,7 @@ static TxOutput getUtxoValue(const TxInput &txInput) {
 
 	// Ensure UTXO directory exists
 	fs::create_directories(utxoPath);
+
 	// Open LevelDB with RAII
 	leveldb::DB* dbRaw = nullptr;
 	leveldb::Options options;
@@ -283,6 +288,7 @@ static TxOutput getUtxoValue(const TxInput &txInput) {
 }
 
 static bool utxoValid(const TxInput txInput) {
+
 	// Construct key
 	std::string keyString;
 	appendBytes(keyString, txInput.UTXOOutputIndex);
@@ -312,8 +318,8 @@ static bool utxoValid(const TxInput txInput) {
 // ===========================================================
 
 static void changeBlockchainTip(const Array256_t newTip) {
-	fs::create_directories(tipPath);
-	std::ofstream tipFile(tipPath / "blockchain_tip", std::ios::trunc | std::ios::binary);
+	fs::create_directories(tipFilePath.parent_path());
+	std::ofstream tipFile(tipFilePath, std::ios::trunc | std::ios::binary);
 	tipFile.exceptions(std::ios::failbit | std::ios::badbit);
 	try {
 		tipFile.write(reinterpret_cast<const char*>(newTip.data()), sizeof(newTip));
@@ -324,7 +330,7 @@ static void changeBlockchainTip(const Array256_t newTip) {
 }
 
 Array256_t getBlockchainTip() {
-	fs::create_directories(tipPath);
+	fs::create_directories(tipFilePath.parent_path());
 
 	auto tipFileBytes = readWholeFile(tipFilePath);
 
@@ -342,15 +348,6 @@ Array256_t getBlockchainTip() {
 // Undo file management
 // ===========================================================
 
-static void newUndoFile(std::ofstream& undoFile, Array256_t blockHash) {
-	fs::create_directories(undoPath);  // ensure directory exists
-
-	const fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
-
-	undoFile.open(undoFilePath, std::ios::app | std::ios::binary);
-	undoFile.exceptions(std::ios::failbit | std::ios::badbit);  // throw on failure
-}
-
 static void deleteUndoFile(const Array256_t blockHash) {
 	fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
 	if (fs::exists(undoFilePath)) fs::remove(undoFilePath);
@@ -360,28 +357,24 @@ static void deleteUndoFile(const Array256_t blockHash) {
 // Peer address storage management
 // ===========================================================
 
-void storePeers(std::unordered_map<PeerAddress, PeerStatus> &peers) {
-	fs::create_directories(peersPath);
+void storePeers(std::unordered_map<PeerAddress, PeerStatus>& peers) {
+	fs::create_directories(peersFilePath.parent_path());
 	std::ofstream peersFile(peersFilePath, std::ios::trunc | std::ios::binary);
-
 	peersFile.exceptions(std::ios::failbit | std::ios::badbit);
-	try {
-		for (const auto& [peerAddr, peerStatus] : peers) {
-			// Address length
-			const size_t addrLen = peerAddr.address.size();
-			numIntoFile(static_cast<uint16_t>(addrLen), peersFile);
-			// Write address string
-			peersFile.write(peerAddr.address.data(), addrLen);
-			// Write port
-			numIntoFile(peerAddr.port, peersFile);
-			// Write services
-			numIntoFile(peerStatus.services, peersFile);
-			// Write last seen
-			numIntoFile(peerStatus.lastSeen, peersFile);
-		}
-	}
-	catch (const std::ios_base::failure& e) {
-		throw std::runtime_error("Failed to store peer address: " + std::string(e.what()));
+	// Peers count
+	appendBytes(peersFile, static_cast<uint64_t>(peers.size()));
+	for (const auto& [peerAddr, peerStatus] : peers) {
+		// Address length
+		const size_t addrLen = peerAddr.address.size();
+		appendToFile(peersFile, static_cast<uint16_t>(addrLen));
+		// Write address string
+		appendBytes(peersFile, peerAddr.address);
+		// Write port
+		appendToFile(peersFile, peerAddr.port);
+		// Write services
+		appendToFile(peersFile, peerStatus.services);
+		// Write last seen
+		appendToFile(peersFile, peerStatus.lastSeen);
 	}
 }
 
@@ -391,31 +384,35 @@ std::unordered_map<PeerAddress, PeerStatus> loadPeers() {
 	auto peersFileBytes = readWholeFile(peersFilePath);
 	size_t offset = 0;
 
-	// Read address length
-	uint16_t addrLen = 0;
-	takeBytesInto(addrLen, peersFileBytes, offset); // assumes it converts from LE to host order
+	// Read peers count
+	uint64_t peersCount = 0;
+	takeBytesInto(peersCount, peersFileBytes, offset);
 
-			// Read address string
-			std::string addr(addrLen, '\0');
-			peersFile.read(addr.data(), addrLen);
+	for (uint64_t i = 0; i < peersCount; i++) {
+		PeerAddress peerAddr;
+		PeerStatus peerStatus;
+		// Read address length
+		uint16_t addrLen = 0;
+		takeBytesInto(addrLen, peersFileBytes, offset); // assumes it converts from LE to host order
 
-			// Read port
-			uint16_t port = 0;
-			takeBytesInto(port, peersFileBytes, offset);
+		// Read address string
+		std::string addr(addrLen, '\0');
+		takeBytesInto(addr, peersFileBytes, offset);
 
-			// Read services
-			uint64_t services = 0;
-			takeBytesInto(services, peersFileBytes, offset);
+		// Read port
+		takeBytesInto(port, peersFileBytes, offset);
 
-			// Read lastSeen
-			uint64_t lastSeen = 0;
-			takeBytesInto(lastSeen, peersFileBytes, offset);
+		// Read services
+		takeBytesInto(services, peersFileBytes, offset);
 
-			// Insert into map
-			PeerAddress peerAddr{ addr, port };
-			PeerStatus peerStatus{ services, lastSeen };
-			peers.emplace(std::move(peerAddr), std::move(peerStatus));
+		// Read lastSeen
+		takeBytesInto(lastSeen, peersFileBytes, offset);
 
+		// Insert into map
+		peers.insert({ peerAddr, peerStatus });
+
+		
+	}
 	return peers;
 }
 

@@ -50,24 +50,24 @@ static void takeBytesInto(T& out, std::span<const uint8_t> data)
 	takeBytesInto(out, data, offset);
 }
 
-// Append bytes of data to output container
 template <typename ContainerOut, typename T>
-void appendBytes(ContainerOut out, const T& data) {
-
-	// Inline little-endian serialization
-	std::array<uint8_t, sizeof(T)> temp{};
-	std::memcpy(temp.data(), &data, sizeof(T));
-	// Endianness fix for integral types
+void appendBytes(ContainerOut& out, const T& data) {
 	if constexpr (std::is_integral_v<T>) {
-		// If host is big-endian, swap the bytes read from little-endian storage
+		// --- Integral type: little-endian serialization ---
+		std::array<uint8_t, sizeof(T)> temp{};
+		std::memcpy(temp.data(), &data, sizeof(T));
 		if constexpr (!isLittleEndian()) {
 			std::reverse(temp.begin(), temp.end());
 		}
+		out.insert(out.end(), temp.begin(), temp.end());
 	}
-	out.insert(out.end(), temp.begin(), temp.end());
-
-	// Otherwise, assume it's a container of bytes
-	out.insert(out.end(), data.begin(), data.end());
+	else if constexpr (requires { std::data(data); std::size(data); }) {
+		// --- Container type: write raw bytes ---
+		out.insert(out.end(), data.begin(), data.end());
+	}
+	else {
+		static_assert(always_false<T>, "Type not supported in appendBytes");
+	}
 }
 
 
