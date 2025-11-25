@@ -11,7 +11,7 @@
 namespace fs = std::filesystem;
 static const fs::path blockchainPath = fs::path("blockchain");
 
-static const fs::path tipFilePath = blockchainPath / "blockchain_tip" / "blockchain_tip";
+static const fs::path blockHashesFilePath = blockchainPath / "blockchain_tip" / "blockchain_tip";
 static const fs::path blocksPath = blockchainPath / "blocks";
 static const fs::path utxoPath = blockchainPath / "utxo";
 static const fs::path undoPath = blockchainPath / "undo";
@@ -99,7 +99,7 @@ void addBlock(const Block& block) {
 	appendBytes(blockFile, blockBytes);
 
 	// Update blockchain tip
-	changeBlockchainTip(blockHash);
+	addBlockchainTip(blockHash);
 
 	// Create undo file
 	auto undoFile = openFileForAppend(undoPath / (bytesToHex(blockHash) + ".undo"));
@@ -155,6 +155,9 @@ void undoBlock() {
 	auto block = formatBlock(blockBytes);
 
 	auto utxoDb = openUtxoDb();
+
+	// Restore previous blockchain tip
+	removeBlockchainTip();
 
 	// Remove created UTXOs
 	for (const auto& tx : block.txs) {
@@ -302,36 +305,67 @@ static bool utxoValid(leveldb::DB* db, const TxInput& txInput) {
 	return status.ok();
 }
 
-
 // ===========================================================
 // Blockchain tip management
 // ===========================================================
 
-void changeBlockchainTip(const Array256_t newTip) {
-	fs::create_directories(tipFilePath.parent_path());
-	std::ofstream tipFile(tipFilePath, std::ios::trunc | std::ios::binary);
-	tipFile.exceptions(std::ios::failbit | std::ios::badbit);
-	try {
-		tipFile.write(reinterpret_cast<const char*>(newTip.data()), sizeof(newTip));
-	}
-	catch (const std::ios_base::failure& e) {
-		throw std::runtime_error("Failed to update blockchain tip: " + std::string(e.what()));
-	}
+// Add a new tip to the end of the file
+void addBlockchainTip(const Array256_t& newTip) {
+	auto file = openFileForAppend(blockHashesFilePath);
+	appendToFile(file, newTip); // write 32 bytes of hash
 }
 
+
+void removeBlockchainTip() {
+	if (!fs::exists(blockHashesFilePath)) return;
+
+	uintmax_t size = fs::file_size(blockHashesFilePath);
+	if (size < sizeof(Array256_t))
+		throw std::runtime_error("Cannot remove tip: file too small.");
+
+	fs::resize_file(blockHashesFilePath, size - sizeof(Array256_t));
+}
+
+// Get the last tip (the tip is the last 32 bytes of the file)
 Array256_t getBlockchainTip() {
-	fs::create_directories(tipFilePath.parent_path());
+	if (!fs::exists(blockHashesFilePath))
+		throw std::runtime_error("Blockchain tip file does not exist.");
 
-	auto tipFileBytes = readWholeFile(tipFilePath);
+	std::ifstream file(blockHashesFilePath, std::ios::binary | std::ios::ate);
+	if (!file)
+		throw std::runtime_error("Failed to open blockchain tip file.");
 
-	if (tipFileBytes.size() != 32) {
-		throw std::runtime_error("Blockchain tip file is not 32 bytes");
+	std::size_t fileSize = static_cast<std::size_t>(file.tellg());
+	if (fileSize < sizeof(Array256_t))
+		throw std::runtime_error("Blockchain tip file is empty or corrupted.");
+
+	file.seekg(fileSize - sizeof(Array256_t), std::ios::beg);
+
+	Array256_t tip;
+	file.read(reinterpret_cast<char*>(tip.data()), sizeof(Array256_t));
+	if (!file)
+		throw std::runtime_error("Failed to read blockchain tip.");
+
+	return tip;
+}
+
+std::vector<Array256_t> getAllBlockchainTips() {
+	if (!fs::exists(blockHashesFilePath))
+		throw std::runtime_error("Blockchain tip file does not exist.");
+
+	std::vector<uint8_t> buffer = readWholeFile(blockHashesFilePath);
+
+	if (buffer.size() % sizeof(Array256_t) != 0)
+		throw std::runtime_error("Blockchain tip file is corrupted (size mismatch).");
+
+	std::size_t tipCount = buffer.size() / sizeof(Array256_t);
+	std::vector<Array256_t> tips(tipCount);
+
+	for (std::size_t i = 0; i < tipCount; i++) {
+		std::memcpy(tips[i].data(), buffer.data() + i * sizeof(Array256_t), sizeof(Array256_t));
 	}
 
-	Array256_t latestBlockHash{};
-	std::copy_n(tipFileBytes.begin(), 32, latestBlockHash.begin());
-
-	return latestBlockHash;
+	return tips;
 }
 
 

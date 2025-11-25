@@ -21,7 +21,7 @@ Array256_t hexToBytes(const std::string& hex) {
 		throw std::runtime_error("bytesFromHex: invalid hex character");
 		};
 
-	for (size_t i = 0; i < out.size(); ++i) {
+	for (size_t i = 0; i < out.size(); i++) {
 		uint8_t high = hexCharToNibble(hex[i * 2]);
 		uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
 		out[i] = (high << 4) | low;
