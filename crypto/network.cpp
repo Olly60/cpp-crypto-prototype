@@ -4,6 +4,14 @@
 #include <random>
 #include "network.h"
 
+
+
+// ASIO I/O context
+asio::io_context ioContext;
+
+// Connected peers list
+std::unordered_map<PeerAddress, PeerStatus> peers;
+
 // Services
 constexpr uint64_t SERVICE_FULL_NODE = 0b00000001; // bit 0
 
@@ -34,94 +42,110 @@ struct Inv {
 	std::vector<Array256_t> blockHashes;
 };
 
-void incomingConnection(asio::ip::tcp::socket socket) {
-	HandShake packet;
-	std::vector<uint8_t> buffer(sizeof(packet.protocolVersion) + sizeof(packet.networkId) + sizeof(packet.services) + sizeof(packet.nonce) + sizeof(packet.blockchainTip));
-	asio::read(socket, asio::buffer(buffer.data(), buffer.size()));
-	size_t offset = 0;
-	takeBytesInto(packet.protocolVersion, buffer, offset);
-	takeBytesInto(packet.networkId, buffer, offset);
-	takeBytesInto(packet.services, buffer, offset);
-	takeBytesInto(packet.nonce, buffer, offset);
-	takeBytesInto(packet.blockchainTip, buffer, offset);
-	if (packet.protocolVersion != currentProtocolVersion || packet.networkId != currentNetworkId || packet.nonce == localNonce) {
-		socket.close();
-		return;
+bool incomingHandShake(asio::ip::tcp::socket socket) {
+	try {
+		// Step 1: read their handshake
+		HandShake theirHandShake;
+		std::vector<uint8_t> buffer(sizeof(theirHandShake.protocolVersion) + sizeof(theirHandShake.networkId) + sizeof(theirHandShake.services) + sizeof(theirHandShake.nonce) + sizeof(theirHandShake.blockchainTip));
+		asio::read(socket, asio::buffer(buffer.data(), buffer.size()));
+		size_t offset = 0;
+		takeBytesInto(theirHandShake.protocolVersion, buffer, offset);
+		takeBytesInto(theirHandShake.networkId, buffer, offset);
+		takeBytesInto(theirHandShake.services, buffer, offset);
+		takeBytesInto(theirHandShake.nonce, buffer, offset);
+		takeBytesInto(theirHandShake.blockchainTip, buffer, offset);
+		if (theirHandShake.protocolVersion != currentProtocolVersion || theirHandShake.networkId != currentNetworkId || theirHandShake.nonce == localNonce) {
+			socket.close();
+			return false;
+		}
+
+		// Step 2: send our handshake
+		HandShake myHandShake;
+		myHandShake.protocolVersion = currentProtocolVersion;
+		myHandShake.networkId = currentNetworkId;
+		myHandShake.services = 0b1;
+		myHandShake.nonce = localNonce;
+		myHandShake.blockchainTip = getBlockchainTip();
+
+		std::vector<uint8_t> out;
+		appendBytes(out, myHandShake.protocolVersion);
+		appendBytes(out, myHandShake.networkId);
+		appendBytes(out, myHandShake.services);
+		appendBytes(out, myHandShake.nonce);
+		appendBytes(out, myHandShake.blockchainTip);
+
+		asio::write(socket, asio::buffer(out));
+
+		// Step 3: read their verack
+		uint8_t theirVerack;
+		asio::read(socket, asio::buffer(&theirVerack, 1));
+
+		uint8_t verack = 0x01;
+		if (theirVerack != verack) {
+			socket.close();
+			return false;
+		}
+
+		// Step 4: send our verack
+		uint8_t myVerack = verack;
+		asio::write(socket, asio::buffer(&myVerack, 1));
+
+		// Handshake complete!
+		// Add peer to in-memory peers list
+		PeerAddress newPeerAddr;
+		newPeerAddr.address = socket.remote_endpoint().address().to_string();
+		newPeerAddr.port = socket.remote_endpoint().port();
+		PeerStatus newPeerStatus;
+		newPeerStatus.services = theirHandShake.services;
+		newPeerStatus.lastSeen = getCurrentTimestamp();
+		peers.insert({ newPeerAddr, newPeerStatus });
 	}
-
-	HandShake response;
-	response.protocolVersion = currentProtocolVersion;
-	response.networkId = currentNetworkId;
-	response.services = 0b1;
-	response.nonce = localNonce;
-	response.blockchainTip = getBlockchainTip();
-
-	std::vector<uint8_t> out;
-	appendBytes(out, response.protocolVersion);
-	appendBytes(out, response.networkId);
-	appendBytes(out, response.services);
-	appendBytes(out, response.nonce);
-	appendBytes(out, response.blockchainTip);
-
-	asio::write(socket, asio::buffer(out));
-
-	// Step 4: read their verack (1 byte)
-	uint8_t theirVerack;
-	asio::read(socket, asio::buffer(&theirVerack, 1));
-
-	uint8_t verack = 0x01;
-	if (theirVerack != verack) {
-		socket.close();
-		return;
+	catch (const std::exception& e) {
+		return false;
 	}
-
-	// Step 5: send our verack
-	uint8_t myVerack = verack;
-	asio::write(socket, asio::buffer(&myVerack, 1));
-
 }
 
-void outgoingConnection(const std::string& peerAddress, uint16_t peerPort) {
+bool outgoingHandShake(const std::string& peerAddress, uint16_t peerPort) {
 	try {
 		asio::ip::tcp::socket socket(ioContext);
 		socket.connect(asio::ip::tcp::endpoint(asio::ip::make_address(peerAddress), peerPort));
 
 		// Step 1: send handshake
-		HandShake hs;
-		hs.protocolVersion = currentProtocolVersion;
-		hs.networkId = currentNetworkId;
-		hs.services = SERVICE_FULL_NODE;
-		hs.nonce = localNonce;
-		hs.blockchainTip = getBlockchainTip();
+		HandShake myHandShake;
+		myHandShake.protocolVersion = currentProtocolVersion;
+		myHandShake.networkId = currentNetworkId;
+		myHandShake.services = SERVICE_FULL_NODE;
+		myHandShake.nonce = localNonce;
+		myHandShake.blockchainTip = getBlockchainTip();
 
 		std::vector<uint8_t> out;
-		appendBytes(out, hs.protocolVersion);
-		appendBytes(out, hs.networkId);
-		appendBytes(out, hs.services);
-		appendBytes(out, hs.nonce);
-		appendBytes(out, hs.blockchainTip);
+		appendBytes(out, myHandShake.protocolVersion);
+		appendBytes(out, myHandShake.networkId);
+		appendBytes(out, myHandShake.services);
+		appendBytes(out, myHandShake.nonce);
+		appendBytes(out, myHandShake.blockchainTip);
 
 		asio::write(socket, asio::buffer(out));
 
 		// Step 2: read peer handshake
-		HandShake peerHs;
-		std::vector<uint8_t> buffer(sizeof(peerHs.protocolVersion) + sizeof(peerHs.networkId) +
-			sizeof(peerHs.services) + sizeof(peerHs.nonce) + sizeof(peerHs.blockchainTip));
+		HandShake theirHandShake;
+		std::vector<uint8_t> buffer(sizeof(theirHandShake.protocolVersion) + sizeof(theirHandShake.networkId) +
+			sizeof(theirHandShake.services) + sizeof(theirHandShake.nonce) + sizeof(theirHandShake.blockchainTip));
 		asio::read(socket, asio::buffer(buffer.data(), buffer.size()));
 
 		size_t offset = 0;
-		takeBytesInto(peerHs.protocolVersion, buffer, offset);
-		takeBytesInto(peerHs.networkId, buffer, offset);
-		takeBytesInto(peerHs.services, buffer, offset);
-		takeBytesInto(peerHs.nonce, buffer, offset);
-		takeBytesInto(peerHs.blockchainTip, buffer, offset);
+		takeBytesInto(theirHandShake.protocolVersion, buffer, offset);
+		takeBytesInto(theirHandShake.networkId, buffer, offset);
+		takeBytesInto(theirHandShake.services, buffer, offset);
+		takeBytesInto(theirHandShake.nonce, buffer, offset);
+		takeBytesInto(theirHandShake.blockchainTip, buffer, offset);
 
 		// Validate peer
-		if (peerHs.protocolVersion != currentProtocolVersion ||
-			peerHs.networkId != currentNetworkId ||
-			peerHs.nonce == localNonce) {
+		if (theirHandShake.protocolVersion != currentProtocolVersion ||
+			theirHandShake.networkId != currentNetworkId ||
+			theirHandShake.nonce == localNonce) {
 			socket.close();
-			return;
+			return false;
 		}
 
 		// Step 3: send verack
@@ -133,32 +157,29 @@ void outgoingConnection(const std::string& peerAddress, uint16_t peerPort) {
 		asio::read(socket, asio::buffer(&theirVerack, 1));
 		if (theirVerack != verack) {
 			socket.close();
-			return;
+			return false;
 		}
 
 		// Handshake complete!
 		// Add peer to in-memory peers list
-		Peer newPeer;
-		newPeer.address = peerAddress;
-		newPeer.port = peerPort;
-		newPeer.services = peerHs.services;
-		newPeer.blockchainTip = peerHs.blockchainTip;
-		connectedPeers.push_back(newPeer);
-
-		// Optionally store peer on disk
-		storePeerAddress(peerAddress, peerPort);
+		PeerAddress newPeerAddr;
+		newPeerAddr.address = socket.remote_endpoint().address().to_string();
+		newPeerAddr.port = socket.remote_endpoint().port();
+		PeerStatus newPeerStatus;
+		newPeerStatus.services = theirHandShake.services;
+		newPeerStatus.lastSeen = getCurrentTimestamp();
+		peers.insert({ newPeerAddr, newPeerStatus });
 
 		// Step 5: Compare blockchain tips
 		auto localTip = getBlockchainTip();
-		if (peerHs.blockchainTip != localTip) {
+		if (theirHandShake.blockchainTip != localTip) {
 			// TODO: request missing blocks using getBlocks/getData
 		}
 
 		// From here, start your async read loop to receive blocks/txs from this peer
 	}
 	catch (const std::exception& e) {
-		std::cerr << "Failed to connect to " << peerAddress << ":" << peerPort
-			<< " - " << e.what() << "\n";
+		return false;
 	}
 }
 
@@ -185,4 +206,29 @@ void sendTxToMempool(asio::ip::tcp::socket& socket, const Tx& tx) {
 	asio::write(socket, asio::buffer(sizeBytes));
 	// Send the transaction data
 	asio::write(socket, asio::buffer(txBytes));
+}
+
+void networkLoop() {
+	asio::ip::tcp::socket socket(ioContext);
+	acceptor.accept(socket);  // new incoming connection
+
+	PeerAddress addr;
+	addr.address = socket.remote_endpoint().address().to_string();
+	addr.port = socket.remote_endpoint().port();
+
+	// Check if peer exists
+	if (peers.find(addr) != peers.end()) {
+		// Peer already known, you can skip handshake or just update lastSeen
+		peers[addr].lastSeen = getCurrentTimestamp();
+	}
+	else {
+		// Peer is new, perform handshake
+		if (incomingHandShake(std::move(socket))) {
+			// handshake succeeded, add peer
+			PeerStatus status;
+			status.services = 0b1; // example
+			status.lastSeen = getCurrentTimestamp();
+			peers.insert({ addr, status });
+		}
+	}
 }

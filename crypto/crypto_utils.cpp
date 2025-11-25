@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <sodium.h>
 #include <cstring>
+#include <chrono>
 
 // ============================================================================
 // BASIC UTILITIES
@@ -47,6 +48,14 @@ Array256_t sha256Of(std::span<const uint8_t> data) {
 	Array256_t out;
 	crypto_hash_sha256(out.data(), data.data(), data.size());
 	return out;
+}
+
+uint64_t getCurrentTimestamp() {
+	return static_cast<uint64_t>(
+		std::chrono::duration_cast<std::chrono::seconds>(
+			std::chrono::system_clock::now().time_since_epoch()
+		).count()
+		);
 }
 
 // ----------------------------------------

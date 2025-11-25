@@ -51,6 +51,10 @@ void appendToFile(std::ofstream& file, const T& obj) {
 	}
 }
 
+static void deleteFile(const fs::path& filePath) {
+	if (fs::exists(filePath)) fs::remove(filePath);
+}
+
 std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
 	if (!fs::exists(filePath))
 		throw std::runtime_error("File does not exist: " + filePath.string());
@@ -81,7 +85,7 @@ std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
 // Block storage management
 // ==========================================================
 
-static void addBlock(const Block& block) {
+void addBlock(const Block& block) {
 
 	// Serialize the block
 	const auto blockBytes = serialiseBlock(block);
@@ -100,6 +104,7 @@ static void addBlock(const Block& block) {
 	// Create undo file
 	auto undoFile = openFileForAppend(undoPath / (bytesToHex(blockHash) + ".undo"));
 
+	auto utxoDb = openUtxoDb(); // Ensure UTXO DB is initialized
 	// Write UTXO references to undo file
 	for (const auto& tx : block.txs) {
 
@@ -114,7 +119,7 @@ static void addBlock(const Block& block) {
 			appendToFile(undoFile, input.UTXOOutputIndex);
 
 			// Retrieve UTXO value
-			auto usedUtxo = getUtxoValue(input);
+			auto usedUtxo = getUtxoValue(*utxoDb, input);
 			appendToFile(undoFile, usedUtxo.amount);
 			appendToFile(undoFile, usedUtxo.recipient);
 		}
@@ -127,22 +132,20 @@ static void addBlock(const Block& block) {
 	for (const auto& tx : block.txs) {
 		auto txHash = getTxHash(tx);
 		for (const auto& UTXO : tx.txOutputs) {
-			addUtxo({ txHash, outputIndex++ }, UTXO);
+			putUtxo(*utxoDb, { txHash, outputIndex++ }, UTXO);
 		}
 	}
 	// Remove used UTXOs
 	for (const auto& tx : block.txs) {
 		for (const auto& input : tx.txInputs) {
-			removeUtxo(input);
+			deleteUtxo(*utxoDb, input);
 		}
 	}
 }
 
-static void undoBlock() {
+void undoBlock() {
 
 	auto tipHash = getBlockchainTip();
-	// Delete block file
-	deleteBlockFile(tipHash);
 
 	// Open undo file for reading
 	fs::path undoFilePath = undoPath / (bytesToHex(tipHash) + ".undo");
@@ -151,11 +154,13 @@ static void undoBlock() {
 	auto blockBytes = readWholeFile(blockFilePath);
 	auto block = formatBlock(blockBytes);
 
+	auto utxoDb = openUtxoDb();
+
 	// Remove created UTXOs
 	for (const auto& tx : block.txs) {
 		const auto txHash = getTxHash(tx);
 		for (uint32_t i = 0; i < tx.txOutputs.size(); i++) {
-			removeUtxo({ txHash, i });
+			deleteUtxo(*utxoDb, { txHash, i });
 		}
 	}
 
@@ -179,115 +184,109 @@ static void undoBlock() {
 			takeBytesInto(utxo.amount, undoDataBytes, offset);
 			takeBytesInto(utxo.recipient, undoDataBytes, offset);
 			// Restore UTXO
-			addUtxo(input, utxo);
+			putUtxo(*utxoDb, input, utxo);
 		}
 	}
+	// Delete block file
+	fs::remove(blockFilePath);
+	// Delete undo file
+	fs::remove(undoFilePath);
 }
 
-static bool blockExists(const Array256_t& blockHash) {
+bool blockExists(const Array256_t& blockHash) {
 	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
 	return fs::exists(blockFilePath);
-}
-
-static void deleteBlockFile(const Array256_t blockHash) {
-	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-	if (fs::exists(blockFilePath)) fs::remove(blockFilePath);
 }
 
 // ===========================================================
 // UTXO storage management
 // ===========================================================
 
-static void addUtxo(const TxInput& txInput, const TxOutput& utxo) {
+static std::unique_ptr<leveldb::DB> openUtxoDb() {
+	fs::create_directories(utxoPath);
 
-	// Construct key
+	leveldb::Options options;
+	options.create_if_missing = true;
+
+	leveldb::DB* raw = nullptr;
+	leveldb::Status status = leveldb::DB::Open(options, (utxoPath / "leveldb").string(), &raw);
+
+	if (!status.ok() || !raw)
+		throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
+
+	return std::unique_ptr<leveldb::DB>(raw);
+}
+
+static void putUtxo(leveldb::DB& db, const TxInput& txInput, const TxOutput& utxo) {
 	std::string keyString;
-	appendBytes(keyString, txInput.UTXOOutputIndex);
 	appendBytes(keyString, txInput.UTXOTxHash);
-	leveldb::Slice key(keyString);
+	appendBytes(keyString, txInput.UTXOOutputIndex);
 
-	// Construct value
 	std::string valueString;
 	appendBytes(valueString, utxo.amount);
 	appendBytes(valueString, utxo.recipient);
+
+	leveldb::Slice key(keyString);
 	leveldb::Slice value(valueString);
 
-	// Ensure UTXO directory exists
-	fs::create_directories(utxoPath);
-
-	// Open LevelDB with RAII
-	leveldb::DB* dbRaw = nullptr;
-	leveldb::Options options;
-	options.create_if_missing = true;
-
-	leveldb::Status status = leveldb::DB::Open(options, (utxoPath / "leveldb").string(), &dbRaw);
-	if (!status.ok() || dbRaw == nullptr) throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
-	std::unique_ptr<leveldb::DB> db(dbRaw); // RAII ownership
-
-	// Insert UTXO metadata
-	status = db->Put(leveldb::WriteOptions(), key, value);
-	if (!status.ok()) throw std::runtime_error("Failed to put UTXO metadata: " + status.ToString());
+	leveldb::Status status = db.Put(leveldb::WriteOptions(), key, value);
+	if (!status.ok())
+		throw std::runtime_error("Failed to put UTXO: " + status.ToString());
 }
 
-static void removeUtxo(const TxInput& txInput) {
+static void deleteUtxo(leveldb::DB& db, const TxInput& txInput) {
 	// Construct key
 	std::string keyString;
-	appendBytes(keyString, txInput.UTXOOutputIndex);
 	appendBytes(keyString, txInput.UTXOTxHash);
+	appendBytes(keyString, txInput.UTXOOutputIndex);
+
 	leveldb::Slice key(keyString);
-
-	// Ensure utxo directory exists
-	fs::create_directories(utxoPath);
-
-	// Open LevelDB with RAII
-	leveldb::DB* dbRaw = nullptr;
-	leveldb::Options options;
-	options.create_if_missing = true;
-	leveldb::Status status = leveldb::DB::Open(options, (utxoPath / "leveldb").string(), &dbRaw);
-	if (!status.ok() || dbRaw == nullptr) throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
-
-	std::unique_ptr<leveldb::DB> db(dbRaw); // RAII ownership
 
 	// Delete UTXO
-	status = db->Delete(leveldb::WriteOptions(), key);
-	if (!status.ok()) throw std::runtime_error("Failed to delete UTXO: " + status.ToString());
+	leveldb::Status status = db.Delete(leveldb::WriteOptions(), key);
+	if (!status.ok())
+		throw std::runtime_error("Failed to delete UTXO: " + status.ToString());
 }
 
-static TxOutput getUtxoValue(const TxInput& txInput) {
-
+static TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput) {
 	// Construct key
 	std::string keyString;
-	appendBytes(keyString, txInput.UTXOOutputIndex);
 	appendBytes(keyString, txInput.UTXOTxHash);
+	appendBytes(keyString, txInput.UTXOOutputIndex);
+
 	leveldb::Slice key(keyString);
 
-	// Ensure UTXO directory exists
-	fs::create_directories(utxoPath);
-
-	// Open LevelDB with RAII
-	leveldb::DB* dbRaw = nullptr;
-	leveldb::Options options;
-	options.create_if_missing = true;
-	leveldb::Status status = leveldb::DB::Open(options, (utxoPath / "leveldb").string(), &dbRaw);
-
-	if (!status.ok() || dbRaw == nullptr) throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
-
-	std::unique_ptr<leveldb::DB> db(dbRaw); // RAII ownership
-	// Get utxo value
+	// Fetch raw value
 	std::string value;
+	leveldb::Status status = db.Get(leveldb::ReadOptions(), key, &value);
+
+	if (!status.ok())
+		throw std::runtime_error("UTXO not found");
+
+	// Decode bytes
 	TxOutput utxo;
-
-	status = db->Get(leveldb::ReadOptions(), key, &value);
-	if (!status.ok()) throw std::runtime_error("UTXO not found");
-
 	size_t offset = 0;
-	takeBytesInto(utxo.amount, { reinterpret_cast<const uint8_t*>(value.data()), value.size() }, offset);
-	takeBytesInto(utxo.recipient, { reinterpret_cast<const uint8_t*>(value.data()), value.size() }, offset);
-	return utxo;
 
+	takeBytesInto(
+		utxo.amount,
+		{ reinterpret_cast<const uint8_t*>(value.data()), value.size() },
+		offset
+	);
+
+	takeBytesInto(
+		utxo.recipient,
+		{ reinterpret_cast<const uint8_t*>(value.data()), value.size() },
+		offset
+	);
+
+	return utxo;
 }
 
-static bool utxoValid(const TxInput txInput) {
+static bool utxoValid(leveldb::DB* db, const TxInput& txInput) {
+
+	if (db == nullptr) {
+		throw std::runtime_error("UTXO DB pointer is null");
+	}
 
 	// Construct key
 	std::string keyString;
@@ -295,29 +294,20 @@ static bool utxoValid(const TxInput txInput) {
 	appendBytes(keyString, txInput.UTXOTxHash);
 	leveldb::Slice key(keyString);
 
-	// Ensure utxo directory exists
-	fs::create_directories(utxoPath);
-
-	// Open LevelDB with RAII
-	leveldb::DB* dbRaw = nullptr;
-	leveldb::Options options;
-	options.create_if_missing = true;
-	leveldb::Status status = leveldb::DB::Open(options, (utxoPath / "leveldb").string(), &dbRaw);
-	if (!status.ok() || dbRaw == nullptr) throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
-
-	std::unique_ptr<leveldb::DB> db(dbRaw); // RAII ownership
-
-	// Check if utxo exists
+	// Query DB
 	std::string value;
-	status = db->Get(leveldb::ReadOptions(), key, &value);
+	leveldb::Status status = db->Get(leveldb::ReadOptions(), key, &value);
+
+	// If the key exists, ok == true
 	return status.ok();
 }
+
 
 // ===========================================================
 // Blockchain tip management
 // ===========================================================
 
-static void changeBlockchainTip(const Array256_t newTip) {
+void changeBlockchainTip(const Array256_t newTip) {
 	fs::create_directories(tipFilePath.parent_path());
 	std::ofstream tipFile(tipFilePath, std::ios::trunc | std::ios::binary);
 	tipFile.exceptions(std::ios::failbit | std::ios::badbit);
@@ -344,14 +334,6 @@ Array256_t getBlockchainTip() {
 	return latestBlockHash;
 }
 
-// ===========================================================
-// Undo file management
-// ===========================================================
-
-static void deleteUndoFile(const Array256_t blockHash) {
-	fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
-	if (fs::exists(undoFilePath)) fs::remove(undoFilePath);
-}
 
 // ===========================================================
 // Peer address storage management
@@ -361,14 +343,16 @@ void storePeers(std::unordered_map<PeerAddress, PeerStatus>& peers) {
 	fs::create_directories(peersFilePath.parent_path());
 	std::ofstream peersFile(peersFilePath, std::ios::trunc | std::ios::binary);
 	peersFile.exceptions(std::ios::failbit | std::ios::badbit);
+
 	// Peers count
-	appendBytes(peersFile, static_cast<uint64_t>(peers.size()));
+	appendToFile(peersFile, static_cast<uint64_t>(peers.size()));
+
 	for (const auto& [peerAddr, peerStatus] : peers) {
 		// Address length
 		const size_t addrLen = peerAddr.address.size();
 		appendToFile(peersFile, static_cast<uint16_t>(addrLen));
 		// Write address string
-		appendBytes(peersFile, peerAddr.address);
+		appendToFile(peersFile, peerAddr.address);
 		// Write port
 		appendToFile(peersFile, peerAddr.port);
 		// Write services
@@ -400,18 +384,17 @@ std::unordered_map<PeerAddress, PeerStatus> loadPeers() {
 		takeBytesInto(addr, peersFileBytes, offset);
 
 		// Read port
-		takeBytesInto(port, peersFileBytes, offset);
+		takeBytesInto(peerAddr.port, peersFileBytes, offset);
 
 		// Read services
-		takeBytesInto(services, peersFileBytes, offset);
+		takeBytesInto(peerStatus.services, peersFileBytes, offset);
 
 		// Read lastSeen
-		takeBytesInto(lastSeen, peersFileBytes, offset);
+		takeBytesInto(peerStatus.lastSeen, peersFileBytes, offset);
 
 		// Insert into map
 		peers.insert({ peerAddr, peerStatus });
 
-		
 	}
 	return peers;
 }

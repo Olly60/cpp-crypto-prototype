@@ -16,6 +16,9 @@ std::string bytesToHex(const Array256_t& bytes);
 // Compute SHA-256 hash of data
 Array256_t sha256Of(std::span<const uint8_t> data);
 
+// Get current UNIX timestamp in seconds
+uint64_t getCurrentTimestamp();
+
 // Detect endianness at compile time
 static constexpr bool isLittleEndian() {
 	constexpr uint16_t x = 1;
