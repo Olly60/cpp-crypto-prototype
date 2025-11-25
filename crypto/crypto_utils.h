@@ -22,49 +22,32 @@ static constexpr bool isLittleEndian() {
 	return *reinterpret_cast<const uint8_t*>(&x) == 1;
 }
 
-// Take bytes from data span into out variable, updating offset
+// Main implementation: takes an offset
 template <typename T>
 static void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset)
 {
-	// Ensure enough bytes are available
-	if (offset + sizeof(T) > data.size()) throw std::runtime_error("takeBytesInto: not enough bytes");
+	if (offset + sizeof(T) > data.size())
+		throw std::runtime_error("takeBytesInto: not enough bytes");
 
 	std::array<uint8_t, sizeof(T)> temp{};
 	std::memcpy(temp.data(), data.data() + offset, sizeof(T));
 
-	// Endianness fix for integral types
 	if constexpr (std::is_integral_v<T>) {
-		// If host is big-endian, swap the bytes read from little-endian storage
-		if constexpr (!isLittleEndian()) {
+		if (!isLittleEndian()) {
 			std::reverse(temp.begin(), temp.end());
 		}
 	}
 
-	// Copy bytes into out
 	std::memcpy(&out, temp.data(), sizeof(T));
 	offset += sizeof(T);
 }
 
-// Overload without offset parameter (uses internal static offset)
+// Overload without offset parameter: just calls the main one with offset = 0
 template <typename T>
 static void takeBytesInto(T& out, std::span<const uint8_t> data)
 {
-	// Ensure enough bytes are available
-	if (offset + sizeof(T) > data.size()) throw std::runtime_error("takeBytesInto: not enough bytes");
-
-	std::array<uint8_t, sizeof(T)> temp{};
-	std::memcpy(temp.data(), data.data(), sizeof(T));
-
-	// Endianness fix for integral types
-	if constexpr (std::is_integral_v<T>) {
-		// If host is big-endian, swap the bytes read from little-endian storage
-		if constexpr (!isLittleEndian()) {
-			std::reverse(temp.begin(), temp.end());
-		}
-	}
-
-	// Copy bytes into out
-	std::memcpy(&out, temp.data(), sizeof(T));
+	size_t offset = 0;
+	takeBytesInto(out, data, offset);
 }
 
 // Append bytes of data to output container
@@ -97,6 +80,7 @@ struct TxInput {
 	uint32_t UTXOOutputIndex{};
 	Array256_t signature{};
 };
+
 struct Tx {
 	uint32_t version{ 1 };
 	std::vector<TxInput> txInputs;
