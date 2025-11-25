@@ -1,4 +1,4 @@
-#include <asio.hpp>
+﻿#include <asio.hpp>
 #include "crypto_utils.h"
 #include "storage.h"
 #include <random>
@@ -53,11 +53,12 @@ struct Inv {
 
 void incomingHandshakeAsync(std::shared_ptr<asio::ip::tcp::socket> socket) {
 	// Step 1: read peer handshake
-	auto buffer = std::make_unique<std::vector<uint8_t>>(
-		sizeof(Handshake::protocolVersion) + sizeof(Handshake::networkId) +
-		sizeof(Handshake::services) + sizeof(Handshake::nonce) +
-		sizeof(Handshake::blockchainTip)
-	);
+	auto buffer = std::make_unique<std::array<uint8_t,
+		sizeof(Handshake::protocolVersion) +
+		sizeof(Handshake::networkId) +
+		sizeof(Handshake::services) +
+		sizeof(Handshake::nonce) +
+		sizeof(Handshake::blockchainTip)>>();
 
 	asio::async_read(*socket, asio::buffer(*buffer),
 		[socket, buffer = std::move(buffer)](std::error_code ec, std::size_t) mutable {
@@ -166,13 +167,12 @@ void outgoingHandshakeAsync(std::shared_ptr<asio::ip::tcp::socket> socket) {
 			}
 
 			// Step 3: read peer handshake
-			auto theirBuffer = std::make_unique<std::vector<uint8_t>>(
+			auto theirBuffer = std::make_unique<std::array<uint8_t,
 				sizeof(Handshake::protocolVersion) +
 				sizeof(Handshake::networkId) +
 				sizeof(Handshake::services) +
 				sizeof(Handshake::nonce) +
-				sizeof(Handshake::blockchainTip)
-			);
+				sizeof(Handshake::blockchainTip)>>();
 
 			asio::async_read(*socket, asio::buffer(*theirBuffer),
 				[socket, myHandshake = std::move(myHandshake), theirBuffer = std::move(theirBuffer)]
@@ -235,36 +235,141 @@ void outgoingHandshakeAsync(std::shared_ptr<asio::ip::tcp::socket> socket) {
 		});
 }
 
-Array256_t requestBlockHashList(std::shared_ptr<asio::ip::tcp::socket> socket,) {
-	return Array256_t{};
-}
+void requestBlockHashList(
+	std::shared_ptr<asio::ip::tcp::socket> socket,
+	std::function<void(std::error_code, std::vector<Array256_t>)> onDone)
+{
+	auto requestMsgType = std::make_shared<uint8_t>(1);
 
-Array256_t findCommonAncestor(std::shared_ptr<asio::ip::tcp::socket> socket) {
-
-	return Array256_t{};
-}
-
-void startAccepting(asio::ip::tcp::acceptor& acceptor) {
-	acceptor.async_accept([&acceptor](std::error_code ec, asio::ip::tcp::socket socket) {
-		if (!ec) {
-			
-			PeerAddress addr;
-			addr.address = socket.remote_endpoint().address().to_string();
-			addr.port = socket.remote_endpoint().port();
-
-			if (peers.find(addr) != peers.end()) {
-				// Peer exists, just update lastSeen
-				peers[addr].lastSeen = getCurrentTimestamp();
+	asio::async_write(*socket, asio::buffer(*requestMsgType),
+		[socket, requestMsgType, onDone](std::error_code ec, std::size_t) {
+			if (ec) {
+				onDone(ec, {});
+				return;
 			}
-			else {
-				// Peer is new, start async handshake
-				incomingHandshakeAsync(std::make_shared<asio::ip::tcp::socket>(socket));
-				// The handshake itself will add the peer once complete
-			}
-		}
-		startAccepting(acceptor); // schedule next accept
+
+			auto countBuf = std::make_shared<std::array<uint8_t, 8>>();
+
+			asio::async_read(*socket, asio::buffer(*countBuf),
+				[socket, countBuf, onDone](std::error_code ec, std::size_t) {
+					if (ec) {
+						onDone(ec, {});
+						return;
+					}
+
+					uint64_t count;
+					takeBytesInto(count, *countBuf);
+
+					auto rawBuf = std::make_shared<std::vector<uint8_t>>(count * 32);
+
+					asio::async_read(*socket, asio::buffer(*rawBuf),
+						[rawBuf, count, onDone](std::error_code ec, std::size_t) {
+							if (ec) {
+								onDone(ec, {});
+								return;
+							}
+
+							std::vector<Array256_t> hashes(count);
+							for (uint64_t i = 0; i < count; i++) {
+								std::memcpy(hashes[i].data(),
+									rawBuf->data() + i * 32,
+									32);
+							}
+
+							onDone({}, std::move(hashes));
+						});
+				});
 		});
 }
+
+
+
+void startAccepting(asio::ip::tcp::acceptor& acceptor) {
+	acceptor.async_accept(
+		[&acceptor](std::error_code ec, asio::ip::tcp::socket socket) {
+			if (!ec) {
+
+				// Wrap socket in shared_ptr immediately
+				auto sock = std::make_shared<asio::ip::tcp::socket>(std::move(socket));
+
+				PeerAddress peerAddr;
+				peerAddr.address = sock->remote_endpoint().address().to_string();
+				peerAddr.port = sock->remote_endpoint().port();
+
+				// Peer already exists
+				if (peers.find(peerAddr) != peers.end()) {
+					peers[peerAddr].lastSeen = getCurrentTimestamp();
+
+					// Begin reading message type
+					auto msgType = std::make_shared<std::array<uint8_t, 4>>();
+
+					asio::async_read(*sock, asio::buffer(*msgType),
+						[sock, msgType](std::error_code ec, std::size_t) {
+							if (ec) {
+								sock->close();
+								return;
+							}
+
+							uint8_t messageType = 0;
+							takeBytesInto(messageType, *msgType);
+
+							// =========== HANDLE PING ===========
+							if (messageType == 0) {
+								auto pingReply = std::make_shared<std::array<uint8_t, 4>>();
+
+								asio::async_write(*sock, asio::buffer(*pingReply),
+									[sock, pingReply](std::error_code ec, std::size_t) {
+										if (ec) {
+											sock->close();
+											return;
+										}
+
+										auto response = std::make_shared<std::array<uint8_t, 1>>();
+
+										asio::async_read(*sock, asio::buffer(*response),
+											[sock, response](std::error_code ec, std::size_t) {
+												if (ec) {
+													sock->close();
+													return;
+												}
+
+												if ((*response)[0] == 0x01) {
+													PeerAddress addr;
+													addr.address = sock->remote_endpoint().address().to_string();
+													addr.port = sock->remote_endpoint().port();
+													peers[addr].lastSeen = getCurrentTimestamp();
+												}
+											});
+									});
+							}
+
+							// =========== HANDLE GET BLOCK HASHES ===========
+							else if (messageType == 1) {
+								auto blockHashes = make_shared<std::vector<Array256_t>>(getAllBlockHashes());
+								asio::async_write(*sock, asio::buffer(*blockHashes), 
+									[sock, blockHashes](std::error_code ec, std::size_t) {
+										if (ec) {
+											sock->close();
+											return;
+										}
+									});
+							}
+						}
+					);
+				}
+
+				// New peer → start handshake
+				else {
+					incomingHandshakeAsync(sock);
+				}
+			}
+
+			// Continue accepting next connections
+			startAccepting(acceptor);
+		}
+	);
+}
+
 
 int main() {
 	asio::io_context ioContext;

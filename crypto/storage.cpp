@@ -315,7 +315,6 @@ void addBlockchainTip(const Array256_t& newTip) {
 	appendToFile(file, newTip); // write 32 bytes of hash
 }
 
-
 void removeBlockchainTip() {
 	if (!fs::exists(blockHashesFilePath)) return;
 
@@ -349,7 +348,7 @@ Array256_t getBlockchainTip() {
 	return tip;
 }
 
-std::vector<Array256_t> getAllBlockchainTips() {
+std::vector<Array256_t> getAllBlockHashes() {
 	if (!fs::exists(blockHashesFilePath))
 		throw std::runtime_error("Blockchain tip file does not exist.");
 
