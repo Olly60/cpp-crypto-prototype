@@ -2,6 +2,7 @@
 #include "crypto_utils.h"
 #include "storage.h"
 #include <random>
+#include "network.h"
 
 // Services
 constexpr uint64_t SERVICE_FULL_NODE = 0b00000001; // bit 0
@@ -30,13 +31,7 @@ struct HandShake {
 };
 
 struct Inv {
-	std::vector<Array256_t> blockHashes; // or tx hashes
-};
-
-struct transaction {
-	Array256_t txid;
-	std::vector<TxInput> inputs;
-	std::vector<TxOutput> outputs;
+	std::vector<Array256_t> blockHashes;
 };
 
 void incomingConnection(asio::ip::tcp::socket socket) {
@@ -190,15 +185,4 @@ void sendTxToMempool(asio::ip::tcp::socket& socket, const Tx& tx) {
 	asio::write(socket, asio::buffer(sizeBytes));
 	// Send the transaction data
 	asio::write(socket, asio::buffer(txBytes));
-}
-
-int main() {
-	asio::io_context io;
-	asio::ip::tcp::acceptor acceptor(io, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), 8333));
-
-	for (;;) {
-		asio::ip::tcp::socket socket(io);
-		acceptor.accept(socket);
-		incomingConnection(std::move(socket));
-	}
 }

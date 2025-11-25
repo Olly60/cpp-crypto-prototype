@@ -3,17 +3,42 @@
 #include <leveldb/db.h>
 #include "crypto_utils.h"
 #include "storage.h"
+#include <algorithm>
+#include <unordered_map>
+
+#include "network.h"
 
 namespace fs = std::filesystem;
+static const fs::path blockchainPath = fs::path("blockchain");
 
-static const fs::path tipPath = fs::path("blockchain") / "blockchain_tip";
-static const fs::path blocksPath = fs::path("blockchain") / "blocks";
-static const fs::path utxoPath = fs::path("blockchain") / "utxo";
-static const fs::path undoPath = fs::path("blockchain") / "undo";
-static const fs::path peersPath = fs::path("blockchain") / "peers";
+static const fs::path tipPath = blockchainPath / "blockchain_tip";
+static const fs::path tipFilePath = tipPath / "blockchain_tip";
+static const fs::path blocksPath = blockchainPath / "blocks";
+static const fs::path utxoPath = blockchainPath / "utxo";
+static const fs::path undoPath = blockchainPath / "undo";
+static const fs::path peersPath = blockchainPath / "peers";
+static const fs::path peersFilePath = peersPath / "peers_list";
+
+template <typename T>
+requires std::is_integral_v<T>
+static void numIntoFile(const T& number, std::ofstream& file) {
+
+	// Inline little-endian serialization
+	std::array<char, sizeof(T)> bytes{};
+	std::memcpy(bytes.data(), &number, sizeof(T));
+	// If host is big-endian, swap the bytes read from little-endian storage
+	if constexpr (!isLittleEndian()) {
+		std::reverse(bytes.begin(), bytes.end());
+	}
+	file.write(bytes.data(), bytes.size());
+}
 
 
-// Blockchain storage management
+
+// ==========================================================
+// Block storage management
+// ==========================================================
+
 static void addBlock(const Block& block) {
 	// Serialize the block
 	const auto blockBytes = serialiseBlock(block);
@@ -38,17 +63,21 @@ static void addBlock(const Block& block) {
 
 	// Write UTXO references to undo file
 	for (const auto& tx : block.txs) {
-		undoFile.put(tx.version); // Write transaction version
-		undoFile.write(reinterpret_cast<const char*>(serialiseNumberLe(static_cast<uint32_t>(tx.txInputs.size())).data()), sizeof(tx.txInputs)); // Write input count
+
+		numIntoFile(tx.version, undoFile); // Write transaction version
+
+		numIntoFile((tx.txInputs.size()), undoFile); // Write input count
+
+		// For each input, write UTXO reference and value
 		for (const auto& input : tx.txInputs) {
 			// Write UTXO reference
 			undoFile.write(reinterpret_cast<const char*>(input.UTXOTxHash.data()), input.UTXOTxHash.size());
-			auto outputIndexBytes = serialiseNumberLe(input.UTXOOutputIndex);
-			undoFile.write(reinterpret_cast<const char*>(outputIndexBytes.data()), outputIndexBytes.size());
-			// Get UTXO value
-			TxOutput utxo = getUtxoValue(input.UTXOTxHash, input.UTXOOutputIndex);
-			undoFile.write(reinterpret_cast<const char*>(serialiseNumberLe(utxo.amount).data()), sizeof(utxo.amount));
-			undoFile.write(reinterpret_cast<const char*>(utxo.recipient.data()), utxo.recipient.size());
+			numIntoFile((input.UTXOOutputIndex), undoFile);
+
+			// Retrieve UTXO value
+			auto usedUtxo = getUtxoValue(input.UTXOTxHash, input.UTXOOutputIndex);
+			numIntoFile((usedUtxo.amount), undoFile);
+			undoFile.write(reinterpret_cast<const char*>(usedUtxo.recipient.data()), usedUtxo.recipient.size());
 		}
 
 	}
@@ -58,7 +87,7 @@ static void addBlock(const Block& block) {
 	// Store new UTXOs
 	for (const auto& tx : block.txs) {
 		for (const auto& UTXO : tx.txOutputs) {
-			addUtxo(UTXO, blockHash, outputIndex++);
+			addUtxo(blockHash, outputIndex++, UTXO);
 		}
 	}
 	// Remove used UTXOs
@@ -69,36 +98,78 @@ static void addBlock(const Block& block) {
 	}
 }
 
-static void undoBlock(const Block& block) {
+static void undoBlock() {
 
+	auto tipHash = getBlockchainTip();
 	// Delete block file
-	deleteBlockFile(getBlockHash(block));
+	deleteBlockFile(tipHash);
 
 	// Open undo file for reading
-	auto undoData = readUndoFile(getBlockHash(block));
+	auto undoDataBytes = readUndoFile(tipHash);
+	auto blockBytes = readBlockFile(tipHash);
+	auto block = formatBlock(blockBytes);
 
 	// Read UTXO references from undo file
 	for (const auto& tx : block.txs) {
 		size_t offset = 0;
 		uint32_t txVersion;
-		takeBytesInto(txVersion, undoData, offset); // Read transaction version
+		takeBytesInto(txVersion, undoDataBytes, offset); // Read transaction version
 		uint32_t utxoamount;
-		takeBytesInto(utxoamount, undoData, offset); // Read UTXO count
+		takeBytesInto(utxoamount, undoDataBytes, offset); // Read UTXO count
 		for (uint32_t i = 0; i < utxoamount; i++) {
 			Array256_t txHash;
-			takeBytesInto(txHash, undoData, offset);
+			takeBytesInto(txHash, undoDataBytes, offset);
 			uint32_t outputIndex;
-			takeBytesInto(outputIndex, undoData, offset);
+			takeBytesInto(outputIndex, undoDataBytes, offset);
 			uint64_t amount;
-			takeBytesInto(amount, undoData, offset);
+			takeBytesInto(amount, undoDataBytes, offset);
 			Array256_t recipient;
-			takeBytesInto(recipient, undoData, offset);
+			takeBytesInto(recipient, undoDataBytes, offset);
+			addUtxo(txHash, outputIndex, { amount, recipient });
 		}
 	}
 }
 
+static bool blockExists(const Array256_t& blockHash) {
+	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
+	return fs::exists(blockFilePath);
+}
+
+static void newBlockFile(std::ofstream& blockFile, const Array256_t blockHash) {
+	// Ensure block directory exists
+	fs::create_directories(blocksPath);
+	const fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
+
+	// Open block file for appending binary data
+	blockFile.open(blockFilePath, std::ios::binary | std::ios::app);
+	blockFile.exceptions(std::ios::failbit | std::ios::badbit);
+}
+
+static std::vector<uint8_t> readBlockFile(const Array256_t blockHash) {
+	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
+	if (!fs::exists(blockFilePath)) throw std::runtime_error("Block file does not exist");
+	std::ifstream blockFile(blockFilePath, std::ios::binary);
+	blockFile.exceptions(std::ios::failbit | std::ios::badbit);
+	try {
+		// Read file contents into vector
+		std::vector<uint8_t> blockData((std::istreambuf_iterator<char>(blockFile)), std::istreambuf_iterator<char>());
+		return blockData;
+	}
+	catch (const std::ios::failure& e) {
+		throw std::runtime_error("Failed to read block file: " + std::string(e.what()));
+	}
+}
+
+static void deleteBlockFile(const Array256_t blockHash) {
+	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
+	if (fs::exists(blockFilePath)) fs::remove(blockFilePath);
+}
+
+// ===========================================================
 // UTXO storage management
-static void addUtxo(const TxOutput& utxo, const Array256_t& txHash, const uint32_t outputIndex) {
+// ===========================================================
+
+static void addUtxo(const Array256_t& txHash, const uint32_t outputIndex, const TxOutput& utxo) {
 
 	// Construct key
 	std::string keyString;
@@ -212,40 +283,9 @@ static bool utxoValid(const Array256_t& txHash, const uint32_t outputIndex) {
 	return status.ok();
 }
 
-// validation and retrieval
-static bool blockExists(const Array256_t& blockHash) {
-	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-	return fs::exists(blockFilePath);
-}
-
-Array256_t getBlockchainTip() {
-	fs::create_directories(tipPath);
-	Array256_t latestBlockHash{};
-	std::ifstream tipFile(tipPath / "blockchain_tip", std::ios::binary);
-	tipFile.exceptions(std::ios::failbit | std::ios::badbit);
-	tipFile.read(reinterpret_cast<char*>(latestBlockHash.data()), sizeof(latestBlockHash));
-	return latestBlockHash;
-}
-
-// Undo file management
-static void newUndoFile(std::ofstream& undoFile, Array256_t blockHash) {
-	fs::create_directories(undoPath);  // ensure directory exists
-
-	const fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
-
-	undoFile.open(undoFilePath, std::ios::app | std::ios::binary);
-	undoFile.exceptions(std::ios::failbit | std::ios::badbit);  // throw on failure
-}
-
-static void newBlockFile(std::ofstream& blockFile, const Array256_t blockHash) {
-	// Ensure block directory exists
-	fs::create_directories(blocksPath);
-	const fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-
-	// Open block file for appending binary data
-	blockFile.open(blockFilePath, std::ios::binary | std::ios::app);
-	blockFile.exceptions(std::ios::failbit | std::ios::badbit);
-}
+// ===========================================================
+// Blockchain tip management
+// ===========================================================
 
 static void changeBlockchainTip(const Array256_t newTip) {
 	fs::create_directories(tipPath);
@@ -259,43 +299,47 @@ static void changeBlockchainTip(const Array256_t newTip) {
 	}
 }
 
-static std::vector<uint8_t> readUndoFile(const Array256_t blockHash) {
-	fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
-	if (!fs::exists(undoFilePath)) throw std::runtime_error("Undo file does not exist");
-
-	std::ifstream undoFile(undoFilePath, std::ios::binary | std::ios::ate);
-	undoFile.exceptions(std::ios::failbit | std::ios::badbit);
-
+Array256_t getBlockchainTip() {
+	fs::create_directories(tipPath);
+	if (!fs::exists(tipFilePath)) throw std::runtime_error("Blockchain tip file does not exist");
+	std::ifstream tipFile(tipFilePath, std::ios::binary);
+	tipFile.exceptions(std::ios::failbit | std::ios::badbit);
 	try {
-		auto fileSize = undoFile.tellg();
-		if (fileSize < 0) throw std::runtime_error("Failed to determine file size");
-
-		std::vector<uint8_t> undoData(static_cast<size_t>(fileSize));
-		undoFile.seekg(0, std::ios::beg);
-		undoFile.read(reinterpret_cast<char*>(undoData.data()), fileSize);
-
-		return undoData;
+		Array256_t latestBlockHash{};
+		tipFile.read(reinterpret_cast<char*>(latestBlockHash.data()), sizeof(latestBlockHash));
+		return latestBlockHash;
 	}
 	catch (const std::ios_base::failure& e) {
-		throw std::runtime_error("Failed to read undo file: " + std::string(e.what()));
+		throw std::runtime_error("Failed to read blockchain tip: " + std::string(e.what()));
 	}
 }
 
-static std::vector<uint8_t> readBlockFile(const Array256_t blockHash) {
-	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-	if (!fs::exists(blockFilePath)) throw std::runtime_error("Block file does not exist");
+// ===========================================================
+// Undo file management
+// ===========================================================
 
-	std::ifstream blockFile(blockFilePath, std::ios::binary | std::ios::ate);
-	blockFile.exceptions(std::ios::failbit | std::ios::badbit);
+static void newUndoFile(std::ofstream& undoFile, Array256_t blockHash) {
+	fs::create_directories(undoPath);  // ensure directory exists
 
-	auto fileSize = blockFile.tellg();
-	if (fileSize < 0) throw std::runtime_error("Failed to determine file size");
+	const fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
 
-	std::vector<uint8_t> blockData(static_cast<size_t>(fileSize));
-	blockFile.seekg(0, std::ios::beg);
-	blockFile.read(reinterpret_cast<char*>(blockData.data()), fileSize);
+	undoFile.open(undoFilePath, std::ios::app | std::ios::binary);
+	undoFile.exceptions(std::ios::failbit | std::ios::badbit);  // throw on failure
+}
 
-	return blockData;
+static std::vector<uint8_t> readUndoFile(const Array256_t blockHash) {
+	fs::path undoFilePath = undoPath / (bytesToHex(blockHash) + ".undo");
+	if (!fs::exists(undoFilePath)) throw std::runtime_error("Undo file does not exist");
+	std::ifstream undoFile(undoFilePath, std::ios::binary);
+	undoFile.exceptions(std::ios::failbit | std::ios::badbit);
+	try {
+		// Read file contents into vector
+		std::vector<uint8_t> undoData((std::istreambuf_iterator<char>(undoFile)), std::istreambuf_iterator<char>());
+		return undoData;
+	}
+	catch (const std::ios::failure& e) {
+		throw std::runtime_error("Failed to read undo file: " + std::string(e.what()));
+	}
 }
 
 static void deleteUndoFile(const Array256_t blockHash) {
@@ -303,68 +347,64 @@ static void deleteUndoFile(const Array256_t blockHash) {
 	if (fs::exists(undoFilePath)) fs::remove(undoFilePath);
 }
 
-static void deleteBlockFile(const Array256_t blockHash) {
-	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-	if (fs::exists(blockFilePath)) fs::remove(blockFilePath);
-}
+// ===========================================================
+// Peer address storage management
+// ===========================================================
 
-// Peer-to-peer storage management
-void storePeerAddress(const std::string& address, uint16_t port) {
+void storePeerAddress(const PeerAddress& peerAddr, const PeerStatus& peerStatus) {
 	fs::create_directories(peersPath);
+	std::ofstream peersFile(peersFilePath, std::ios::app | std::ios::binary);
 
-	std::ofstream peersFile(peersPath / "peers_list",
-		std::ios::app | std::ios::binary);
 	peersFile.exceptions(std::ios::failbit | std::ios::badbit);
 	try {
-
-		// Write address length
-		uint16_t addrLen = static_cast<uint16_t>(address.size());
-		std::vector<uint8_t> tmp;
-
-		appendBytes(tmp, addrLen);
-		peersFile.write(reinterpret_cast<const char*>(tmp.data()), tmp.size());
-
 		// Write address string bytes
-		peersFile.write(address.data(), address.size());
+		peersFile.write(peerAddr.address.data(), peerAddr.address.size());
 
-		// Write port (LE)
-		tmp.clear();
-		appendBytes(tmp, port);
-		peersFile.write(reinterpret_cast<const char*>(tmp.data()), tmp.size());
+		// Write port
+		numIntoFile(peerAddr.port, peersFile);
+
+		// Write services
+		numIntoFile(peerStatus.services, peersFile);
+
+		// Write last seen
+		numIntoFile(peerStatus.lastSeen, peersFile);
 	}
 	catch (const std::ios_base::failure& e) {
 		throw std::runtime_error("Failed to store peer address: " + std::string(e.what()));
 	}
 }
 
-std::vector<std::pair<std::string, uint16_t>> loadPeers() {
-	std::vector<std::pair<std::string, uint16_t>> peers;
+std::unordered_map<PeerAddress, PeerStatus> loadPeers() {
+	std::unordered_map<PeerAddress, PeerStatus> peers;
 
-	std::ifstream peersFile(peersPath / "peers_list", std::ios::binary);
-	if (!peersFile) return peers;
+	if (!fs::exists(peersFilePath)) return peers;
+	std::ifstream peersFile(peersFilePath, std::ios::binary);
 
 	// Enable exceptions for failbit and badbit
 	peersFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+	std::vector<uint8_t> undoData((std::istreambuf_iterator<char>(peersFile)), std::istreambuf_iterator<char>());
 
 	try {
 		while (true) {
-			// Read address length
-			uint16_t len{};
-			std::vector<uint8_t> buffer(sizeof(len));
-			peersFile.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
-			takeBytesInto(len, buffer);  // converts from LE to host order
+			PeerAddress peerAddr;
+			size_t offset = 0;
 
 			// Read address string
-			std::string addr(len, '\0');
-			peersFile.read(addr.data(), len);
+			std::string addr(addrLen, '\0');
+			takeBytesInto(addr, undoData, offset);
 
 			// Read port
-			uint16_t port{};
-			buffer.resize(sizeof(port));
-			peersFile.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
-			takeBytesInto(port, buffer);  // converts from LE to host order
+			takeBytesInto(peer.port, undoData, offset);
+			PeerStatus peerStatus;
+			
+			
+			// Read services
+			takeBytesInto(peerStatus.services, undoData, offset);
 
-			peers.emplace_back(std::move(addr), port);
+			// Read last seen
+			takeBytesInto(peerStatus.lastSeen, undoData, offset);
+
+			peers.insert({ peerAddr, peerStatus });
 		}
 	}
 	catch (const std::ios_base::failure&) {

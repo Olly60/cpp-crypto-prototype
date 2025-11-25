@@ -3,6 +3,7 @@
 #include <string>
 #include <span>
 #include <array>
+#include <algorithm>
 
 using Array256_t = std::array<uint8_t, 32>;
 
@@ -25,62 +26,65 @@ static constexpr bool isLittleEndian() {
 template <typename T>
 static void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset)
 {
-	if (offset + sizeof(T) > data.size())
-		throw std::runtime_error("takeBytesInto: not enough bytes");
+	// Ensure enough bytes are available
+	if (offset + sizeof(T) > data.size()) throw std::runtime_error("takeBytesInto: not enough bytes");
 
-	std::memcpy(&out, data.data() + offset, sizeof(T));
-	offset += sizeof(T);
+	std::array<uint8_t, sizeof(T)> temp{};
+	std::memcpy(temp.data(), data.data() + offset, sizeof(T));
 
-	// If T is an integral type, convert to native endianness
+	// Endianness fix for integral types
 	if constexpr (std::is_integral_v<T>) {
+		// If host is big-endian, swap the bytes read from little-endian storage
 		if constexpr (!isLittleEndian()) {
-			T temp = 0;
-			for (size_t i = 0; i < sizeof(T); ++i) {
-				T byte = (out >> (8 * i)) & 0xFF;
-				temp |= (byte << (8 * (sizeof(T) - 1 - i)));
-			}
-			out = temp;
+			std::reverse(temp.begin(), temp.end());
 		}
 	}
+
+	// Copy bytes into out
+	std::memcpy(&out, temp.data(), sizeof(T));
+	offset += sizeof(T);
 }
 
 // Overload without offset parameter (uses internal static offset)
 template <typename T>
 static void takeBytesInto(T& out, std::span<const uint8_t> data)
 {
-	if (offset + sizeof(T) > data.size())
-		throw std::runtime_error("takeBytesInto: not enough bytes");
+	// Ensure enough bytes are available
+	if (offset + sizeof(T) > data.size()) throw std::runtime_error("takeBytesInto: not enough bytes");
 
-	std::memcpy(&out, data.data(), sizeof(T));
+	std::array<uint8_t, sizeof(T)> temp{};
+	std::memcpy(temp.data(), data.data(), sizeof(T));
 
-	// If T is an integral type, convert to native endianness
+	// Endianness fix for integral types
 	if constexpr (std::is_integral_v<T>) {
+		// If host is big-endian, swap the bytes read from little-endian storage
 		if constexpr (!isLittleEndian()) {
-			T temp = 0;
-			for (size_t i = 0; i < sizeof(T); ++i) {
-				T byte = (out >> (8 * i)) & 0xFF;
-				temp |= (byte << (8 * (sizeof(T) - 1 - i)));
-			}
-			out = temp;
+			std::reverse(temp.begin(), temp.end());
 		}
 	}
+
+	// Copy bytes into out
+	std::memcpy(&out, temp.data(), sizeof(T));
 }
 
 // Append bytes of data to output container
 template <typename ContainerOut, typename T>
 void appendBytes(ContainerOut out, const T& data) {
+
+	// Inline little-endian serialization
+	std::array<uint8_t, sizeof(T)> temp{};
+	std::memcpy(temp.data(), &data, sizeof(T));
+	// Endianness fix for integral types
 	if constexpr (std::is_integral_v<T>) {
-		// Inline little-endian serialization
-		std::array<uint8_t, sizeof(T)> bytes{};
-		for (size_t i = 0; i < sizeof(T); i++) {
-			bytes[i] = static_cast<uint8_t>(data >> (i * 8));
+		// If host is big-endian, swap the bytes read from little-endian storage
+		if constexpr (!isLittleEndian()) {
+			std::reverse(temp.begin(), temp.end());
 		}
-		out.insert(out.end(), bytes.begin(), bytes.end());
 	}
-	else {
-		// Otherwise, assume it's a container of bytes
-		out.insert(out.end(), data.begin(), data.end());
-	}
+	out.insert(out.end(), temp.begin(), temp.end());
+
+	// Otherwise, assume it's a container of bytes
+	out.insert(out.end(), data.begin(), data.end());
 }
 
 
@@ -107,6 +111,7 @@ struct Block {
 	Array256_t nonce{};
 	std::vector<Tx> txs;
 };
+
 std::vector<uint8_t> serialiseBlock(const Block& block);
 Block formatBlock(std::span<const uint8_t> blockBytes);
 Array256_t getBlockHash(const Block& block);
