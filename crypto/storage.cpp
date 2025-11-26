@@ -206,6 +206,37 @@ bool blockExists(const Array256_t& blockHash) {
 	return fs::exists(blockFilePath);
 }
 
+constexpr Block getGenesisBlock() {
+	// ================== Genesis Tx ==================
+	TxOutput genesisOutput{
+		.amount = 0,               // Initial coins
+		.recipient{}
+	};
+
+	Tx genesisTx{
+		.version = 1,
+		.txInputs = {},             // No inputs for coinbase
+		.txOutputs = { genesisOutput }
+	};
+
+	// ================== Genesis Block ==================
+	Block genesisBlock{
+		.version = 1,
+		.prevBlockHash = {},   // No previous block
+		.merkleRoot = getTxHash(genesisTx),      // Placeholder, you can compute Merkle root
+		.timestamp = 0,        // Example timestamp
+		.difficulty {},			// Set your starting difficulty
+		.nonce = {},           // Will be computed for PoW
+		.txs = { genesisTx }
+	};
+
+	return genesisBlock;
+}
+
+constexpr Array256_t getGenesisBlockHash() {
+	return getBlockHash(getGenesisBlock());
+}
+
 // ===========================================================
 // UTXO storage management
 // ===========================================================

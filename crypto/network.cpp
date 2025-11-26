@@ -20,13 +20,13 @@ struct PeerAddressHash {
 };
 
 // Services
-constexpr uint64_t SERVICE_FULL_NODE = 0b00000001; // bit 0
+constexpr uint64_t SERVICE_FULL_NODE = 0b1;
 
 // Protocols
-constexpr uint32_t currentProtocolVersion = 1;
-constexpr uint32_t currentNetworkId = 1;
+static constexpr uint32_t myProtocolVersion = 1;
+static const Array256_t myGenesisBlockHash = getGenesisBlockHash();
 
-uint64_t generateNonce() {
+static uint64_t generateNonce() {
 	std::random_device rd;
 	uint64_t v = 0;
 	for (int i = 0; i < 8; i++) {
@@ -37,16 +37,19 @@ uint64_t generateNonce() {
 
 static uint64_t localNonce = generateNonce();
 
-struct Handshake {
-	uint32_t protocolVersion{ 1 };
-	uint32_t networkId{ 1 };
-	uint64_t services{ SERVICE_FULL_NODE };
-	uint64_t nonce{ 0 };
-	Array256_t blockchainTip{};
+static struct Handshake {
+	uint32_t protocolVersion = myProtocolVersion;
+	Array256_t genesisBlockHash = myGenesisBlockHash;
+	uint64_t services = SERVICE_FULL_NODE;
+	uint64_t nonce = localNonce;
+	Array256_t blockchainTip = getBlockchainTip();
 };
 
-struct Inv {
-	std::vector<Array256_t> blockHashes;
+static constexpr enum ProtocolMessage : uint8_t {
+	protocolPing = 1,
+	protocolBlockHashlist = 2,
+	protocolGetBlock = 3,
+	protocolTip = 4
 };
 
 // ===========================================================
@@ -57,7 +60,7 @@ void respondHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 	// Step 1: read peer handshake
 	auto buffer = std::make_unique<std::array<uint8_t,
 		sizeof(Handshake::protocolVersion) +
-		sizeof(Handshake::networkId) +
+		sizeof(Handshake::genesisBlockHash) +
 		sizeof(Handshake::services) +
 		sizeof(Handshake::nonce) +
 		sizeof(Handshake::blockchainTip)>>();
@@ -73,14 +76,14 @@ void respondHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 			Handshake theirHandshake;
 			size_t offset = 0;
 			takeBytesInto(theirHandshake.protocolVersion, *buffer, offset);
-			takeBytesInto(theirHandshake.networkId, *buffer, offset);
+			takeBytesInto(theirHandshake.genesisBlockHash, *buffer, offset);
 			takeBytesInto(theirHandshake.services, *buffer, offset);
 			takeBytesInto(theirHandshake.nonce, *buffer, offset);
 			takeBytesInto(theirHandshake.blockchainTip, *buffer, offset);
 
 			// Validate peer handshake
-			if (theirHandshake.protocolVersion != currentProtocolVersion ||
-				theirHandshake.networkId != currentNetworkId ||
+			if (theirHandshake.protocolVersion != myProtocolVersion ||
+				theirHandshake.genesisBlockHash != myGenesisBlockHash ||
 				theirHandshake.nonce == localNonce) {
 				socket->close();
 				return;
@@ -89,14 +92,9 @@ void respondHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 			// Step 2: prepare our handshake response
 			auto outBuffer = std::make_unique<std::vector<uint8_t>>();
 			Handshake myHandshake;
-			myHandshake.protocolVersion = currentProtocolVersion;
-			myHandshake.networkId = currentNetworkId;
-			myHandshake.services = 0b1;
-			myHandshake.nonce = localNonce;
-			myHandshake.blockchainTip = getBlockchainTip();
 
 			appendBytes(*outBuffer, myHandshake.protocolVersion);
-			appendBytes(*outBuffer, myHandshake.networkId);
+			appendBytes(*outBuffer, myHandshake.genesisBlockHash);
 			appendBytes(*outBuffer, myHandshake.services);
 			appendBytes(*outBuffer, myHandshake.nonce);
 			appendBytes(*outBuffer, myHandshake.blockchainTip);
@@ -145,16 +143,11 @@ void respondHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 void requestHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 	// Step 0: prepare handshake data
 	auto myHandshake = std::make_unique<Handshake>();
-	myHandshake->protocolVersion = currentProtocolVersion;
-	myHandshake->networkId = currentNetworkId;
-	myHandshake->services = SERVICE_FULL_NODE;
-	myHandshake->nonce = localNonce;
-	myHandshake->blockchainTip = getBlockchainTip();
 
 	// Step 1: prepare outgoing buffer
 	auto outBuffer = std::make_unique<std::vector<uint8_t>>();
 	appendBytes(*outBuffer, myHandshake->protocolVersion);
-	appendBytes(*outBuffer, myHandshake->networkId);
+	appendBytes(*outBuffer, myHandshake->genesisBlockHash);
 	appendBytes(*outBuffer, myHandshake->services);
 	appendBytes(*outBuffer, myHandshake->nonce);
 	appendBytes(*outBuffer, myHandshake->blockchainTip);
@@ -171,7 +164,7 @@ void requestHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 			// Step 3: read peer handshake
 			auto theirBuffer = std::make_unique<std::array<uint8_t,
 				sizeof(Handshake::protocolVersion) +
-				sizeof(Handshake::networkId) +
+				sizeof(Handshake::genesisBlockHash) +
 				sizeof(Handshake::services) +
 				sizeof(Handshake::nonce) +
 				sizeof(Handshake::blockchainTip)>>();
@@ -187,14 +180,14 @@ void requestHandshake(std::shared_ptr<asio::ip::tcp::socket> socket) {
 					Handshake theirHandshake;
 					size_t offset = 0;
 					takeBytesInto(theirHandshake.protocolVersion, *theirBuffer, offset);
-					takeBytesInto(theirHandshake.networkId, *theirBuffer, offset);
+					takeBytesInto(theirHandshake.genesisBlockHash, *theirBuffer, offset);
 					takeBytesInto(theirHandshake.services, *theirBuffer, offset);
 					takeBytesInto(theirHandshake.nonce, *theirBuffer, offset);
 					takeBytesInto(theirHandshake.blockchainTip, *theirBuffer, offset);
 
 					// Validate peer
-					if (theirHandshake.protocolVersion != currentProtocolVersion ||
-						theirHandshake.networkId != currentNetworkId ||
+					if (theirHandshake.protocolVersion != myProtocolVersion ||
+						theirHandshake.genesisBlockHash != myGenesisBlockHash ||
 						theirHandshake.nonce == localNonce) {
 						socket->close();
 						return;
@@ -270,10 +263,10 @@ void requestPing(std::shared_ptr<asio::ip::tcp::socket> socket)
 		});
 }
 
-void requestBlockHashList(std::shared_ptr<asio::ip::tcp::socket> socket,std::function<void(std::error_code, std::vector<Array256_t>)> onDone)
+void requestBlockHashList(std::shared_ptr<asio::ip::tcp::socket> socket, std::function<void(std::error_code, std::vector<Array256_t>)> onDone)
 {
 	// Step 1: send request message type
-	auto requestMsgType = std::make_shared<uint8_t>(1);
+	auto requestMsgType = std::make_shared<uint8_t>(2);
 	asio::async_write(*socket, asio::buffer(requestMsgType.get(), 1),
 		[socket, requestMsgType, onDone](std::error_code ec, std::size_t) {
 			if (ec) {
@@ -282,7 +275,7 @@ void requestBlockHashList(std::shared_ptr<asio::ip::tcp::socket> socket,std::fun
 			}
 			// Step 2: read count of block hashes
 			auto countBuf = std::make_shared<std::array<uint8_t, 8>>();
-			asio::async_read(*socket, asio::buffer(countBuf.get(), 8),
+			asio::async_read(*socket, asio::buffer(*countBuf),
 				[socket, countBuf, onDone](std::error_code ec, std::size_t) {
 					if (ec) {
 						onDone(ec, {});
@@ -337,7 +330,7 @@ void requestBlock(std::shared_ptr<asio::ip::tcp::socket> socket, Array256_t bloc
 
 					// Step 3: read block size
 					auto sizeBuf = std::make_shared<std::array<uint8_t, 8>>();
-					asio::async_read(*socket, asio::buffer(sizeBuf.get(), 8),
+					asio::async_read(*socket, asio::buffer(*sizeBuf),
 						[socket, sizeBuf, onDone](std::error_code ec, std::size_t) {
 							if (ec) {
 								onDone(ec, {});
@@ -354,11 +347,36 @@ void requestBlock(std::shared_ptr<asio::ip::tcp::socket> socket, Array256_t bloc
 										onDone(ec, {});
 										return;
 									}
-									
+
 									onDone({}, { formatBlock(*blockBytes) });
 								});
 						});
 				});
+		});
+}
+
+void requestPeerTip(std::shared_ptr<asio::ip::tcp::socket> socket, std::function<void(std::error_code, Array256_t)> onDone)
+{
+	// Step 1: send request message type
+	auto requestMsgType = std::make_shared<uint8_t>(4);
+	asio::async_write(*socket, asio::buffer(requestMsgType.get(), 1),
+		[socket, onDone](std::error_code ec, std::size_t) {
+			if (ec) {
+				onDone(ec, {});
+				return;
+			}
+			auto theirTip = std::make_shared<Array256_t>();
+
+			// Step 2: read peer tip
+			asio::async_read(*socket, asio::buffer(*theirTip),
+				[socket, theirTip, onDone](std::error_code ec, std::size_t) {
+					if (ec) {
+						onDone(ec, {});
+						return;
+					}
+					onDone({}, *theirTip);
+				});
+
 		});
 }
 
@@ -376,23 +394,6 @@ void respondToPing(std::shared_ptr<asio::ip::tcp::socket> socket) {
 				socket->close();
 				return;
 			}
-
-			// Step 2: read pong response
-			auto theirResponse = std::make_shared<uint8_t>(1);
-			asio::async_read(*socket, asio::buffer(theirResponse.get(), 1),
-				[socket, theirResponse](std::error_code ec, std::size_t) {
-					if (ec) {
-						socket->close();
-						return;
-					}
-
-					if (*theirResponse == 1) {
-						PeerAddress addr;
-						addr.address = socket->remote_endpoint().address().to_string();
-						addr.port = socket->remote_endpoint().port();
-						peers[addr].lastSeen = getCurrentTimestamp();
-					}
-				});
 		});
 }
 
@@ -457,6 +458,19 @@ void respondToGetBlock(std::shared_ptr<asio::ip::tcp::socket> socket) {
 		});
 }
 
+void respondToGetPeerTip(std::shared_ptr<asio::ip::tcp::socket> socket) {
+
+	// Step 1: send blockchain tip
+	auto tip = std::make_shared<Array256_t>(getBlockchainTip());
+	asio::async_write(*socket, asio::buffer(*tip),
+		[socket, tip](std::error_code ec, std::size_t) {
+			if (ec) {
+				socket->close();
+				return;
+			}
+		});
+}
+
 // Start accepting incoming connections
 void startAccepting(asio::ip::tcp::acceptor& acceptor) {
 	acceptor.async_accept(
@@ -472,35 +486,26 @@ void startAccepting(asio::ip::tcp::acceptor& acceptor) {
 
 				// Peer already exists
 				if (peers.find(peerAddr) != peers.end()) {
+
+					// Update last seen
 					peers[peerAddr].lastSeen = getCurrentTimestamp();
 
 					// Begin reading message type
-					auto msgType = std::make_shared<std::array<uint8_t, 4>>();
+					auto msgType = std::make_shared<uint8_t>();
 
-					asio::async_read(*sock, asio::buffer(*msgType),
+					asio::async_read(*sock, asio::buffer(msgType.get(), 1),
 						[sock, msgType](std::error_code ec, std::size_t) {
 							if (ec) {
 								sock->close();
 								return;
 							}
 
-							uint8_t messageType = 0;
-							takeBytesInto(messageType, *msgType);
-
-							// =========== HANDLE PING ===========
-							if (messageType == 0) {
-								respondToPing(sock);
-							}
-
-							// =========== HANDLE GET BLOCK HASHES ===========
-							else if (messageType == 1) {
-								respondToGetBlockHashes(sock);
-							}
-
-
-							// =========== HANDLE GET BLOCK ===========
-							else if (messageType == 2) {
-								respondToGetBlock(sock);
+							switch (*msgType) {
+							case protocolPing: respondToPing(sock); break;
+							case protocolBlockHashlist: respondToGetBlockHashes(sock); break;
+							case protocolGetBlock: respondToGetBlock(sock); break;
+							case protocolTip: respondToGetPeerTip(sock); break;
+							default: sock->close(); break;
 							}
 
 						}

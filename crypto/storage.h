@@ -11,3 +11,5 @@ void addBlock(const Block& block);
 void undoBlock();
 
 bool blockExists(const Array256_t& blockHash);
+
+Array256_t getGenesisBlockHash();
