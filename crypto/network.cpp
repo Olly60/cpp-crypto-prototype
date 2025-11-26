@@ -16,9 +16,17 @@ struct PeerAddressHash {
 	}
 };
 
+// Handshake structure
+struct Handshake {
+	uint32_t protocolVersion = myProtocolVersion;
+	Array256_t genesisBlockHash = myGenesisBlockHash;
+	uint64_t services = SERVICE_FULL_NODE;
+	uint64_t nonce = localNonce;
+	Array256_t blockchainTip = getBlockchainTip();
+};
+
 // Services
 constexpr uint64_t SERVICE_FULL_NODE = 0b1;
-
 
 static constexpr uint32_t myProtocolVersion = 1;
 static const Array256_t myGenesisBlockHash = getGenesisBlockHash();
@@ -32,17 +40,13 @@ static uint64_t localNonce = []() -> uint64_t {
 
 // Protocols
 enum class ProtocolMessage : uint8_t {
-	Handshake = 1,         // Initial connection handshake
-	Ping = 2,              // Keepalive ping
-	Pong = 3,              // Response to ping
-	BlockHashlist = 4,     // Request list of block hashes
-	GetBlock = 5,          // Request a full block
-	Block = 6,             // Send full block
-	Tip = 7,               // Request peer tip
-	Transaction = 8,       // Broadcast transaction
-	GetTransactions = 9,   // Request peer mempool
-	Reject = 10,           // Reject message
-	Disconnect = 11        // Optional disconnect
+	Handshake = 1,           // Version, features, best height, etc.
+	Ping = 2,
+	GetHeader = 3,          // Contains block locator list
+	GetBlock = 4,            // Request full block by hash
+	BroadcastBlock = 5,     // Optional: async broadcast of new block
+	BroadcastTransaction = 6, // Optional: async broadcast of new tx
+	GetMempool = 7,         // Optional: request list of tx hashes
 };
 
 void syncWithPeer(std::shared_ptr<asio::ip::tcp::socket> socket) {
@@ -269,49 +273,47 @@ void requestPing(std::shared_ptr<asio::ip::tcp::socket> socket)
 		});
 }
 
-void requestBlockHashList(std::shared_ptr<asio::ip::tcp::socket> socket, std::function<void(std::error_code, std::vector<Array256_t>)> onDone)
+void requestBlockHeader(std::shared_ptr<asio::ip::tcp::socket> socket, Array256_t blockHash, std::function<void(std::error_code, BlockHeader)> onDone)
 {
 	// Step 1: send request message type
-	auto requestMsgType = std::make_shared<uint8_t>(ProtocolMessage::BlockHashlist);
+	auto requestMsgType = std::make_shared<uint8_t>(ProtocolMessage::GetHeader);
 	asio::async_write(*socket, asio::buffer(requestMsgType.get(), 1),
-		[socket, requestMsgType, onDone](std::error_code ec, std::size_t) {
+		[socket, blockHash, onDone](std::error_code ec, std::size_t) {
 			if (ec) {
 				onDone(ec, {});
 				return;
 			}
-			// Step 2: read count of block hashes
-			auto countBuf = std::make_shared<std::array<uint8_t, 8>>();
-			asio::async_read(*socket, asio::buffer(*countBuf),
-				[socket, countBuf, onDone](std::error_code ec, std::size_t) {
+			// Step 2: send block hash
+			auto hashBuf = std::make_shared<Array256_t>(blockHash);
+			asio::async_write(*socket, asio::buffer(*hashBuf),
+				[socket, onDone](std::error_code ec, std::size_t) {
 					if (ec) {
 						onDone(ec, {});
 						return;
 					}
-
-					// Step 3: read block hashes
-					uint64_t count;
-					takeBytesInto(count, *countBuf);
-					auto rawBuf = std::make_shared<std::vector<uint8_t>>(count * 32);
-					asio::async_read(*socket, asio::buffer(*rawBuf),
-						[rawBuf, count, onDone](std::error_code ec, std::size_t) {
+					// Step 3: read block header size
+					auto sizeBuf = std::make_shared<std::array<uint8_t, 8>>();
+					asio::async_read(*socket, asio::buffer(*sizeBuf),
+						[socket, sizeBuf, onDone](std::error_code ec, std::size_t) {
 							if (ec) {
 								onDone(ec, {});
 								return;
 							}
-
-							std::vector<Array256_t> hashes(count);
-
-							for (uint64_t i = 0; i < count; i++) {
-								std::memcpy(hashes[i].data(),
-									rawBuf->data() + i * 32,
-									32);
-							}
-
-							onDone({}, std::move(hashes));
+							// Step 4: read block header data
+							uint64_t headerSize;
+							takeBytesInto(headerSize, *sizeBuf);
+							auto headerBytes = std::make_shared<std::vector<uint8_t>>(headerSize);
+							asio::async_read(*socket, asio::buffer(*headerBytes),
+								[headerBytes, onDone](std::error_code ec, std::size_t) {
+									if (ec) {
+										onDone(ec, {});
+										return;
+									}
+									onDone({}, {formatBlockHeader(*headerBytes)});
+								});
 						});
 				});
 		});
-
 }
 
 void requestBlock(std::shared_ptr<asio::ip::tcp::socket> socket, Array256_t blockHash, std::function<void(std::error_code, Block)> onDone)
@@ -361,34 +363,19 @@ void requestBlock(std::shared_ptr<asio::ip::tcp::socket> socket, Array256_t bloc
 		});
 }
 
-void requestPeerTip(std::shared_ptr<asio::ip::tcp::socket> socket, std::function<void(std::error_code, Array256_t)> onDone)
+void requestMempool(std::shared_ptr<asio::ip::tcp::socket> socket)
 {
-	// Step 1: send request message type
-	auto requestMsgType = std::make_shared<uint8_t>(ProtocolMessage::Tip);
-	asio::async_write(*socket, asio::buffer(requestMsgType.get(), 1),
-		[socket, onDone](std::error_code ec, std::size_t) {
-			if (ec) {
-				onDone(ec, {});
-				return;
-			}
-			auto theirTip = std::make_shared<Array256_t>();
-
-			// Step 2: read peer tip
-			asio::async_read(*socket, asio::buffer(*theirTip),
-				[socket, theirTip, onDone](std::error_code ec, std::size_t) {
-					if (ec) {
-						onDone(ec, {});
-						return;
-					}
-					onDone({}, *theirTip);
-				});
-
-		});
+	// Implementation omitted for brevity
 }
 
-void requestGetWorkProof(std::shared_ptr<asio::ip::tcp::socket> socket, std::function<void(std::error_code, std::vector<Array256_t>)> onDone) {
-	// Not implemented in this example
-	socket->close();
+void broadcastBlock(std::shared_ptr<asio::ip::tcp::socket> socket, Block block)
+{
+	// Implementation omitted for brevity
+}
+
+void broadcastTransaction(std::shared_ptr<asio::ip::tcp::socket> socket, Tx transaction)
+{
+	// Implementation omitted for brevity
 }
 
 // ===========================================================
@@ -408,31 +395,33 @@ void respondToPing(std::shared_ptr<asio::ip::tcp::socket> socket) {
 		});
 }
 
-void respondToGetBlockHashes(std::shared_ptr<asio::ip::tcp::socket> socket) {
-	// Get all block hashes once
-	auto allHashes = std::make_shared<std::vector<Array256_t>>(getAllBlockHashes());
-
-	// Send count of block hashes
-	uint64_t count = allHashes->size();
-	auto countBuf = std::make_shared<std::array<uint8_t, 8>>();
-	appendBytes(*countBuf, count); // serialize count
-
-	// Step 1: send the count
-	asio::async_write(*socket, asio::buffer(*countBuf),
-		[socket, countBuf, allHashes](std::error_code ec, std::size_t) {
+void respondToGetHeader(std::shared_ptr<asio::ip::tcp::socket> socket) {
+	
+	auto blockHash = std::make_shared<Array256_t>();
+	asio::async_read(*socket, asio::buffer(*blockHash),
+		[socket, blockHash](std::error_code ec, std::size_t) {
 			if (ec) {
 				socket->close();
 				return;
 			}
-
-			// Step 2: send the block hashes
-			asio::async_write(*socket, asio::buffer(*allHashes),
-				[socket, allHashes](std::error_code ec, std::size_t) {
+			// Step 2: send block header size
+			auto blockHeaderBytes = std::make_shared<std::vector<uint8_t>>(serialiseBlockHeader(formatBlockHeader(readBlockFileHeader(*blockHash))));
+			auto blockHeaderSize = std::make_shared<uint64_t>();
+			appendBytes(*blockHeaderSize, blockHeaderBytes->size());
+			asio::async_write(*socket, asio::buffer(blockHeaderSize.get(), 8),
+				[socket, blockHeaderBytes](std::error_code ec, std::size_t) {
 					if (ec) {
 						socket->close();
 						return;
 					}
-					// Done sending hashes
+					// Step 3: send block header data
+					asio::async_write(*socket, asio::buffer(*blockHeaderBytes),
+						[socket](std::error_code ec, std::size_t) {
+							if (ec) {
+								socket->close();
+								return;
+							}
+						});
 				});
 		});
 }
@@ -469,22 +458,16 @@ void respondToGetBlock(std::shared_ptr<asio::ip::tcp::socket> socket) {
 		});
 }
 
-void respondToGetPeerTip(std::shared_ptr<asio::ip::tcp::socket> socket) {
-
-	// Step 1: send blockchain tip
-	auto tip = std::make_shared<Array256_t>(getBlockchainTip());
-	asio::async_write(*socket, asio::buffer(*tip),
-		[socket, tip](std::error_code ec, std::size_t) {
-			if (ec) {
-				socket->close();
-				return;
-			}
-		});
+void respondToGetMempool(std::shared_ptr<asio::ip::tcp::socket> socket) {
+	// Implementation omitted for brevity
 }
 
-void respondGetWorkProof(std::shared_ptr<asio::ip::tcp::socket> socket) {
-	// Not implemented in this example
-	socket->close();
+void respondToBroadcastBlock(std::shared_ptr<asio::ip::tcp::socket> socket) {
+	// Implementation omitted for brevity
+}
+
+void respondToBroadcastTransaction(std::shared_ptr<asio::ip::tcp::socket> socket) {
+	// Implementation omitted for brevity
 }
 
 // Start accepting incoming connections
@@ -521,9 +504,7 @@ void startAccepting(asio::ip::tcp::acceptor& acceptor) {
 							// Handle protocol messages
 							switch (static_cast<ProtocolMessage>(*msgType)) {
 							case ProtocolMessage::Ping: respondToPing(sock); break;
-							case ProtocolMessage::BlockHashlist: respondToGetBlockHashes(sock); break;
 							case ProtocolMessage::GetBlock: respondToGetBlock(sock); break;
-							case ProtocolMessage::Tip: respondToGetPeerTip(sock); break;
 							default: sock->close(); break;
 							}
 						}

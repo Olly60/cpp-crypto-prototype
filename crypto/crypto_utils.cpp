@@ -183,6 +183,29 @@ Block formatBlock(std::span<const uint8_t> blockBytes) {
 	return block;
 }
 
+std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header) {
+	std::vector<uint8_t> out;
+	appendBytes(out, header.version);
+	appendBytes(out, header.prevBlockHash);
+	appendBytes(out, header.merkleRoot);
+	appendBytes(out, header.timestamp);
+	appendBytes(out, header.difficulty);
+	appendBytes(out, header.nonce);
+	return out;
+}
+
+BlockHeader formatBlockHeader(std::span<const uint8_t> headerBytes) {
+	BlockHeader header;
+	size_t offset = 0;
+	takeBytesInto(header.version, headerBytes, offset);
+	takeBytesInto(header.prevBlockHash, headerBytes, offset);
+	takeBytesInto(header.merkleRoot, headerBytes, offset);
+	takeBytesInto(header.timestamp, headerBytes, offset);
+	takeBytesInto(header.difficulty, headerBytes, offset);
+	takeBytesInto(header.nonce, headerBytes, offset);
+	return header;
+}
+
 // ===========================================================
 // Hashing functions
 // ===========================================================

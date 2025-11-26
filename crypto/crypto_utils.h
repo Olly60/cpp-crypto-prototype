@@ -111,6 +111,8 @@ struct Block {
 
 std::vector<uint8_t> serialiseBlock(const Block& block);
 Block formatBlock(std::span<const uint8_t> blockBytes);
+std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header);
+BlockHeader formatBlockHeader(std::span<const uint8_t> headerBytes);
 Array256_t getBlockHash(const Block& block);
 Array256_t getTxHash(const Tx& tx);
 

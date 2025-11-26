@@ -86,6 +86,18 @@ std::vector<uint8_t> readBlockFile(const Array256_t& blockHash) {
 	return readWholeFile(blockFilePath);
 }
 
+std::vector<uint8_t> readBlockFileHeader(const Array256_t& blockHash) {
+	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
+	auto blockBytes = readWholeFile(blockFilePath);
+	// Extract header bytes
+	size_t offset = 0;
+	std::vector<uint8_t> headerBytes;
+	headerBytes.reserve(sizeof(decltype(BlockHeader::version)) + sizeof(decltype(BlockHeader::prevBlockHash)) + sizeof(decltype(BlockHeader::merkleRoot)) + sizeof(decltype(BlockHeader::timestamp)) + sizeof(decltype(BlockHeader::difficulty)) + sizeof(decltype(BlockHeader::nonce))); // Size of BlockHeader fields
+	// Copy header fields
+	headerBytes.insert(headerBytes.end(), blockBytes.begin(), blockBytes.begin() + headerBytes.capacity());
+	return headerBytes;
+}
+
 // ==========================================================
 // Block storage management
 // ==========================================================
@@ -232,6 +244,7 @@ Array256_t getGenesisBlockHash() {
 	return getBlockHash(getGenesisBlock());
 }
 
+
 // ===========================================================
 // UTXO storage management
 // ===========================================================
@@ -355,7 +368,6 @@ void removeBlockchainTip() {
 
 	fs::resize_file(blockHashesFilePath, size - sizeof(Array256_t));
 }
-
 // Get the last tip (the tip is the last 32 bytes of the file)
 Array256_t getBlockchainTip() {
 	if (!fs::exists(blockHashesFilePath))
@@ -377,25 +389,6 @@ Array256_t getBlockchainTip() {
 		throw std::runtime_error("Failed to read blockchain tip.");
 
 	return tip;
-}
-
-std::vector<Array256_t> getAllBlockHashes() {
-	if (!fs::exists(blockHashesFilePath))
-		throw std::runtime_error("Blockchain tip file does not exist.");
-
-	std::vector<uint8_t> buffer = readWholeFile(blockHashesFilePath);
-
-	if (buffer.size() % sizeof(Array256_t) != 0)
-		throw std::runtime_error("Blockchain tip file is corrupted (size mismatch).");
-
-	std::size_t tipCount = buffer.size() / sizeof(Array256_t);
-	std::vector<Array256_t> tips(tipCount);
-
-	for (std::size_t i = 0; i < tipCount; i++) {
-		std::memcpy(tips[i].data(), buffer.data() + i * sizeof(Array256_t), sizeof(Array256_t));
-	}
-
-	return tips;
 }
 
 
