@@ -27,7 +27,7 @@
     <ClCompile Include="network.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="verify_block.cpp">
+    <ClCompile Include="block_validation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

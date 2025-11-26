@@ -89,13 +89,23 @@ struct Tx {
 	std::vector<TxInput> txInputs;
 	std::vector<TxOutput> txOutputs;
 };
-struct Block {
+
+struct BlockHeader {
 	uint32_t version{ 1 };
 	Array256_t prevBlockHash{};
 	Array256_t merkleRoot{};
 	uint64_t timestamp{};
-	Array256_t difficulty{};
+	Array256_t difficulty = {};
 	Array256_t nonce{};
+
+	BlockHeader() {
+		prevBlockHash.fill(0xFF);
+		difficulty.fill(0xFF);
+	}
+};
+
+struct Block {
+	BlockHeader header;
 	std::vector<Tx> txs;
 };
 

@@ -146,12 +146,12 @@ static Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset) {
 std::vector<uint8_t> serialiseBlock(const Block& block) {
 	std::vector<uint8_t> out;
 	// Header
-	appendBytes(out, block.version);
-	appendBytes(out, block.prevBlockHash);
-	appendBytes(out, block.merkleRoot);
-	appendBytes(out, block.timestamp);
-	appendBytes(out, block.difficulty);
-	appendBytes(out, block.nonce);
+	appendBytes(out, block.header.version);
+	appendBytes(out, block.header.prevBlockHash);
+	appendBytes(out, block.header.merkleRoot);
+	appendBytes(out, block.header.timestamp);
+	appendBytes(out, block.header.difficulty);
+	appendBytes(out, block.header.nonce);
 	// Transaction count
 	appendBytes(out, static_cast<uint32_t>(block.txs.size()));
 	// Serialize each transaction
@@ -159,18 +159,17 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
 	return out;
 }
 
-
 Block formatBlock(std::span<const uint8_t> blockBytes) {
 	Block block;
 	size_t offset = 0;
 
 	// Header
-	takeBytesInto(block.version, blockBytes, offset);
-	takeBytesInto(block.prevBlockHash, blockBytes, offset);
-	takeBytesInto(block.merkleRoot, blockBytes, offset);
-	takeBytesInto(block.timestamp, blockBytes, offset);
-	takeBytesInto(block.difficulty, blockBytes, offset);
-	takeBytesInto(block.nonce, blockBytes, offset);
+	takeBytesInto(block.header.version, blockBytes, offset);
+	takeBytesInto(block.header.prevBlockHash, blockBytes, offset);
+	takeBytesInto(block.header.merkleRoot, blockBytes, offset);
+	takeBytesInto(block.header.timestamp, blockBytes, offset);
+	takeBytesInto(block.header.difficulty, blockBytes, offset);
+	takeBytesInto(block.header.nonce, blockBytes, offset);
 
 	// Transactions
 	uint32_t txCount = 0;
@@ -184,15 +183,18 @@ Block formatBlock(std::span<const uint8_t> blockBytes) {
 	return block;
 }
 
+// ===========================================================
+// Hashing functions
+// ===========================================================
 
 Array256_t getBlockHash(const Block& block) {
 	std::vector<uint8_t> headerBytes;
-	appendBytes(headerBytes, block.version);
-	appendBytes(headerBytes, block.prevBlockHash);
-	appendBytes(headerBytes, block.merkleRoot);
-	appendBytes(headerBytes, block.timestamp);
-	appendBytes(headerBytes, block.difficulty);
-	appendBytes(headerBytes, block.nonce);
+	appendBytes(headerBytes, block.header.version);
+	appendBytes(headerBytes, block.header.prevBlockHash);
+	appendBytes(headerBytes, block.header.merkleRoot);
+	appendBytes(headerBytes, block.header.timestamp);
+	appendBytes(headerBytes, block.header.difficulty);
+	appendBytes(headerBytes, block.header.nonce);
 	return sha256Of(headerBytes);
 }
 
@@ -209,4 +211,37 @@ Array256_t getTxHash(const Tx& tx) {
 	for (const auto& outTx : tx.txOutputs) appendBytes(txBytes, outTx);
 
 	return sha256Of(txBytes);
+}
+
+Array256_t getMerkleRoot(const std::vector<Tx>& txs) {
+	if (txs.empty()) {
+		return Array256_t{}; // empty tree
+	}
+
+	// Step 1: compute leaf hashes (hash of each transaction)
+	std::vector<Array256_t> layer;
+	layer.reserve(txs.size());
+	for (const auto& tx : txs) {
+		layer.push_back(getTxHash(tx));
+	}
+
+	// Step 2: build the Merkle tree
+	while (layer.size() > 1) {
+		std::vector<Array256_t> nextLayer;
+		for (size_t i = 0; i < layer.size(); i += 2) {
+			Array256_t left = layer[i];
+			Array256_t right = (i + 1 < layer.size()) ? layer[i + 1] : layer[i]; // duplicate last if odd
+
+			// Combine left and right hashes
+			std::vector<uint8_t> combined;
+			appendBytes(combined, left);
+			appendBytes(combined, right);
+
+			// Hash the pair and push to next layer
+			nextLayer.push_back(sha256Of(combined));
+		}
+		layer = std::move(nextLayer);
+	}
+
+	return layer[0]; // final Merkle root
 }
