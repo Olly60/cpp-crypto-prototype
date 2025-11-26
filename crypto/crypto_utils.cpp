@@ -4,267 +4,274 @@
 #include <sodium.h>
 #include <cstring>
 #include <chrono>
+#include <cctype>
 
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
+
+namespace {
+    // Helper: convert hex character to nibble
+    constexpr uint8_t hexCharToNibble(char c) {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        throw std::runtime_error("Invalid hex character");
+    }
+}
+
 Array256_t hexToBytes(const std::string& hex) {
-	if (hex.size() != Array256_t{}.size() * 2) {
-		throw std::runtime_error("bytesFromHex: invalid hex string length");
-	}
+    if (hex.size() != Array256_t{}.size() * 2) {
+        throw std::runtime_error("hexToBytes: invalid hex string length");
+    }
 
-	Array256_t out{};
-	auto hexCharToNibble = [](char c) -> uint8_t {
-		c = toupper(c);
-		if (c >= '0' && c <= '9') return c - '0';
-		if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-		throw std::runtime_error("bytesFromHex: invalid hex character");
-		};
+    Array256_t out{};
+    for (size_t i = 0; i < out.size(); i++) {
+        uint8_t high = hexCharToNibble(hex[i * 2]);
+        uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
+        out[i] = (high << 4) | low;
+    }
 
-	for (size_t i = 0; i < out.size(); i++) {
-		uint8_t high = hexCharToNibble(hex[i * 2]);
-		uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
-		out[i] = (high << 4) | low;
-	}
-
-	return out;
+    return out;
 }
 
 std::string bytesToHex(const Array256_t& bytes) {
-	static const char hexChars[] = "0123456789ABCDEF";
-	std::string out;
-	out.resize(bytes.size() * 2);
+    static constexpr char hexChars[] = "0123456789ABCDEF";
+    std::string out;
+    out.reserve(bytes.size() * 2);
 
-	for (size_t i = 0; i < bytes.size(); i++) {
-		uint8_t b = bytes[i];
-		out[i * 2] = hexChars[b >> 4];  // high nibble
-		out[i * 2 + 1] = hexChars[b & 0x0F]; // low nibble
-	}
+    for (uint8_t byte : bytes) {
+        out.push_back(hexChars[byte >> 4]);
+        out.push_back(hexChars[byte & 0x0F]);
+    }
 
-	return out;
+    return out;
 }
 
 Array256_t sha256Of(std::span<const uint8_t> data) {
-	Array256_t out;
-	crypto_hash_sha256(out.data(), data.data(), data.size());
-	return out;
+    Array256_t out;
+    crypto_hash_sha256(out.data(), data.data(), data.size());
+    return out;
 }
 
 uint64_t getCurrentTimestamp() {
-	return static_cast<uint64_t>(
-		std::chrono::duration_cast<std::chrono::seconds>(
-			std::chrono::system_clock::now().time_since_epoch()
-		).count()
-		);
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count()
+        );
 }
+
+// ============================================================================
+// SERIALIZATION / DESERIALIZATION
+// ============================================================================
 
 // ----------------------------------------
 // TxInput
 // ----------------------------------------
-static std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
-	std::vector<uint8_t> out;
-	appendBytes(out, txInput.UTXOTxHash);
-	appendBytes(out, txInput.UTXOOutputIndex);
-	appendBytes(out, txInput.signature);
-	return out;
+std::vector<uint8_t> serialiseTxInput(const TxInput& txInput) {
+    std::vector<uint8_t> out;
+    appendBytes(out, txInput.UTXOTxHash);
+    appendBytes(out, txInput.UTXOOutputIndex);
+    appendBytes(out, txInput.signature);
+    return out;
 }
 
-static TxInput formatTxInput(std::span<const uint8_t> txInputBytes, size_t& offset) {
-	TxInput txInput;
-	takeBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
-	takeBytesInto(txInput.UTXOOutputIndex, txInputBytes, offset);
-	takeBytesInto(txInput.signature, txInputBytes, offset);
-	return txInput;
+TxInput formatTxInput(std::span<const uint8_t> txInputBytes, size_t& offset) {
+    TxInput txInput;
+    takeBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
+    takeBytesInto(txInput.UTXOOutputIndex, txInputBytes, offset);
+    takeBytesInto(txInput.signature, txInputBytes, offset);
+    return txInput;
 }
 
 // ----------------------------------------
-// UTXO
+// TxOutput
 // ----------------------------------------
-static std::vector<uint8_t> serialiseUtxo(const TxOutput& utxo) {
-	std::vector<uint8_t> out;
-	appendBytes(out, utxo.amount);
-	appendBytes(out, utxo.recipient);
-	return out;
+std::vector<uint8_t> serialiseTxOutput(const TxOutput& output) {
+    std::vector<uint8_t> out;
+    appendBytes(out, output.amount);
+    appendBytes(out, output.recipient);
+    return out;
 }
 
-static TxOutput formatUtxo(std::span<const uint8_t> utxoBytes, size_t& offset) {
-	TxOutput utxo;
-	takeBytesInto(utxo.amount, utxoBytes, offset);
-	takeBytesInto(utxo.recipient, utxoBytes, offset);
-	return utxo;
+TxOutput formatTxOutput(std::span<const uint8_t> outputBytes, size_t& offset) {
+    TxOutput output;
+    takeBytesInto(output.amount, outputBytes, offset);
+    takeBytesInto(output.recipient, outputBytes, offset);
+    return output;
 }
 
 // ----------------------------------------
 // Tx
 // ----------------------------------------
-static std::vector<uint8_t> serialiseTx(const Tx& tx) {
-	std::vector<uint8_t> out;
-	// Version
-	appendBytes(out, tx.version);
+std::vector<uint8_t> serialiseTx(const Tx& tx) {
+    std::vector<uint8_t> out;
 
-	// Input count
-	appendBytes(out, static_cast<uint32_t>(tx.txInputs.size()));
-	// Serialize each input
-	for (const auto& in : tx.txInputs) appendBytes(out, serialiseTxInput(in));
+    // Version
+    appendBytes(out, tx.version);
 
-	// Output count
-	appendBytes(out, static_cast<uint32_t>(tx.txOutputs.size()));
-	// Serialize each output
-	for (const auto& outTx : tx.txOutputs) appendBytes(out, serialiseUtxo(outTx));
-	return out;
+    // Inputs
+    appendBytes(out, static_cast<uint32_t>(tx.txInputs.size()));
+    for (const auto& input : tx.txInputs) {
+        appendBytes(out, serialiseTxInput(input));
+    }
+
+    // Outputs
+    appendBytes(out, static_cast<uint32_t>(tx.txOutputs.size()));
+    for (const auto& output : tx.txOutputs) {
+        appendBytes(out, serialiseTxOutput(output));
+    }
+
+    return out;
 }
 
-static Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset) {
-	Tx tx;
-	takeBytesInto(tx.version, txBytes, offset);
+Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset) {
+    Tx tx;
+    takeBytesInto(tx.version, txBytes, offset);
 
-	// Read input and output counts
-	uint32_t inputCount;
-	takeBytesInto(inputCount, txBytes, offset);
-	tx.txInputs.reserve(inputCount);
+    // Read inputs
+    uint32_t inputCount;
+    takeBytesInto(inputCount, txBytes, offset);
+    tx.txInputs.reserve(inputCount);
+    for (uint32_t i = 0; i < inputCount; i++) {
+        tx.txInputs.push_back(formatTxInput(txBytes, offset));
+    }
 
-	// Read inputs
-	for (uint32_t i = 0; i < inputCount; i++) {
-		tx.txInputs.push_back(formatTxInput(txBytes, offset));
-	}
+    // Read outputs
+    uint32_t outputCount;
+    takeBytesInto(outputCount, txBytes, offset);
+    tx.txOutputs.reserve(outputCount);
+    for (uint32_t i = 0; i < outputCount; i++) {
+        tx.txOutputs.push_back(formatTxOutput(txBytes, offset));
+    }
 
-	// Read output count (after inputs)
-	uint32_t outputCount;
-	takeBytesInto(outputCount, txBytes, offset);
-	tx.txOutputs.reserve(outputCount);
+    return tx;
+}
 
-	// Read outputs
-	for (uint32_t i = 0; i < outputCount; i++) {
-		tx.txOutputs.push_back(formatUtxo(txBytes, offset));
-	}
+Tx formatTx(std::span<const uint8_t> txBytes) {
+    size_t offset = 0;
+    return formatTx(txBytes, offset);
+}
+
+// ----------------------------------------
+// BlockHeader
+// ----------------------------------------
+std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header) {
+    std::vector<uint8_t> out;
+    appendBytes(out, header.version);
+    appendBytes(out, header.prevBlockHash);
+    appendBytes(out, header.merkleRoot);
+    appendBytes(out, header.timestamp);
+    appendBytes(out, header.difficulty);
+    appendBytes(out, header.nonce);
+    return out;
+}
+
+BlockHeader formatBlockHeader(std::span<const uint8_t> headerBytes) {
+    BlockHeader header;
+    size_t offset = 0;
+    takeBytesInto(header.version, headerBytes, offset);
+    takeBytesInto(header.prevBlockHash, headerBytes, offset);
+    takeBytesInto(header.merkleRoot, headerBytes, offset);
+    takeBytesInto(header.timestamp, headerBytes, offset);
+    takeBytesInto(header.difficulty, headerBytes, offset);
+    takeBytesInto(header.nonce, headerBytes, offset);
+    return header;
 }
 
 // ----------------------------------------
 // Block
 // ----------------------------------------
-
 std::vector<uint8_t> serialiseBlock(const Block& block) {
-	std::vector<uint8_t> out;
-	// Header
-	appendBytes(out, block.header.version);
-	appendBytes(out, block.header.prevBlockHash);
-	appendBytes(out, block.header.merkleRoot);
-	appendBytes(out, block.header.timestamp);
-	appendBytes(out, block.header.difficulty);
-	appendBytes(out, block.header.nonce);
-	// Transaction count
-	appendBytes(out, static_cast<uint32_t>(block.txs.size()));
-	// Serialize each transaction
-	for (const auto& tx : block.txs) appendBytes(out, serialiseTx(tx));
-	return out;
+    std::vector<uint8_t> out;
+
+    // Header
+    appendBytes(out, serialiseBlockHeader(block.header));
+
+    // Transactions
+    appendBytes(out, static_cast<uint32_t>(block.txs.size()));
+    for (const auto& tx : block.txs) {
+        appendBytes(out, serialiseTx(tx));
+    }
+
+    return out;
 }
 
 Block formatBlock(std::span<const uint8_t> blockBytes) {
-	Block block;
-	size_t offset = 0;
+    Block block;
+    size_t offset = 0;
 
-	// Header
-	takeBytesInto(block.header.version, blockBytes, offset);
-	takeBytesInto(block.header.prevBlockHash, blockBytes, offset);
-	takeBytesInto(block.header.merkleRoot, blockBytes, offset);
-	takeBytesInto(block.header.timestamp, blockBytes, offset);
-	takeBytesInto(block.header.difficulty, blockBytes, offset);
-	takeBytesInto(block.header.nonce, blockBytes, offset);
+    // Header
+    takeBytesInto(block.header.version, blockBytes, offset);
+    takeBytesInto(block.header.prevBlockHash, blockBytes, offset);
+    takeBytesInto(block.header.merkleRoot, blockBytes, offset);
+    takeBytesInto(block.header.timestamp, blockBytes, offset);
+    takeBytesInto(block.header.difficulty, blockBytes, offset);
+    takeBytesInto(block.header.nonce, blockBytes, offset);
 
-	// Transactions
-	uint32_t txCount = 0;
-	takeBytesInto(txCount, blockBytes, offset);
-	block.txs.reserve(txCount);
+    // Transactions
+    uint32_t txCount;
+    takeBytesInto(txCount, blockBytes, offset);
+    block.txs.reserve(txCount);
+    for (uint32_t i = 0; i < txCount; i++) {
+        block.txs.push_back(formatTx(blockBytes, offset));
+    }
 
-	for (uint32_t i = 0; i < txCount; i++) {
-		block.txs.push_back(formatTx(blockBytes, offset));
-	}
-
-	return block;
+    return block;
 }
 
-std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header) {
-	std::vector<uint8_t> out;
-	appendBytes(out, header.version);
-	appendBytes(out, header.prevBlockHash);
-	appendBytes(out, header.merkleRoot);
-	appendBytes(out, header.timestamp);
-	appendBytes(out, header.difficulty);
-	appendBytes(out, header.nonce);
-	return out;
-}
-
-BlockHeader formatBlockHeader(std::span<const uint8_t> headerBytes) {
-	BlockHeader header;
-	size_t offset = 0;
-	takeBytesInto(header.version, headerBytes, offset);
-	takeBytesInto(header.prevBlockHash, headerBytes, offset);
-	takeBytesInto(header.merkleRoot, headerBytes, offset);
-	takeBytesInto(header.timestamp, headerBytes, offset);
-	takeBytesInto(header.difficulty, headerBytes, offset);
-	takeBytesInto(header.nonce, headerBytes, offset);
-	return header;
-}
-
-// ===========================================================
-// Hashing functions
-// ===========================================================
+// ============================================================================
+// HASHING FUNCTIONS
+// ============================================================================
 
 Array256_t getBlockHash(const Block& block) {
-	std::vector<uint8_t> headerBytes;
-	appendBytes(headerBytes, block.header.version);
-	appendBytes(headerBytes, block.header.prevBlockHash);
-	appendBytes(headerBytes, block.header.merkleRoot);
-	appendBytes(headerBytes, block.header.timestamp);
-	appendBytes(headerBytes, block.header.difficulty);
-	appendBytes(headerBytes, block.header.nonce);
-	return sha256Of(headerBytes);
+    return sha256Of(serialiseBlockHeader(block.header));
+}
+
+Array256_t getBlockHeaderHash(const BlockHeader& header) {
+    return sha256Of(serialiseBlockHeader(header));
 }
 
 Array256_t getTxHash(const Tx& tx) {
-	std::vector<uint8_t> txBytes;
-
-	// Version
-	appendBytes(txBytes, tx.version);
-
-	// Serialize each input
-	for (const auto& in : tx.txInputs) appendBytes(txBytes, in);
-
-	// Serialize each output
-	for (const auto& outTx : tx.txOutputs) appendBytes(txBytes, outTx);
-
-	return sha256Of(txBytes);
+    return sha256Of(serialiseTx(tx));
 }
 
 Array256_t getMerkleRoot(const std::vector<Tx>& txs) {
-	if (txs.empty()) {
-		return Array256_t{}; // empty tree
-	}
+    if (txs.empty()) {
+        return Array256_t{}; // Empty merkle root for no transactions
+    }
 
-	// Step 1: compute leaf hashes (hash of each transaction)
-	std::vector<Array256_t> layer;
-	layer.reserve(txs.size());
-	for (const auto& tx : txs) {
-		layer.push_back(getTxHash(tx));
-	}
+    // Build initial layer from transaction hashes
+    std::vector<Array256_t> currentLayer;
+    currentLayer.reserve(txs.size());
+    for (const auto& tx : txs) {
+        currentLayer.push_back(getTxHash(tx));
+    }
 
-	// Step 2: build the Merkle tree
-	while (layer.size() > 1) {
-		std::vector<Array256_t> nextLayer;
-		for (size_t i = 0; i < layer.size(); i += 2) {
-			Array256_t left = layer[i];
-			Array256_t right = (i + 1 < layer.size()) ? layer[i + 1] : layer[i]; // duplicate last if odd
+    // Build merkle tree bottom-up
+    while (currentLayer.size() > 1) {
+        std::vector<Array256_t> nextLayer;
+        nextLayer.reserve((currentLayer.size() + 1) / 2);
 
-			// Combine left and right hashes
-			std::vector<uint8_t> combined;
-			appendBytes(combined, left);
-			appendBytes(combined, right);
+        for (size_t i = 0; i < currentLayer.size(); i += 2) {
+            const Array256_t& left = currentLayer[i];
+            // If odd number of elements, duplicate the last one
+            const Array256_t& right = (i + 1 < currentLayer.size())
+                ? currentLayer[i + 1]
+                : currentLayer[i];
 
-			// Hash the pair and push to next layer
-			nextLayer.push_back(sha256Of(combined));
-		}
-		layer = std::move(nextLayer);
-	}
+            // Hash the concatenation of left and right
+            std::vector<uint8_t> combined;
+            combined.reserve(left.size() + right.size());
+            appendBytes(combined, left);
+            appendBytes(combined, right);
 
-	return layer[0]; // final Merkle root
+            nextLayer.push_back(sha256Of(combined));
+        }
+
+        currentLayer = std::move(nextLayer);
+    }
+
+    return currentLayer[0];
 }

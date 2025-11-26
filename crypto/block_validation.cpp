@@ -1,10 +1,19 @@
 #include <sodium.h>
-#include "types.h"
 #include "crypto_utils.h"
 #include <stdexcept>
+#include "block_validation.h"
 
+bool verifyMerkleRoot(const Block& block) {
+	return block.header.merkleRoot == getMerkleRoot(block.txs);
+}
 
-static bool verifyBlock(Block block) {
+bool verifyBlockHash(const Block& block, const Array256_t& expectedHash) {
+	return getBlockHash(block) == expectedHash;
+}
+
+bool validateTx(const Tx& tx) {}
+
+bool validateBlock(Block block) {
 	// Calculate block hash
 	array256_t blockHash;
 
@@ -158,7 +167,7 @@ static bool verifyBlock(Block block) {
 return false;
 }
 
-bool verifyBlock(Block block) {
+bool validateBlock(Block block) {
 	switch (block.version) {
 	case 1: return block_v1::verifyBlock(block);
 	default: throw std::runtime_error("Unsupported Block version");

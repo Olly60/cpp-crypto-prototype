@@ -41,5 +41,8 @@
     <ClInclude Include="network.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="block_validation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

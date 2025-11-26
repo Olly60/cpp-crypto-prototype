@@ -131,6 +131,7 @@
     <ClCompile Include="block_validation.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="block_validation.h" />
     <ClInclude Include="crypto_utils.h" />
     <ClInclude Include="network.h" />
     <ClInclude Include="storage.h" />

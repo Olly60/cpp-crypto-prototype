@@ -1,461 +1,420 @@
-﻿#include <filesystem>
-#include <fstream>
-#include <leveldb/db.h>
+﻿#include <asio.hpp>
+#include <asio/awaitable.hpp>
+#include <asio/co_spawn.hpp>
+#include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
 #include "storage.h"
-#include <algorithm>
-#include <unordered_map>
-
+#include <random>
 #include "network.h"
+#include "block_validation.h"
 
-namespace fs = std::filesystem;
-static const fs::path blockchainPath = fs::path("blockchain");
+// ============================================
+// Data Structures
+// ============================================
 
-static const fs::path blockHashesFilePath = blockchainPath / "blockchain_tip" / "blockchain_tip";
-static const fs::path blocksPath = blockchainPath / "blocks";
-static const fs::path utxoPath = blockchainPath / "utxo";
-static const fs::path undoPath = blockchainPath / "undo";
-static const fs::path peersFilePath = blockchainPath / "peers" / "peers_list";
+struct PeerAddressHash {
+    std::size_t operator()(const PeerAddress& p) const noexcept {
+        std::size_t h1 = std::hash<std::string>{}(p.address);
+        std::size_t h2 = std::hash<uint16_t>{}(p.port);
+        return h1 ^ (h2 << 1);
+    }
+};
 
-// ==========================================================
-// File I/O utilities
-// ==========================================================
+struct Handshake {
+    uint32_t protocolVersion;
+    Array256_t genesisBlockHash;
+    uint64_t services;
+    uint64_t nonce;
+    Array256_t blockchainTip;
+};
 
-// Open a file for appending, creating directories as needed
-static std::ofstream openFileForAppend(const fs::path& path) {
-	try {
-		fs::create_directories(path.parent_path());
-		std::ofstream file(path, std::ios::app | std::ios::binary);
-		file.exceptions(std::ios::failbit | std::ios::badbit);
-		return file;
-	}
-	catch (const std::ios_base::failure& e) {
-		throw std::runtime_error("Failed to open file '" + path.string() + "': " + e.what());
-	}
-	catch (const fs::filesystem_error& e) {
-		throw std::runtime_error("Filesystem error for path '" + path.string() + "': " + e.what());
-	}
+enum class ProtocolMessage : uint8_t {
+    Handshake = 1,
+    Ping = 2,
+    GetHeader = 3,
+    GetBlock = 4,
+    BroadcastBlock = 5,
+    BroadcastTransaction = 6,
+    GetMempool = 7,
+};
+
+// ============================================
+// Global State
+// ============================================
+
+std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
+std::vector<Tx> mempool;
+
+constexpr uint64_t SERVICE_FULL_NODE = 0b1;
+constexpr uint32_t PROTOCOL_VERSION = 1;
+const Array256_t GENESIS_BLOCK_HASH = getGenesisBlockHash();
+
+uint64_t generateLocalNonce() {
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<uint64_t> dist(0, UINT64_MAX);
+    return dist(gen);
 }
 
-// Append bytes of data to output container
-// Append an object to an already-open file safely
-template <typename T>
-void appendToFile(std::ofstream& file, const T& obj) {
-	try {
-		std::vector<uint8_t> buffer;
-		appendBytes(buffer, obj);
-		file.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
-	}
-	catch (const std::ios_base::failure& e) {
-		throw std::runtime_error("Failed to append to file: " + std::string(e.what()));
-	}
+const uint64_t LOCAL_NONCE = generateLocalNonce();
+
+// ============================================
+// Serialization Helpers
+// ============================================
+
+Handshake createHandshake() {
+    return {
+        PROTOCOL_VERSION,
+        GENESIS_BLOCK_HASH,
+        SERVICE_FULL_NODE,
+        LOCAL_NONCE,
+        getBlockchainTip()
+    };
 }
 
-static void deleteFile(const fs::path& filePath) {
-	if (fs::exists(filePath)) fs::remove(filePath);
+std::vector<uint8_t> serialize(const Handshake& hs) {
+    std::vector<uint8_t> buffer;
+    appendBytes(buffer, hs.protocolVersion);
+    appendBytes(buffer, hs.genesisBlockHash);
+    appendBytes(buffer, hs.services);
+    appendBytes(buffer, hs.nonce);
+    appendBytes(buffer, hs.blockchainTip);
+    return buffer;
 }
 
-static std::vector<uint8_t> readWholeFile(const fs::path& filePath) {
-	if (!fs::exists(filePath))
-		throw std::runtime_error("File does not exist: " + filePath.string());
-
-	std::ifstream file;
-	file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-
-	try {
-		file.open(filePath, std::ios::binary | std::ios::ate);
-
-		std::streamsize size = file.tellg();
-		file.seekg(0, std::ios::beg);
-
-		if (size < 0)
-			throw std::runtime_error("Failed to determine file size: " + filePath.string());
-
-		std::vector<uint8_t> buffer(static_cast<size_t>(size));
-		file.read(reinterpret_cast<char*>(buffer.data()), size);
-
-		return buffer;
-	}
-	catch (const std::ios_base::failure& e) {
-		throw std::runtime_error("Failed to read file " + filePath.string() + ": " + e.what());
-	}
+Handshake deserialize(const std::vector<uint8_t>& buffer) {
+    Handshake hs;
+    size_t offset = 0;
+    takeBytesInto(hs.protocolVersion, buffer, offset);
+    takeBytesInto(hs.genesisBlockHash, buffer, offset);
+    takeBytesInto(hs.services, buffer, offset);
+    takeBytesInto(hs.nonce, buffer, offset);
+    takeBytesInto(hs.blockchainTip, buffer, offset);
+    return hs;
 }
 
-std::vector<uint8_t> readBlockFile(const Array256_t& blockHash) {
-	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-	return readWholeFile(blockFilePath);
+bool isValidHandshake(const Handshake& hs) {
+    return hs.protocolVersion == PROTOCOL_VERSION &&
+        hs.genesisBlockHash == GENESIS_BLOCK_HASH &&
+        hs.nonce != LOCAL_NONCE;
 }
 
-std::vector<uint8_t> readBlockFileHeader(const Array256_t& blockHash) {
-	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-	auto blockBytes = readWholeFile(blockFilePath);
-	// Extract header bytes
-	size_t offset = 0;
-	std::vector<uint8_t> headerBytes;
-	headerBytes.reserve(sizeof(decltype(BlockHeader::version)) + sizeof(decltype(BlockHeader::prevBlockHash)) + sizeof(decltype(BlockHeader::merkleRoot)) + sizeof(decltype(BlockHeader::timestamp)) + sizeof(decltype(BlockHeader::difficulty)) + sizeof(decltype(BlockHeader::nonce))); // Size of BlockHeader fields
-	// Copy header fields
-	headerBytes.insert(headerBytes.end(), blockBytes.begin(), blockBytes.begin() + headerBytes.capacity());
-	return headerBytes;
+void addPeer(asio::ip::tcp::socket& socket, const Handshake& hs) {
+    PeerAddress addr{
+        socket.remote_endpoint().address().to_string(),
+        socket.remote_endpoint().port()
+    };
+
+    PeerStatus status{
+        hs.services,
+        getCurrentTimestamp()
+    };
+
+    peers[addr] = status;
 }
 
-// ==========================================================
-// Block storage management
-// ==========================================================
+// ============================================
+// Coroutine-based Protocol (C++20)
+// ============================================
 
-void addBlock(const Block& block) {
+asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket) {
+    try {
+        // Read peer handshake
+        std::vector<uint8_t> buffer(sizeof(Handshake));
+        co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
-	// Serialize the block
-	const auto blockBytes = serialiseBlock(block);
+        Handshake theirHandshake = deserialize(buffer);
+        if (!isValidHandshake(theirHandshake)) {
+            co_return;
+        }
 
-	// Compute block hash
-	const auto blockHash = getBlockHash(block);
+        // Send our handshake
+        auto myHandshake = serialize(createHandshake());
+        co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
-	auto blockFile = openFileForAppend(blocksPath / (bytesToHex(blockHash) + ".block"));
+        // Read verack
+        uint8_t theirVerack;
+        co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
+        if (theirVerack != 0x01) {
+            co_return;
+        }
 
-	// Write block bytes
-	appendBytes(blockFile, blockBytes);
+        // Send verack
+        uint8_t myVerack = 0x01;
+        co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
 
-	// Update blockchain tip
-	addBlockchainTip(blockHash);
-
-	// Create undo file
-	auto undoFile = openFileForAppend(undoPath / (bytesToHex(blockHash) + ".undo"));
-
-	auto utxoDb = openUtxoDb(); // Ensure UTXO DB is initialized
-	// Write UTXO references to undo file
-	for (const auto& tx : block.txs) {
-
-		appendToFile(undoFile, tx.version); // Write transaction version
-
-		appendToFile(undoFile, (tx.txInputs.size())); // Write input count
-
-		// For each input, write UTXO reference and value
-		for (const auto& input : tx.txInputs) {
-			// Write UTXO reference
-			appendToFile(undoFile, input.UTXOTxHash);
-			appendToFile(undoFile, input.UTXOOutputIndex);
-
-			// Retrieve UTXO value
-			auto usedUtxo = getUtxoValue(*utxoDb, input);
-			appendToFile(undoFile, usedUtxo.amount);
-			appendToFile(undoFile, usedUtxo.recipient);
-		}
-
-	}
-
-	// Store UTXOs for all outputs in the block
-	uint32_t outputIndex = 0;
-	// Store new UTXOs
-	for (const auto& tx : block.txs) {
-		auto txHash = getTxHash(tx);
-		for (const auto& UTXO : tx.txOutputs) {
-			putUtxo(*utxoDb, { txHash, outputIndex++ }, UTXO);
-		}
-	}
-	// Remove used UTXOs
-	for (const auto& tx : block.txs) {
-		for (const auto& input : tx.txInputs) {
-			deleteUtxo(*utxoDb, input);
-		}
-	}
+        addPeer(socket, theirHandshake);
+    }
+    catch (const std::exception& e) {
+        // Connection failed
+    }
 }
 
-void undoBlock() {
+asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket) {
+    try {
+        // Send message type
+        uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::Handshake);
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
-	auto tipHash = getBlockchainTip();
+        // Send our handshake
+        auto myHandshake = serialize(createHandshake());
+        co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
-	// Open undo file for reading
-	fs::path undoFilePath = undoPath / (bytesToHex(tipHash) + ".undo");
-	auto undoDataBytes = readWholeFile(undoFilePath);
-	fs::path blockFilePath = blocksPath / (bytesToHex(tipHash) + ".block");
-	auto blockBytes = readWholeFile(blockFilePath);
-	auto block = formatBlock(blockBytes);
+        // Read peer handshake
+        std::vector<uint8_t> buffer(sizeof(Handshake));
+        co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
-	auto utxoDb = openUtxoDb();
+        Handshake theirHandshake = deserialize(buffer);
+        if (!isValidHandshake(theirHandshake)) {
+            co_return;
+        }
 
-	// Restore previous blockchain tip
-	removeBlockchainTip();
+        // Send verack
+        uint8_t myVerack = 0x01;
+        co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
 
-	// Remove created UTXOs
-	for (const auto& tx : block.txs) {
-		const auto txHash = getTxHash(tx);
-		for (uint32_t i = 0; i < tx.txOutputs.size(); i++) {
-			deleteUtxo(*utxoDb, { txHash, i });
-		}
-	}
+        // Read verack
+        uint8_t theirVerack;
+        co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
+        if (theirVerack != 0x01) {
+            co_return;
+        }
 
-	// Restore used UTXOs
-	size_t offset = 0;
-	for (uint32_t i = 0; i < undoDataBytes.size();) {
-		Tx tx;
-		// Read transaction version
-		takeBytesInto(tx.version, undoDataBytes, offset);
-		// Read input count
-		size_t inputCount;
-		takeBytesInto(inputCount, undoDataBytes, offset);
-		// Read each input
-		for (size_t j = 0; j < inputCount; j++) {
-			TxInput input;
-			// Read UTXO reference
-			takeBytesInto(input.UTXOTxHash, undoDataBytes, offset);
-			takeBytesInto(input.UTXOOutputIndex, undoDataBytes, offset);
-			// Read UTXO value
-			TxOutput utxo;
-			takeBytesInto(utxo.amount, undoDataBytes, offset);
-			takeBytesInto(utxo.recipient, undoDataBytes, offset);
-			// Restore UTXO
-			putUtxo(*utxoDb, input, utxo);
-		}
-	}
-	// Delete block file
-	fs::remove(blockFilePath);
-	// Delete undo file
-	fs::remove(undoFilePath);
+        addPeer(socket, theirHandshake);
+    }
+    catch (const std::exception& e) {
+        // Connection failed
+    }
 }
 
-bool blockExists(const Array256_t& blockHash) {
-	fs::path blockFilePath = blocksPath / (bytesToHex(blockHash) + ".block");
-	return fs::exists(blockFilePath);
+asio::awaitable<void> handlePing(asio::ip::tcp::socket socket) {
+    try {
+        uint8_t pong = 0x01;
+        co_await asio::async_write(socket, asio::buffer(&pong, 1), asio::use_awaitable);
+    }
+    catch (const std::exception& e) {
+        // Failed to respond
+    }
 }
 
-static Block getGenesisBlock() {
-	// ================== Genesis Tx ==================
-	TxOutput genesisOutput;
-	genesisOutput.amount = 50;
-	genesisOutput.recipient = {};
-	// Example recipient public key (32 bytes of zeros for simplicity)
+asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket,
+    const Array256_t& blockHash) {
+    // Send request
+    uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetHeader);
+    co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+    co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
 
-	Tx genesisTx;
-	genesisTx.version = 1;
-	genesisTx.txInputs = {}; // No inputs for genesis tx
-	genesisTx.txOutputs = { genesisOutput };
+    // Read size
+    uint64_t headerSize;
+    std::array<uint8_t, 8> sizeBuf;
+    co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+    takeBytesInto(headerSize, sizeBuf);
 
-	// ================== Genesis Block ==================
+    // Read header
+    std::vector<uint8_t> headerBytes(headerSize);
+    co_await asio::async_read(socket, asio::buffer(headerBytes), asio::use_awaitable);
 
-	Block genesisBlock;
-	genesisBlock.header.merkleRoot = getTxHash(genesisTx);
-	genesisBlock.txs = { genesisTx };
-
-
-	return genesisBlock;
+    co_return formatBlockHeader(headerBytes);
 }
 
-Array256_t getGenesisBlockHash() {
-	return getBlockHash(getGenesisBlock());
+asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket,
+    const Array256_t& blockHash) {
+    // Send request
+    uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
+    co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+    co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
+
+    // Read size
+    uint64_t blockSize;
+    std::array<uint8_t, 8> sizeBuf;
+    co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+    takeBytesInto(blockSize, sizeBuf);
+
+    // Read block
+    std::vector<uint8_t> blockBytes(blockSize);
+    co_await asio::async_read(socket, asio::buffer(blockBytes), asio::use_awaitable);
+
+    co_return formatBlock(blockBytes);
 }
 
+asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket) {
+    try {
+        // Read block hash
+        Array256_t blockHash;
+        co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
-// ===========================================================
-// UTXO storage management
-// ===========================================================
+        // Get header from storage
+        auto headerData = readBlockFileHeader(blockHash);
+        auto blockHeader = formatBlockHeader(headerData);
+        auto headerBytes = serialiseBlockHeader(blockHeader);
 
-static std::unique_ptr<leveldb::DB> openUtxoDb() {
-	fs::create_directories(utxoPath);
+        // Send size
+        uint64_t headerSize = headerBytes.size();
+        std::vector<uint8_t> sizeBuf;
+        appendBytes(sizeBuf, headerSize);
+        co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
 
-	leveldb::Options options;
-	options.create_if_missing = true;
-
-	leveldb::DB* raw = nullptr;
-	leveldb::Status status = leveldb::DB::Open(options, (utxoPath / "leveldb").string(), &raw);
-
-	if (!status.ok() || !raw)
-		throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
-
-	return std::unique_ptr<leveldb::DB>(raw);
+        // Send header
+        co_await asio::async_write(socket, asio::buffer(headerBytes), asio::use_awaitable);
+    }
+    catch (const std::exception& e) {
+        // Failed to send header
+    }
 }
 
-static void putUtxo(leveldb::DB& db, const TxInput& txInput, const TxOutput& utxo) {
-	std::string keyString;
-	appendBytes(keyString, txInput.UTXOTxHash);
-	appendBytes(keyString, txInput.UTXOOutputIndex);
+asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket) {
+    try {
+        // Read block hash
+        Array256_t blockHash;
+        co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
-	std::string valueString;
-	appendBytes(valueString, utxo.amount);
-	appendBytes(valueString, utxo.recipient);
+        // Get block from storage
+        auto blockData = readBlockFile(blockHash);
 
-	leveldb::Slice key(keyString);
-	leveldb::Slice value(valueString);
+        // Send size
+        uint64_t blockSize = blockData.size();
+        std::vector<uint8_t> sizeBuf;
+        appendBytes(sizeBuf, blockSize);
+        co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
 
-	leveldb::Status status = db.Put(leveldb::WriteOptions(), key, value);
-	if (!status.ok())
-		throw std::runtime_error("Failed to put UTXO: " + status.ToString());
+        // Send block
+        co_await asio::async_write(socket, asio::buffer(blockData), asio::use_awaitable);
+    }
+    catch (const std::exception& e) {
+        // Failed to send block
+    }
 }
 
-static void deleteUtxo(leveldb::DB& db, const TxInput& txInput) {
-	// Construct key
-	std::string keyString;
-	appendBytes(keyString, txInput.UTXOTxHash);
-	appendBytes(keyString, txInput.UTXOOutputIndex);
+asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket) {
+    try {
+        // Read size
+        uint64_t blockSize;
+        std::array<uint8_t, 8> sizeBuf;
+        co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+        takeBytesInto(blockSize, sizeBuf);
 
-	leveldb::Slice key(keyString);
+        // Read block
+        std::vector<uint8_t> blockData(blockSize);
+        co_await asio::async_read(socket, asio::buffer(blockData), asio::use_awaitable);
 
-	// Delete UTXO
-	leveldb::Status status = db.Delete(leveldb::WriteOptions(), key);
-	if (!status.ok())
-		throw std::runtime_error("Failed to delete UTXO: " + status.ToString());
+        Block newBlock = formatBlock(blockData);
+        if (validateBlock(newBlock)) {
+            addBlock(newBlock);
+            // Note: broadcastBlockToPeers would need to be implemented
+        }
+        else if (!blockExists(getBlockHash(newBlock))) {
+            throw std::runtime_error("Invalid block");
+        }
+    }
+    catch (const std::exception& e) {
+        // Failed to process block
+    }
 }
 
-static TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput) {
-	// Construct key
-	std::string keyString;
-	appendBytes(keyString, txInput.UTXOTxHash);
-	appendBytes(keyString, txInput.UTXOOutputIndex);
+asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket) {
+    try {
+        // Read size
+        uint64_t txSize;
+        std::array<uint8_t, 8> sizeBuf;
+        co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+        takeBytesInto(txSize, sizeBuf);
 
-	leveldb::Slice key(keyString);
+        // Read transaction
+        std::vector<uint8_t> txData(txSize);
+        co_await asio::async_read(socket, asio::buffer(txData), asio::use_awaitable);
 
-	// Fetch raw value
-	std::string value;
-	leveldb::Status status = db.Get(leveldb::ReadOptions(), key, &value);
-
-	if (!status.ok())
-		throw std::runtime_error("UTXO not found");
-
-	// Decode bytes
-	TxOutput utxo;
-	size_t offset = 0;
-
-	takeBytesInto(
-		utxo.amount,
-		{ reinterpret_cast<const uint8_t*>(value.data()), value.size() },
-		offset
-	);
-
-	takeBytesInto(
-		utxo.recipient,
-		{ reinterpret_cast<const uint8_t*>(value.data()), value.size() },
-		offset
-	);
-
-	return utxo;
+        Tx newTx = formatTx(txData);
+        if (validateTx(newTx)) {
+            mempool.push_back(newTx);
+            // Note: broadcastTransaction would need to be implemented
+        }
+        else {
+            throw std::runtime_error("Invalid transaction");
+        }
+    }
+    catch (const std::exception& e) {
+        // Failed to process transaction
+    }
 }
 
-static bool utxoValid(leveldb::DB* db, const TxInput& txInput) {
+asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket) {
+    try {
+        PeerAddress peerAddr{
+            socket.remote_endpoint().address().to_string(),
+            socket.remote_endpoint().port()
+        };
 
-	if (db == nullptr) {
-		throw std::runtime_error("UTXO DB pointer is null");
-	}
+        // Read message type
+        uint8_t msgType;
+        co_await asio::async_read(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
-	// Construct key
-	std::string keyString;
-	appendBytes(keyString, txInput.UTXOOutputIndex);
-	appendBytes(keyString, txInput.UTXOTxHash);
-	leveldb::Slice key(keyString);
+        // Handle handshake
+        if (msgType == 1) {
+            co_await handleHandshakeResponder(std::move(socket));
+            co_return;
+        }
 
-	// Query DB
-	std::string value;
-	leveldb::Status status = db->Get(leveldb::ReadOptions(), key, &value);
+        // Check if peer is authenticated
+        if (peers.find(peerAddr) == peers.end()) {
+            co_return; // Unauthenticated peer
+        }
 
-	// If the key exists, ok == true
-	return status.ok();
+        // Update last seen
+        peers[peerAddr].lastSeen = getCurrentTimestamp();
+
+        // Route message
+        switch (static_cast<ProtocolMessage>(msgType)) {
+        case ProtocolMessage::Ping:
+            co_await handlePing(std::move(socket));
+            break;
+        case ProtocolMessage::GetHeader:
+            co_await handleGetHeader(std::move(socket));
+            break;
+        case ProtocolMessage::GetBlock:
+            co_await handleGetBlock(std::move(socket));
+            break;
+        case ProtocolMessage::BroadcastBlock:
+            co_await handleBroadcastBlock(std::move(socket));
+            break;
+        case ProtocolMessage::BroadcastTransaction:
+            co_await handleBroadcastTransaction(std::move(socket));
+            break;
+        default:
+            break; // Unknown message
+        }
+    }
+    catch (const std::exception& e) {
+        // Connection error
+    }
 }
 
-// ===========================================================
-// Blockchain tip management
-// ===========================================================
-
-// Add a new tip to the end of the file
-void addBlockchainTip(const Array256_t& newTip) {
-	auto file = openFileForAppend(blockHashesFilePath);
-	appendToFile(file, newTip); // write 32 bytes of hash
+asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor) {
+    while (true) {
+        auto socket = co_await acceptor.async_accept(asio::use_awaitable);
+        co_spawn(acceptor.get_executor(),
+            handleConnection(std::move(socket)),
+            asio::detached);
+    }
 }
 
-void removeBlockchainTip() {
-	if (!fs::exists(blockHashesFilePath)) return;
+// ============================================
+// Main
+// ============================================
 
-	uintmax_t size = fs::file_size(blockHashesFilePath);
-	if (size < sizeof(Array256_t))
-		throw std::runtime_error("Cannot remove tip: file too small.");
+int main() {
+    try {
+        asio::io_context ioContext;
+        asio::ip::tcp::acceptor acceptor(ioContext,
+            asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
 
-	fs::resize_file(blockHashesFilePath, size - sizeof(Array256_t));
+        co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
+
+        ioContext.run();
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Server error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    return 0;
 }
-// Get the last tip (the tip is the last 32 bytes of the file)
-Array256_t getBlockchainTip() {
-	if (!fs::exists(blockHashesFilePath))
-		throw std::runtime_error("Blockchain tip file does not exist.");
-
-	std::ifstream file(blockHashesFilePath, std::ios::binary | std::ios::ate);
-	if (!file)
-		throw std::runtime_error("Failed to open blockchain tip file.");
-
-	std::size_t fileSize = static_cast<std::size_t>(file.tellg());
-	if (fileSize < sizeof(Array256_t))
-		throw std::runtime_error("Blockchain tip file is empty or corrupted.");
-
-	file.seekg(fileSize - sizeof(Array256_t), std::ios::beg);
-
-	Array256_t tip;
-	file.read(reinterpret_cast<char*>(tip.data()), sizeof(Array256_t));
-	if (!file)
-		throw std::runtime_error("Failed to read blockchain tip.");
-
-	return tip;
-}
-
-
-// ===========================================================
-// Peer address storage management
-// ===========================================================
-
-void storePeers(std::unordered_map<PeerAddress, PeerStatus>& peers) {
-	fs::create_directories(peersFilePath.parent_path());
-	std::ofstream peersFile(peersFilePath, std::ios::trunc | std::ios::binary);
-	peersFile.exceptions(std::ios::failbit | std::ios::badbit);
-
-	// Peers count
-	appendToFile(peersFile, static_cast<uint64_t>(peers.size()));
-
-	for (const auto& [peerAddr, peerStatus] : peers) {
-		// Address length
-		const size_t addrLen = peerAddr.address.size();
-		appendToFile(peersFile, static_cast<uint16_t>(addrLen));
-		// Write address string
-		appendToFile(peersFile, peerAddr.address);
-		// Write port
-		appendToFile(peersFile, peerAddr.port);
-		// Write services
-		appendToFile(peersFile, peerStatus.services);
-		// Write last seen
-		appendToFile(peersFile, peerStatus.lastSeen);
-	}
-}
-
-std::unordered_map<PeerAddress, PeerStatus> loadPeers() {
-	std::unordered_map<PeerAddress, PeerStatus> peers;
-
-	auto peersFileBytes = readWholeFile(peersFilePath);
-	size_t offset = 0;
-
-	// Read peers count
-	uint64_t peersCount = 0;
-	takeBytesInto(peersCount, peersFileBytes, offset);
-
-	for (uint64_t i = 0; i < peersCount; i++) {
-		PeerAddress peerAddr;
-		PeerStatus peerStatus;
-		// Read address length
-		uint16_t addrLen = 0;
-		takeBytesInto(addrLen, peersFileBytes, offset); // assumes it converts from LE to host order
-
-		// Read address string
-		std::string addr(addrLen, '\0');
-		takeBytesInto(addr, peersFileBytes, offset);
-
-		// Read port
-		takeBytesInto(peerAddr.port, peersFileBytes, offset);
-
-		// Read services
-		takeBytesInto(peerStatus.services, peersFileBytes, offset);
-
-		// Read lastSeen
-		takeBytesInto(peerStatus.lastSeen, peersFileBytes, offset);
-
-		// Insert into map
-		peers.insert({ peerAddr, peerStatus });
-
-	}
-	return peers;
-}
-
-
-
-
