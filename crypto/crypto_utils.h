@@ -19,6 +19,16 @@ using Signature64 = std::array<uint8_t, 64>;
 // UTILITY FUNCTIONS
 // ============================================================================
 
+constexpr size_t calculateBlockHeaderSize() {
+    return sizeof(decltype(BlockHeader::version))      // version
+        + sizeof(decltype(BlockHeader::prevBlockHash))    // prevBlockHash
+        + sizeof(decltype(BlockHeader::merkleRoot))    // merkleRoot
+        + sizeof(decltype(BlockHeader::timestamp))      // timestamp
+        + sizeof(decltype(BlockHeader::difficulty))    // difficulty
+        + sizeof(decltype(BlockHeader::nonce))   // nonce
+        + sizeof(decltype(BlockHeader::blockHeight)); // height
+}
+
 // Convert hex string to 32-byte array
 Array256_t hexToBytes(const std::string& hex);
 
@@ -140,7 +150,7 @@ struct TxOutput {
  */
 struct TxInput {
     Array256_t UTXOTxHash{};      // Hash of transaction containing the UTXO
-    uint32_t UTXOOutputIndex = 0; // Index of output in that transaction
+    uint64_t UTXOOutputIndex = 0; // Index of output in that transaction
     Signature64 signature{};        // Signature proving ownership
 };
 
@@ -148,7 +158,7 @@ struct TxInput {
  * Transaction
  */
 struct Tx {
-    uint32_t version = 1;
+    uint64_t version = 1;
     std::vector<TxInput> txInputs;
     std::vector<TxOutput> txOutputs;
 };
@@ -157,12 +167,13 @@ struct Tx {
  * Block header
  */
 struct BlockHeader {
-    uint32_t version = 1;
+    uint64_t version = 1;
     Array256_t prevBlockHash{};
     Array256_t merkleRoot{};
     uint64_t timestamp = 0;
     Array256_t difficulty{};
     Array256_t nonce{};
+    uint64_t blockHeight;
 
     BlockHeader() {
         prevBlockHash.fill(0xFF);
@@ -222,4 +233,4 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs);
 
 Tx signTx(const Tx& tx, const Array256_t& privKeySeed);
 
-bool verifyTxSignature(const Tx& tx, const Array256_t& pubKey);
+bool verifyTxSignature(const Tx& tx);

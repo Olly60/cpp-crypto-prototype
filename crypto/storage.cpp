@@ -95,14 +95,6 @@ namespace {
 		return paths::undo / (bytesToHex(blockHash) + ".undo");
 	}
 
-	constexpr size_t calculateBlockHeaderSize() {
-		return sizeof(uint32_t)      // version
-			+ sizeof(Array256_t)    // prevBlockHash
-			+ sizeof(Array256_t)    // merkleRoot
-			+ sizeof(uint64_t)      // timestamp
-			+ sizeof(Array256_t)    // difficulty
-			+ sizeof(Array256_t);   // nonce
-	}
 }
 
 // ============================================================================
@@ -168,55 +160,54 @@ namespace {
 		return utxo;
 	}
 
-	void putUtxo(leveldb::DB& db, const TxInput& txInput, const TxOutput& utxo) {
-		std::string key = makeUtxoKey(txInput);
-		std::string value = serializeUtxo(utxo);
-
-		leveldb::Status status = db.Put(
-			leveldb::WriteOptions(),
-			leveldb::Slice(key),
-			leveldb::Slice(value)
-		);
-
-		if (!status.ok()) {
-			throw std::runtime_error("Failed to put UTXO: " + status.ToString());
-		}
-	}
-
-	void deleteUtxo(leveldb::DB& db, const TxInput& txInput) {
-		std::string key = makeUtxoKey(txInput);
-
-		leveldb::Status status = db.Delete(
-			leveldb::WriteOptions(),
-			leveldb::Slice(key)
-		);
-
-		if (!status.ok()) {
-			throw std::runtime_error("Failed to delete UTXO: " + status.ToString());
-		}
-	}
-
-
-
-
 }
 
-	TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput) {
-		std::string key = makeUtxoKey(txInput);
-		std::string value;
+void putUtxo(leveldb::DB& db, const TxInput& txInput, const TxOutput& utxo) {
+	std::string key = makeUtxoKey(txInput);
+	std::string value = serializeUtxo(utxo);
 
-		leveldb::Status status = db.Get(
-			leveldb::ReadOptions(),
-			leveldb::Slice(key),
-			&value
-		);
+	leveldb::Status status = db.Put(
+		leveldb::WriteOptions(),
+		leveldb::Slice(key),
+		leveldb::Slice(value)
+	);
 
-		if (!status.ok()) {
-			throw std::runtime_error("UTXO not found: " + status.ToString());
-		}
-
-		return deserializeUtxo(value);
+	if (!status.ok()) {
+		throw std::runtime_error("Failed to put UTXO: " + status.ToString());
 	}
+}
+
+void deleteUtxo(leveldb::DB& db, const TxInput& txInput) {
+	std::string key = makeUtxoKey(txInput);
+
+	leveldb::Status status = db.Delete(
+		leveldb::WriteOptions(),
+		leveldb::Slice(key)
+	);
+
+	if (!status.ok()) {
+		throw std::runtime_error("Failed to delete UTXO: " + status.ToString());
+	}
+}
+
+
+
+TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput) {
+	std::string key = makeUtxoKey(txInput);
+	std::string value;
+
+	leveldb::Status status = db.Get(
+		leveldb::ReadOptions(),
+		leveldb::Slice(key),
+		&value
+	);
+
+	if (!status.ok()) {
+		throw std::runtime_error("UTXO not found: " + status.ToString());
+	}
+
+	return deserializeUtxo(value);
+}
 
 std::unique_ptr<leveldb::DB> openUtxoDb() {
 	fs::create_directories(paths::utxo);
@@ -271,7 +262,7 @@ namespace {
 			appendToFile(undoFile, tx.version);
 
 			// Write input count
-			appendToFile(undoFile, static_cast<uint32_t>(tx.txInputs.size()));
+			appendToFile(undoFile, static_cast<uint64_t>(tx.txInputs.size()));
 
 			// For each input, write UTXO reference and value
 			for (const auto& input : tx.txInputs) {
@@ -292,15 +283,15 @@ namespace {
 
 		while (offset < undoDataBytes.size()) {
 			// Read transaction version
-			uint32_t version;
+			uint64_t version;
 			takeBytesInto(version, undoDataBytes, offset);
 
 			// Read input count
-			uint32_t inputCount;
+			uint64_t inputCount;
 			takeBytesInto(inputCount, undoDataBytes, offset);
 
 			// Read each input and restore UTXO
-			for (uint32_t j = 0; j < inputCount; j++) {
+			for (uint64_t j = 0; j < inputCount; j++) {
 				TxInput input;
 				takeBytesInto(input.UTXOTxHash, undoDataBytes, offset);
 				takeBytesInto(input.UTXOOutputIndex, undoDataBytes, offset);
@@ -342,7 +333,7 @@ void addBlock(const Block& block) {
 	// Update UTXO set: add new UTXOs
 	for (const auto& tx : block.txs) {
 		const Array256_t txHash = getTxHash(tx);
-		for (uint32_t outputIndex = 0; outputIndex < tx.txOutputs.size(); outputIndex++) {
+		for (uint64_t outputIndex = 0; outputIndex < tx.txOutputs.size(); outputIndex++) {
 			TxInput utxoKey{ txHash, outputIndex, {} };
 			putUtxo(*utxoDb, utxoKey, tx.txOutputs[outputIndex]);
 		}
@@ -373,7 +364,7 @@ void undoBlock() {
 	// Remove created UTXOs
 	for (const auto& tx : block.txs) {
 		const Array256_t txHash = getTxHash(tx);
-		for (uint32_t i = 0; i < tx.txOutputs.size(); i++) {
+		for (uint64_t i = 0; i < tx.txOutputs.size(); i++) {
 			TxInput utxoKey{ txHash, i, {} };
 			deleteUtxo(*utxoDb, utxoKey);
 		}
@@ -397,7 +388,7 @@ void undoBlock() {
 Block getGenesisBlock() {
 	// Genesis transaction
 	TxOutput genesisOutput{
-		50,         // amount
+		0,         // amount
 		{}          // recipient (empty for genesis)
 	};
 

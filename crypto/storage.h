@@ -2,7 +2,11 @@
 #include <leveldb/db.h>
 #include <memory>
 
+// Block
+
 Array256_t getBlockchainTip();
+
+Array256_t getGenesisBlockHash();
 
 void addBlock(const Block& block);
 
@@ -18,10 +22,12 @@ Block getBlock(Array256_t blockHash);
 
 BlockHeader getBlockHeader(Array256_t blockHash);
 
+// Utxo 
+
 TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput);
 
 std::unique_ptr<leveldb::DB> openUtxoDb();
 
 bool utxoInDb(leveldb::DB& db, const TxInput& txInput);
 
-Array256_t getGenesisBlockHash();
+

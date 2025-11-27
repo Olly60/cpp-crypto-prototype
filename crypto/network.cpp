@@ -13,7 +13,7 @@
 // ============================================
 
 struct Handshake {
-    uint32_t protocolVersion;
+    uint64_t protocolVersion;
     Array256_t genesisBlockHash;
     uint64_t services;
     uint64_t nonce;
@@ -38,7 +38,7 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
 std::vector<Tx> mempool;
 
 constexpr uint64_t SERVICE_FULL_NODE = 0b1;
-constexpr uint32_t PROTOCOL_VERSION = 1;
+constexpr uint64_t PROTOCOL_VERSION = 1;
 const Array256_t GENESIS_BLOCK_HASH = getGenesisBlockHash();
 
 uint64_t generateLocalNonce() {

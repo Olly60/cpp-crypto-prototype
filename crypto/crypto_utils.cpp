@@ -112,13 +112,13 @@ std::vector<uint8_t> serialiseTx(const Tx& tx) {
     appendBytes(out, tx.version);
 
     // Inputs
-    appendBytes(out, static_cast<uint32_t>(tx.txInputs.size()));
+    appendBytes(out, static_cast<uint64_t>(tx.txInputs.size()));
     for (const auto& input : tx.txInputs) {
         appendBytes(out, serialiseTxInput(input));
     }
 
     // Outputs
-    appendBytes(out, static_cast<uint32_t>(tx.txOutputs.size()));
+    appendBytes(out, static_cast<uint64_t>(tx.txOutputs.size()));
     for (const auto& output : tx.txOutputs) {
         appendBytes(out, serialiseTxOutput(output));
     }
@@ -131,18 +131,18 @@ Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset) {
     takeBytesInto(tx.version, txBytes, offset);
 
     // Read inputs
-    uint32_t inputCount;
+    uint64_t inputCount;
     takeBytesInto(inputCount, txBytes, offset);
     tx.txInputs.reserve(inputCount);
-    for (uint32_t i = 0; i < inputCount; i++) {
+    for (uint64_t i = 0; i < inputCount; i++) {
         tx.txInputs.push_back(formatTxInput(txBytes, offset));
     }
 
     // Read outputs
-    uint32_t outputCount;
+    uint64_t outputCount;
     takeBytesInto(outputCount, txBytes, offset);
     tx.txOutputs.reserve(outputCount);
-    for (uint32_t i = 0; i < outputCount; i++) {
+    for (uint64_t i = 0; i < outputCount; i++) {
         tx.txOutputs.push_back(formatTxOutput(txBytes, offset));
     }
 
@@ -165,6 +165,7 @@ std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header) {
     appendBytes(out, header.timestamp);
     appendBytes(out, header.difficulty);
     appendBytes(out, header.nonce);
+    appendBytes(out, header.blockHeight);
     return out;
 }
 
@@ -177,6 +178,7 @@ BlockHeader formatBlockHeader(std::span<const uint8_t> headerBytes) {
     takeBytesInto(header.timestamp, headerBytes, offset);
     takeBytesInto(header.difficulty, headerBytes, offset);
     takeBytesInto(header.nonce, headerBytes, offset);
+    takeBytesInto(header.blockHeight, headerBytes, offset);
     return header;
 }
 
@@ -190,7 +192,7 @@ std::vector<uint8_t> serialiseBlock(const Block& block) {
     appendBytes(out, serialiseBlockHeader(block.header));
 
     // Transactions
-    appendBytes(out, static_cast<uint32_t>(block.txs.size()));
+    appendBytes(out, static_cast<uint64_t>(block.txs.size()));
     for (const auto& tx : block.txs) {
         appendBytes(out, serialiseTx(tx));
     }
@@ -203,18 +205,13 @@ Block formatBlock(std::span<const uint8_t> blockBytes) {
     size_t offset = 0;
 
     // Header
-    takeBytesInto(block.header.version, blockBytes, offset);
-    takeBytesInto(block.header.prevBlockHash, blockBytes, offset);
-    takeBytesInto(block.header.merkleRoot, blockBytes, offset);
-    takeBytesInto(block.header.timestamp, blockBytes, offset);
-    takeBytesInto(block.header.difficulty, blockBytes, offset);
-    takeBytesInto(block.header.nonce, blockBytes, offset);
+    BlockHeader header = formatBlockHeader(blockBytes);
 
     // Transactions
-    uint32_t txCount;
+    uint64_t txCount;
     takeBytesInto(txCount, blockBytes, offset);
     block.txs.reserve(txCount);
-    for (uint32_t i = 0; i < txCount; i++) {
+    for (uint64_t i = 0; i < txCount; i++) {
         block.txs.push_back(formatTx(blockBytes, offset));
     }
 
@@ -288,7 +285,7 @@ Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
     appendBytes(buf, tx.version);
 
     // Inputs
-    appendBytes(buf, static_cast<uint32_t>(tx.txInputs.size()));
+    appendBytes(buf, static_cast<uint64_t>(tx.txInputs.size()));
 
     for (size_t i = 0; i < tx.txInputs.size(); i++) {
         const TxInput& in = tx.txInputs[i];
@@ -301,7 +298,7 @@ Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
     }
 
     // Outputs
-    appendBytes(buf, static_cast<uint32_t>(tx.txOutputs.size()));
+    appendBytes(buf, static_cast<uint64_t>(tx.txOutputs.size()));
     for (const TxOutput& out : tx.txOutputs) {
         appendBytes(buf, out.amount);
         appendBytes(buf, out.recipient);
