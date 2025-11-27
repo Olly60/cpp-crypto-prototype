@@ -4,6 +4,8 @@
 #include <sodium.h>
 #include <chrono>
 
+#include <boost/multiprecision/cpp_int.hpp>
+using uint256 = boost::multiprecision::uint256_t;
 #include "storage.h"
 
 // ============================================================================
