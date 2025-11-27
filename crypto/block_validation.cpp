@@ -78,8 +78,6 @@ bool verifyBlock(Block block) {
 
 	// workout difficulty
 
-	// height
-	if (block.header.blockHeight != prevBlock.blockHeight + 1) return false;
 
 	// --------------------------------------------
 	// Verify Transactions

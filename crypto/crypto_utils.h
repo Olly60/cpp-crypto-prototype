@@ -26,7 +26,6 @@ constexpr size_t calculateBlockHeaderSize() {
         + sizeof(decltype(BlockHeader::timestamp))      // timestamp
         + sizeof(decltype(BlockHeader::difficulty))    // difficulty
         + sizeof(decltype(BlockHeader::nonce))   // nonce
-        + sizeof(decltype(BlockHeader::blockHeight)); // height
 }
 
 // Convert hex string to 32-byte array
@@ -173,7 +172,6 @@ struct BlockHeader {
     uint64_t timestamp = 0;
     Array256_t difficulty{};
     Array256_t nonce{};
-    uint64_t blockHeight;
 
     BlockHeader() {
         prevBlockHash.fill(0xFF);

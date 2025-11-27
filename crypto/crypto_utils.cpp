@@ -165,7 +165,6 @@ std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header) {
     appendBytes(out, header.timestamp);
     appendBytes(out, header.difficulty);
     appendBytes(out, header.nonce);
-    appendBytes(out, header.blockHeight);
     return out;
 }
 
@@ -178,7 +177,6 @@ BlockHeader formatBlockHeader(std::span<const uint8_t> headerBytes) {
     takeBytesInto(header.timestamp, headerBytes, offset);
     takeBytesInto(header.difficulty, headerBytes, offset);
     takeBytesInto(header.nonce, headerBytes, offset);
-    takeBytesInto(header.blockHeight, headerBytes, offset);
     return header;
 }
 
