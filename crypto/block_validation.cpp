@@ -45,8 +45,7 @@ bool verifyTx(const Tx& tx) {
 		totalOutputAmount += txOutput.amount;
 	}
 	// Output amount exceeds input amount subtract fee
-	uint64_t minFee = 1;
-	uint64_t txFee = std::max(totalInputAmount / 100, minFee);
+	uint64_t txFee = std::max(totalInputAmount / 100, uint64_t(1));
 	if (totalOutputAmount > totalInputAmount - txFee) return false;
 }
 
@@ -58,6 +57,8 @@ bool verifyBlock(Block block) {
 	// Verify Block Header
 	// --------------------------------------------
 
+	// version
+	if (block.header.version != 1) return false;
 	// Already in chain
 	if (blockExists(blockHash)) return false;
 
@@ -65,6 +66,9 @@ bool verifyBlock(Block block) {
 	if (!blockExists(block.header.prevBlockHash)) return false;
 
 	BlockHeader prevBlock = getBlockHeader(block.header.prevBlockHash);
+
+	// MerkleRoot invalid
+	if (block.header.merkleRoot != getMerkleRoot(block.txs)) return false;
 
 	// Timestamp is earlier than previous block
 	if (block.header.timestamp < prevBlock.timestamp) return false;
@@ -75,6 +79,7 @@ bool verifyBlock(Block block) {
 	// workout difficulty
 
 	// height
+	if (block.header.blockHeight != prevBlock.blockHeight + 1) return false;
 
 	// --------------------------------------------
 	// Verify Transactions
@@ -82,6 +87,9 @@ bool verifyBlock(Block block) {
 
 	std::set<std::pair<Array256_t, uint64_t>> seenUTXOs;
 	bool isCoinBase = true;
+
+	uint64_t blockFee = 0;
+	auto utxoDb = openUtxoDb();
 
 	for (const Tx& tx : block.txs) {
 		// Skip coinbase transaction
@@ -92,33 +100,31 @@ bool verifyBlock(Block block) {
 		// Verify each individual transaction
 		if (verifyTx(tx)) return false;
 
-		// Check Transactions all have unique inputs
-		for (const auto& in : tx.txInputs) {
-			auto key = std::make_pair(in.UTXOTxHash, in.UTXOOutputIndex);
+		uint64_t totalInputAmount = 0;
+		for (const auto& txInput : tx.txInputs) {
+
+			// Get the amount being spent in the transaction
+			totalInputAmount += getUtxoValue(*utxoDb, txInput).amount;
+
+			// Check Transactions all have unique inputs
+			auto key = std::make_pair(txInput.UTXOTxHash, txInput.UTXOOutputIndex);
 			if (!seenUTXOs.insert(key).second) return false;
 		}
+		blockFee += std::max(totalInputAmount / 100, uint64_t(1));
 	}
 
 
-	// MerkleRoot invalid
-	if (block.header.merkleRoot != getMerkleRoot(block.txs)) return false;
 
 	// Verify coinbase transaction
-	{
-		// Coinbase transaction should have no inputs
-		if (!block.txs[0].txInputs.empty()) return false;
+	const Tx& coinbaseTx = block.txs[0];
 
+	if (!coinbaseTx.txInputs.empty()) return false; // Coinbase has no inputs
 
-		// Coinbase transaction output amount should equal total fees
-		uint64_t coinabaseAmount = 0;
-		for (const UTXO& coinbaseTxOutput : block.txs[0].txOutputs) {
-			coinabaseAmount += coinbaseTxOutput.amount;
-		}
-		// Coinbase amount exceeds total fees
-		if (coinabaseAmount != blockReward) return false;
-	}
+	uint64_t coinbaseAmount = 0;
+	for (const TxOutput& out : coinbaseTx.txOutputs) coinbaseAmount += out.amount;
 
-	// Block is valid
+	if (coinbaseAmount != blockFee) return false;
+
 	return true;
 
 }
