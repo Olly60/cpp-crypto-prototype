@@ -128,10 +128,10 @@
     <ClCompile Include="storage.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="crypto_utils.cpp" />
-    <ClCompile Include="block_validation.cpp" />
+    <ClCompile Include="block_verification.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="block_validation.h" />
+    <ClInclude Include="block_verification.h" />
     <ClInclude Include="crypto_utils.h" />
     <ClInclude Include="network.h" />
     <ClInclude Include="storage.h" />

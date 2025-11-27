@@ -1,9 +1,10 @@
 #include <sodium.h>
 #include "crypto_utils.h"
 #include <stdexcept>
-#include "block_validation.h"
+#include "block_verification.h"
 #include "storage.h"
 #include <set>
+
 
 bool verifyMerkleRoot(const Block& block) {
 	return block.header.merkleRoot == getMerkleRoot(block.txs);
@@ -74,7 +75,7 @@ bool verifyBlock(Block block) {
 	if (block.header.timestamp < prevBlock.timestamp) return false;
 
 	// Timestamp is too far in the future
-	if (block.header.timestamp > getCurrentTimestamp() + (2 * (60 * 60))) return false;
+	if (block.header.timestamp > getCurrentTimestamp() + (60 * 10)) return false;
 
 	// workout difficulty
 

@@ -27,7 +27,7 @@
     <ClCompile Include="network.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="block_validation.cpp">
+    <ClCompile Include="block_verification.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -41,7 +41,7 @@
     <ClInclude Include="network.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="block_validation.h">
+    <ClInclude Include="block_verification.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
