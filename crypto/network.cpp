@@ -12,14 +12,6 @@
 // Data Structures
 // ============================================
 
-struct PeerAddressHash {
-    std::size_t operator()(const PeerAddress& p) const noexcept {
-        std::size_t h1 = std::hash<std::string>{}(p.address);
-        std::size_t h2 = std::hash<uint16_t>{}(p.port);
-        return h1 ^ (h2 << 1);
-    }
-};
-
 struct Handshake {
     uint32_t protocolVersion;
     Array256_t genesisBlockHash;
@@ -197,8 +189,7 @@ asio::awaitable<void> handlePing(asio::ip::tcp::socket socket) {
     }
 }
 
-asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket,
-    const Array256_t& blockHash) {
+asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, const Array256_t& blockHash) {
     // Send request
     uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetHeader);
     co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -217,8 +208,7 @@ asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket,
     co_return formatBlockHeader(headerBytes);
 }
 
-asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket,
-    const Array256_t& blockHash) {
+asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash) {
     // Send request
     uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
     co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -298,7 +288,7 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket) {
         co_await asio::async_read(socket, asio::buffer(blockData), asio::use_awaitable);
 
         Block newBlock = formatBlock(blockData);
-        if (validateBlock(newBlock)) {
+        if (verifyBlock(newBlock)) {
             addBlock(newBlock);
             // Note: broadcastBlockToPeers would need to be implemented
         }
@@ -324,7 +314,7 @@ asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket) {
         co_await asio::async_read(socket, asio::buffer(txData), asio::use_awaitable);
 
         Tx newTx = formatTx(txData);
-        if (validateTx(newTx)) {
+        if (verifyTx(newTx)) {
             mempool.push_back(newTx);
             // Note: broadcastTransaction would need to be implemented
         }

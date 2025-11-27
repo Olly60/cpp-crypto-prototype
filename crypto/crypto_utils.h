@@ -3,7 +3,6 @@
 #include <string>
 #include <span>
 #include <array>
-#include <algorithm>
 #include <cstring>
 #include <stdexcept>
 #include <type_traits>
@@ -13,6 +12,8 @@
 // ============================================================================
 
 using Array256_t = std::array<uint8_t, 32>;
+
+using Signature64 = std::array<uint8_t, 64>;
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -132,8 +133,6 @@ void appendBytes(ContainerOut& out, const T& data) {
 struct TxOutput {
     uint64_t amount = 0;
     Array256_t recipient{};
-
-    bool operator==(const TxOutput&) const = default;
 };
 
 /**
@@ -142,9 +141,7 @@ struct TxOutput {
 struct TxInput {
     Array256_t UTXOTxHash{};      // Hash of transaction containing the UTXO
     uint32_t UTXOOutputIndex = 0; // Index of output in that transaction
-    Array256_t signature{};        // Signature proving ownership
-
-    bool operator==(const TxInput&) const = default;
+    Signature64 signature{};        // Signature proving ownership
 };
 
 /**
@@ -154,8 +151,6 @@ struct Tx {
     uint32_t version = 1;
     std::vector<TxInput> txInputs;
     std::vector<TxOutput> txOutputs;
-
-    bool operator==(const Tx&) const = default;
 };
 
 /**
@@ -173,8 +168,6 @@ struct BlockHeader {
         prevBlockHash.fill(0xFF);
         difficulty.fill(0xFF);
     }
-
-    bool operator==(const BlockHeader&) const = default;
 };
 
 /**
@@ -183,8 +176,6 @@ struct BlockHeader {
 struct Block {
     BlockHeader header;
     std::vector<Tx> txs;
-
-    bool operator==(const Block&) const = default;
 };
 
 // ============================================================================
@@ -223,3 +214,12 @@ Array256_t getTxHash(const Tx& tx);
 
 // Compute merkle root from list of transactions
 Array256_t getMerkleRoot(const std::vector<Tx>& txs);
+
+// ============================================================================
+// SIGNING
+// ============================================================================
+
+
+Tx signTx(const Tx& tx, const Array256_t& privKeySeed);
+
+bool verifyTxSignature(const Tx& tx, const Array256_t& pubKey);

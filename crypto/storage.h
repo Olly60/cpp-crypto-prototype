@@ -1,15 +1,27 @@
 #pragma once
+#include <leveldb/db.h>
+#include <memory>
 
 Array256_t getBlockchainTip();
-
-std::vector<uint8_t> readBlockFile(const Array256_t& blockHash);
-
-std::vector<uint8_t> readBlockFileHeader(const Array256_t& blockHash);
 
 void addBlock(const Block& block);
 
 void undoBlock();
 
+std::vector<uint8_t> readBlockFile(const Array256_t& blockHash);
+
+std::vector<uint8_t> readBlockFileHeader(const Array256_t& blockHash);
+
 bool blockExists(const Array256_t& blockHash);
+
+Block getBlock(Array256_t blockHash);
+
+BlockHeader getBlockHeader(Array256_t blockHash);
+
+TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput);
+
+std::unique_ptr<leveldb::DB> openUtxoDb();
+
+bool utxoInDb(leveldb::DB& db, const TxInput& txInput);
 
 Array256_t getGenesisBlockHash();

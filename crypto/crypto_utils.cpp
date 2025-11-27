@@ -2,9 +2,9 @@
 #include "crypto_utils.h"
 #include <stdexcept>
 #include <sodium.h>
-#include <cstring>
 #include <chrono>
-#include <cctype>
+
+#include "storage.h"
 
 // ============================================================================
 // BASIC UTILITIES
@@ -275,3 +275,88 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs) {
 
     return currentLayer[0];
 }
+
+// ============================================================================
+// SIGNING
+// ============================================================================
+
+Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
+{
+    std::vector<uint8_t> buf;
+
+    // Version
+    appendBytes(buf, tx.version);
+
+    // Inputs
+    appendBytes(buf, static_cast<uint32_t>(tx.txInputs.size()));
+
+    for (size_t i = 0; i < tx.txInputs.size(); i++) {
+        const TxInput& in = tx.txInputs[i];
+        appendBytes(buf, in.UTXOTxHash);
+        appendBytes(buf, in.UTXOOutputIndex);
+
+        // Blank out other input signatures
+        std::array<uint8_t, 64> emptySig{};
+        appendBytes(buf, emptySig);
+    }
+
+    // Outputs
+    appendBytes(buf, static_cast<uint32_t>(tx.txOutputs.size()));
+    for (const TxOutput& out : tx.txOutputs) {
+        appendBytes(buf, out.amount);
+        appendBytes(buf, out.recipient);
+    }
+
+    // Final message hash
+    return sha256Of(buf);
+}
+
+Tx signTx(const Tx& tx, const Array256_t& privKeySeed)
+{
+    Tx signedTx = tx; // make a copy
+
+    for (size_t i = 0; i < signedTx.txInputs.size(); i++) {
+        Array256_t hash = computeTxInputHash(signedTx, i); // sighash for this input
+
+        Signature64 sig;
+        crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), privKeySeed.data());
+
+        signedTx.txInputs[i].signature = sig; // each input gets its own signature
+    }
+
+    return signedTx;
+}
+
+bool verifyTxSignature(const Tx& tx)
+{
+    auto utxoDb = openUtxoDb(); // open the UTXO database
+
+    for (size_t i = 0; i < tx.txInputs.size(); i++) {
+        const TxInput& in = tx.txInputs[i];
+
+        // Check that the UTXO exists
+        if (!utxoInDb(*utxoDb, in)) {
+            return false; // trying to spend a non-existent UTXO
+        }
+
+        // Get the UTXO (previous output)
+        TxOutput utxo = getUtxoValue(*utxoDb, in);
+
+        // Compute the sighash for this input
+        Array256_t hash = computeTxInputHash(tx, i);
+
+        // Verify the signature against the public key stored in the UTXO
+        if (crypto_sign_verify_detached(
+            in.signature.data(),
+            hash.data(),
+            hash.size(),
+            utxo.recipient.data() // public key of the UTXO owner
+        ) != 0)
+        {
+            return false; // invalid signature
+        }
+    }
+
+    return true; // all inputs are valid
+}
+

@@ -2,6 +2,7 @@
 #include "crypto_utils.h"
 #include <stdexcept>
 #include "block_validation.h"
+#include "storage.h"
 
 bool verifyMerkleRoot(const Block& block) {
 	return block.header.merkleRoot == getMerkleRoot(block.txs);
@@ -11,57 +12,55 @@ bool verifyBlockHash(const Block& block, const Array256_t& expectedHash) {
 	return getBlockHash(block) == expectedHash;
 }
 
-bool validateTx(const Tx& tx) {}
+bool verifyTx(const Tx& tx) {}
 
-bool validateBlock(Block block) {
+
+bool verifyBlock(Block block) {
 	// Calculate block hash
-	array256_t blockHash;
+	Array256_t blockHash = getBlockHash(block);
 
-
-	// Verify block header
+	// --------------------------------------------
+	// Verify Block Header
+	// --------------------------------------------
+	
 	// Already in chain
-	if (blockChain.count(blockHash) == 1) return false;
+	if (blockExists(blockHash)) return false;
 
 	// Previous block not found
-	if (blockChain.count(block.header.previousBlockHash) == 0) return false;
+	if (!blockExists(block.header.prevBlockHash)) return false;
+
+	BlockHeader prevBlock = getBlockHeader(block.header.prevBlockHash);
 
 	// Timestamp is earlier than previous block
-	if (block.header.timestamp < blockChain[block.header.previousBlockHash].header.timestamp) return false;
+	if (block.header.timestamp < prevBlock.timestamp) return false;
 
 	// Timestamp is too far in the future
-	uint64_t currentTime = time(0);
-	if (block.header.timestamp > currentTime + (2 * (60 * 60))) return false;
+	if (block.header.timestamp > getCurrentTimestamp() + (2 * (60 * 60))) return false;
 
 	// Verify each transaction
-	std::vector<UTXOKey> seenUtxo;
+	std::vector<TxInput> seenUtxo;
 	uint64_t blockReward = 0;
-	std::vector<uint8_t> txHashes;
 	bool isCoinbaseTx = true;
-	array256_t txHash;
-	std::vector<uint8_t> merkleLeaves;
 	for (const Tx& tx : block.txs) {
 
-		hashTransaction(txHash, tx);
-		merkleLeaves.insert(merkleLeaves.end(), txHash.begin(), txHash.end());
+		auto txHash = getTxHash(tx)
 
 		// Coinbase transaction
-		if (isCoinbaseTx) { isCoinbaseTx = false; continue; }
+		if (isCoinbaseTx) continue;
+
+		// Verify transaction signature with Utxo in db
+		verifyTxSignature()
+
+		isCoinbaseTx = false;
 
 		// Verify each input
-		UTXOKey key;
 		uint64_t totalInputAmount = 0;
 		uint64_t totalOutputAmount = 0;
-		for (const TxInputSigned& txInputSigned : tx.txInputs) {
-
-			key.txHash = txInputSigned.txInput.prevTxHash;
-			key.outputIndex = txInputSigned.txInput.outputIndex;
+		auto utxoDb = openUtxoDb();
+		for (const TxInput& txInput : tx.txInputs) {
 
 			// UTXO not found
-			if (UTXOs.count(key) == 0) return false;
-
-			// Invalid signature
-			sha256Of(txHash, &txInputSigned.txInput, sizeof(TxInput));
-			if (crypto_sign_verify_detached(txInputSigned.signature.data(), txHash.data(), 32, UTXOs[key].recipient.data()) != 0) return false;
+			if (utxoInDb(*utxoDb, txInput);
 
 			// Double spending
 			if (find(seenUtxo.begin(), seenUtxo.end(), key) != seenUtxo.end()) return false;
@@ -89,7 +88,7 @@ bool validateBlock(Block block) {
 	}
 
 	// MerkleRoot invalid
-	array256_t merkleRoot;
+	Array256_t merkleRoot;
 	sha256Of(merkleRoot, merkleLeaves.data(), merkleLeaves.size());
 	if (block.header.merkleRoot != block.header.merkleRoot) return false;
 
@@ -165,11 +164,4 @@ bool validateBlock(Block block) {
 
 // Unsupported block version
 return false;
-}
-
-bool validateBlock(Block block) {
-	switch (block.version) {
-	case 1: return block_v1::verifyBlock(block);
-	default: throw std::runtime_error("Unsupported Block version");
-	}
 }
