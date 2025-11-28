@@ -139,7 +139,11 @@ namespace {
         }
 
         // TODO: Verify difficulty target
-        // TODO: Verify proof-of-work (hash meets difficulty requirement)
+        
+
+
+        // Verify proof-of-work (hash meets difficulty requirement)
+        if (blockHash > header.difficulty) return false;
 
         return true;
     }
