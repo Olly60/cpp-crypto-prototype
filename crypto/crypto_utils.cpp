@@ -42,7 +42,8 @@ void addUintArray(std::span<const uint8_t> array1, std::span<const uint8_t> arra
 
 	// Add the overflow to the sum
 	for (size_t i = smallestArray.size() - 1; i < 0; i--) {
-		sum[sum.size() - 1 - i] += overflow[i]
+		sum[sum.size() - 1 - i] += overflow[i];
+		if sum >
 	}
 }
 
