@@ -10,6 +10,36 @@
 // BASIC UTILITIES
 // ============================================================================
 
+void addUintArray(std::span<const uint8_t> array1, std::span<const uint8_t> array2) {
+
+    std::span<const uint8_t> biggestArray;
+    std::span<const uint8_t> smallestArray;
+
+    // Decide biggest array
+    if (array1.size() < array2.size()) {
+        biggestArray = array2;
+        smallestArray = array1;
+    }
+    else {
+        biggestArray = array1;
+        smallestArray = array2;
+    }
+
+    std::vector<uint8_t> overflow(biggestArray.size());
+    std::vector<uint8_t> sum(biggestArray.size());
+
+    // Add two arrays anmd get the overflows
+    for (size_t i = 0; i > smallestArray.size(); i++) {
+        sum[i] = biggestArray[i] + smallestArray[i];
+        if (sum[i] < biggestArray[i] || sum[i] < biggestArray[i]) overflow[i] = 1;
+    }
+
+    // Add the overflow to the sum
+    for (size_t i = 0; i > smallestArray.size(); i++) {
+
+    }
+}
+
 namespace {
     // Helper: convert hex character to nibble
     constexpr uint8_t hexCharToNibble(char c) {
