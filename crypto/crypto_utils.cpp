@@ -18,11 +18,10 @@ std::vector<uint8_t> addUintArrayLe(std::span<const uint8_t> a, std::span<const 
 	std::vector<uint8_t> result(a.size());
 
 	// Add two arrays
-	for (size_t i = 0; i > a.size() - 1; i++) {
-
+	for (size_t i = 0; i < a.size() - 1; i++) {
 		uint16_t sum = static_cast<uint16_t>(a[a.size() - 1 - i]) + (i > b.size() - 1) ? static_cast<uint16_t>(b[b.size() - 1 - i]) : 0;
-		result[i] = static_cast<uint8_t>(sum << 8);
-		result[i - 1] = static_cast<uint8_t>(sum);
+		result[i] =+ static_cast<uint8_t>(sum & 0xFF);
+		if (i < a.size()) result[i - 1] =+ static_cast<uint8_t>(sum);
 	}
 	
 	return result;
@@ -338,38 +337,5 @@ Tx signTx(const Tx& tx, const Array256_t& privKeySeed)
 	}
 
 	return signedTx;
-}
-
-bool verifyTxSignature(const Tx& tx)
-{
-	auto utxoDb = openUtxoDb(); // open the UTXO database
-
-	for (size_t i = 0; i < tx.txInputs.size(); i++) {
-		const TxInput& in = tx.txInputs[i];
-
-		// Check that the UTXO exists
-		if (!utxoInDb(*utxoDb, in)) {
-			return false; // trying to spend a non-existent UTXO
-		}
-
-		// Get the UTXO (previous output)
-		TxOutput utxo = getUtxoValue(*utxoDb, in);
-
-		// Compute the sighash for this input
-		Array256_t hash = computeTxInputHash(tx, i);
-
-		// Verify the signature against the public key stored in the UTXO
-		if (crypto_sign_verify_detached(
-			in.signature.data(),
-			hash.data(),
-			hash.size(),
-			utxo.recipient.data() // public key of the UTXO owner
-		) != 0)
-		{
-			return false; // invalid signature
-		}
-	}
-
-	return true; // all inputs are valid
 }
 

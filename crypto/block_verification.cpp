@@ -40,10 +40,37 @@ namespace {
 // TRANSACTION VALIDATION
 // ============================================================================
 
-bool verifyTxSignature(const Tx& tx) {
-    // TODO: Implement signature verification
-    // For each input, verify that the signature is valid for the UTXO being spent
-    return true;
+bool verifyTxSignature(const Tx& tx)
+{
+    auto utxoDb = openUtxoDb(); // open the UTXO database
+
+    for (size_t i = 0; i < tx.txInputs.size(); i++) {
+        const TxInput& in = tx.txInputs[i];
+
+        // Check that the UTXO exists
+        if (!utxoInDb(*utxoDb, in)) {
+            return false; // trying to spend a non-existent UTXO
+        }
+
+        // Get the UTXO (previous output)
+        TxOutput utxo = getUtxoValue(*utxoDb, in);
+
+        // Compute the sighash for this input
+        Array256_t hash = computeTxInputHash(tx, i);
+
+        // Verify the signature against the public key stored in the UTXO
+        if (crypto_sign_verify_detached(
+            in.signature.data(),
+            hash.data(),
+            hash.size(),
+            utxo.recipient.data() // public key of the UTXO owner
+        ) != 0)
+        {
+            return false; // invalid signature
+        }
+    }
+
+    return true; // all inputs are valid
 }
 
 bool verifyTx(const Tx& tx) {
