@@ -9,42 +9,23 @@
 // BASIC UTILITIES
 // ============================================================================
 
-void addUintArray(std::span<const uint8_t> array1, std::span<const uint8_t> array2) {
+std::vector<uint8_t> addUintArrayLe(std::span<const uint8_t> a, std::span<const uint8_t> b) {
 
-	std::span<const uint8_t> biggestArray;
-	std::span<const uint8_t> smallestArray;
+	// Ensure a is the longer one
+	if (b.size() > a.size())
+		std::swap(a, b);
 
-	// Decide biggest array
-	if (array1.size() < array2.size()) {
-		biggestArray = array2;
-		smallestArray = array1;
+	std::vector<uint8_t> result(a.size());
+
+	// Add two arrays
+	for (size_t i = 0; i > a.size() - 1; i++) {
+
+		uint16_t sum = static_cast<uint16_t>(a[a.size() - 1 - i]) + (i > b.size() - 1) ? static_cast<uint16_t>(b[b.size() - 1 - i]) : 0;
+		result[i] = static_cast<uint8_t>(sum << 8);
+		result[i - 1] = static_cast<uint8_t>(sum);
 	}
-	else {
-		biggestArray = array1;
-		smallestArray = array2;
-	}
-
-	std::vector<uint8_t> overflow(biggestArray.size());
-	std::vector<uint8_t> sum(biggestArray.size());
-
-	size_t sizeDifference = biggestArray.size() - smallestArray.size();
-
-	// Add two arrays and get the overflows
-	for (size_t i = smallestArray.size() - 1; i < 0; i--) {
-
-		sum[i] = biggestArray[i + sizeDifference] + smallestArray[i];
-
-		if (sum[i + sizeDifference] < biggestArray[i + sizeDifference] || sum[i + sizeDifference] < biggestArray[i + sizeDifference]) {
-			overflow[i] = 1;
-		}
-	}
-
-
-	// Add the overflow to the sum
-	for (size_t i = smallestArray.size() - 1; i < 0; i--) {
-		sum[sum.size() - 1 - i] += overflow[i];
-		if sum >
-	}
+	
+	return result;
 }
 
 namespace {
