@@ -31,10 +31,16 @@ namespace {
 
     // Maximum time drift allowed (10 minutes in seconds)
     constexpr uint64_t MAX_TIME_DRIFT = 60 * 10;
+    
+    uint64_t getBlockReward(const BlockHeader& blockHeader ) { 
 
-    // Block reward (could be made difficulty-dependent later)
-    constexpr uint64_t BLOCK_REWARD = 50;
 }
+
+}
+
+
+
+
 
 // ============================================================================
 // TRANSACTION VALIDATION
@@ -282,9 +288,9 @@ bool verifyBlock(const Block& block) {
             return false;
         }
     }
+    uint64_t coinbaseReward = BLOCK_REWARD + totalFees;
 
     // Verify coinbase transaction (first transaction)
-    uint64_t coinbaseReward = BLOCK_REWARD + totalFees;
     if (!verifyCoinbase(block.txs[0], coinbaseReward)) {
         return false;
     }

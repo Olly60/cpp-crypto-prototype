@@ -20,6 +20,7 @@ namespace paths {
 	const fs::path utxo = blockchain / "utxo";
 	const fs::path undo = blockchain / "undo";
 	const fs::path peers = blockchain / "peers" / "peers_list";
+	const fs::path blockHeight = blockchain / "block_height" / "height";
 }
 
 // ============================================================================
@@ -540,4 +541,45 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers() {
 	}
 
 	return peers;
+}
+
+// ============================================================================
+// BLOCK HEIGHT MANAGEMENT
+// ============================================================================
+
+void addBlockHeight() {
+	fs::create_directories(paths::blockHeight.parent_path());
+
+	std::ofstream heightFile(paths::peers, std::ios::trunc | std::ios::binary);
+	readWholeFile(paths::blockHeight);
+	uint64_t height = 0;
+	takeBytesInto(height, readWholeFile(paths::blockHeight));
+	if (!heightFile) {
+		throw std::runtime_error("Failed to open block height file for writing");
+	}
+	heightFile.exceptions(std::ios::failbit | std::ios::badbit);
+	appendToFile(heightFile, height + 1);
+
+}
+
+void subtractBlockHeight() {
+	fs::create_directories(paths::blockHeight.parent_path());
+
+	std::ofstream heightFile(paths::peers, std::ios::trunc | std::ios::binary);
+	readWholeFile(paths::blockHeight);
+	uint64_t height = 0;
+	takeBytesInto(height, readWholeFile(paths::blockHeight));
+	if (!heightFile) {
+		throw std::runtime_error("Failed to open peers block height for writing");
+	}
+	heightFile.exceptions(std::ios::failbit | std::ios::badbit);
+	appendToFile(heightFile, height - 1);
+
+}
+
+uint64_t getBlockHeight() {
+	readWholeFile(paths::blockHeight);
+	uint64_t height = 0;
+	takeBytesInto(height, readWholeFile(paths::blockHeight));
+	return height;
 }
