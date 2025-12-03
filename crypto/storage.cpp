@@ -348,7 +348,10 @@ void addBlock(const Block& block) {
 	}
 
 	// Update blockchain tip
-	addBlockchainTip(blockHash);
+	setBlockchainTip(blockHash);
+
+	// Update block height
+	addBlockHeight();
 }
 
 void undoBlock() {
@@ -375,7 +378,10 @@ void undoBlock() {
 	restoreFromUndoFile(undoFilePath, *utxoDb);
 
 	// Update blockchain tip
-	removeBlockchainTip();
+	setBlockchainTip(block.header.prevBlockHash);
+
+	// Update block height
+	subtractBlockHeight();
 
 	// Delete files
 	fs::remove(blockFilePath);
@@ -419,22 +425,15 @@ Array256_t getGenesisBlockHash() {
 // BLOCKCHAIN TIP MANAGEMENT
 // ============================================================================
 
-void addBlockchainTip(const Array256_t& newTip) {
-	auto file = openFileForAppend(paths::blockchainTip);
-	appendToFile(file, newTip);
-}
+void setBlockchainTip(const Array256_t& newTip) {
+	fs::create_directories(paths::blockchainTip.parent_path());
 
-void removeBlockchainTip() {
-	if (!fs::exists(paths::blockchainTip)) {
-		return;
+	std::ofstream blockchainTipFile(paths::blockchainTip, std::ios::trunc | std::ios::binary);
+	if (!blockchainTipFile) {
+		throw std::runtime_error("Failed to open blockchain tip file for writing");
 	}
 
-	uintmax_t size = fs::file_size(paths::blockchainTip);
-	if (size < sizeof(Array256_t)) {
-		throw std::runtime_error("Cannot remove tip: file too small");
-	}
-
-	fs::resize_file(paths::blockchainTip, size - sizeof(Array256_t));
+	appendToFile(blockchainTipFile, newTip);
 }
 
 Array256_t getBlockchainTip() {
@@ -550,13 +549,12 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers() {
 void addBlockHeight() {
 	fs::create_directories(paths::blockHeight.parent_path());
 
-	std::ofstream heightFile(paths::peers, std::ios::trunc | std::ios::binary);
-	readWholeFile(paths::blockHeight);
-	uint64_t height = 0;
-	takeBytesInto(height, readWholeFile(paths::blockHeight));
+	std::ofstream heightFile(paths::blockHeight, std::ios::trunc | std::ios::binary);
 	if (!heightFile) {
 		throw std::runtime_error("Failed to open block height file for writing");
 	}
+	uint64_t height = 0;
+	takeBytesInto(height, readWholeFile(paths::blockHeight));
 	heightFile.exceptions(std::ios::failbit | std::ios::badbit);
 	appendToFile(heightFile, height + 1);
 
@@ -565,7 +563,7 @@ void addBlockHeight() {
 void subtractBlockHeight() {
 	fs::create_directories(paths::blockHeight.parent_path());
 
-	std::ofstream heightFile(paths::peers, std::ios::trunc | std::ios::binary);
+	std::ofstream heightFile(paths::blockHeight, std::ios::trunc | std::ios::binary);
 	readWholeFile(paths::blockHeight);
 	uint64_t height = 0;
 	takeBytesInto(height, readWholeFile(paths::blockHeight));
@@ -573,12 +571,16 @@ void subtractBlockHeight() {
 		throw std::runtime_error("Failed to open peers block height for writing");
 	}
 	heightFile.exceptions(std::ios::failbit | std::ios::badbit);
-	appendToFile(heightFile, height - 1);
+	if (!height - 1 > height) {
+		appendToFile(heightFile, height - 1);
+	}
+	else {
+		throw std::runtime_error("Block height is already 0");
+	}
 
 }
 
 uint64_t getBlockHeight() {
-	readWholeFile(paths::blockHeight);
 	uint64_t height = 0;
 	takeBytesInto(height, readWholeFile(paths::blockHeight));
 	return height;
