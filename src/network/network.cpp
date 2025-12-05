@@ -5,10 +5,8 @@
 #include "crypto_utils.h"
 #include "storage.h"
 #include <random>
-#include "network.h"
-#include ""
-
-#include "block_validation.h"
+#include "network/network.h"
+#include "block_verification/block_verification.h"
 
 // ============================================
 // Data Structures
