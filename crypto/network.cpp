@@ -6,6 +6,7 @@
 #include "storage.h"
 #include <random>
 #include "network.h"
+
 #include "block_validation.h"
 
 // ============================================
@@ -13,7 +14,7 @@
 // ============================================
 
 struct Handshake {
-    uint64_t protocolVersion;
+    uint64_t Version;
     Array256_t genesisBlockHash;
     uint64_t services;
     uint64_t nonce;
@@ -64,9 +65,9 @@ Handshake createHandshake() {
     };
 }
 
-std::vector<uint8_t> serialize(const Handshake& hs) {
+std::vector<uint8_t> serializeHandshake(const Handshake& hs) {
     std::vector<uint8_t> buffer;
-    appendBytes(buffer, hs.protocolVersion);
+    appendBytes(buffer, hs.Version);
     appendBytes(buffer, hs.genesisBlockHash);
     appendBytes(buffer, hs.services);
     appendBytes(buffer, hs.nonce);
@@ -74,10 +75,10 @@ std::vector<uint8_t> serialize(const Handshake& hs) {
     return buffer;
 }
 
-Handshake deserialize(const std::vector<uint8_t>& buffer) {
+Handshake formatHandshake(const std::vector<uint8_t>& buffer) {
     Handshake hs;
     size_t offset = 0;
-    takeBytesInto(hs.protocolVersion, buffer, offset);
+    takeBytesInto(hs.Version, buffer, offset);
     takeBytesInto(hs.genesisBlockHash, buffer, offset);
     takeBytesInto(hs.services, buffer, offset);
     takeBytesInto(hs.nonce, buffer, offset);
@@ -86,7 +87,7 @@ Handshake deserialize(const std::vector<uint8_t>& buffer) {
 }
 
 bool isValidHandshake(const Handshake& hs) {
-    return hs.protocolVersion == PROTOCOL_VERSION &&
+    return
         hs.genesisBlockHash == GENESIS_BLOCK_HASH &&
         hs.nonce != LOCAL_NONCE;
 }
@@ -115,13 +116,13 @@ asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket) {
         std::vector<uint8_t> buffer(sizeof(Handshake));
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
-        Handshake theirHandshake = deserialize(buffer);
+        Handshake theirHandshake = formatHandshake(buffer);
         if (!isValidHandshake(theirHandshake)) {
             co_return;
         }
 
         // Send our handshake
-        auto myHandshake = serialize(createHandshake());
+        auto myHandshake = serializeHandshake(createHandshake());
         co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
         // Read verack
@@ -149,14 +150,14 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket) {
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
         // Send our handshake
-        auto myHandshake = serialize(createHandshake());
+        auto myHandshake = serializeHandshake(createHandshake());
         co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
         // Read peer handshake
         std::vector<uint8_t> buffer(sizeof(Handshake));
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
-        Handshake theirHandshake = deserialize(buffer);
+        Handshake theirHandshake = formatHandshake(buffer);
         if (!isValidHandshake(theirHandshake)) {
             co_return;
         }

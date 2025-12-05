@@ -20,7 +20,8 @@ namespace paths {
 	const fs::path utxo = blockchain / "utxo";
 	const fs::path undo = blockchain / "undo";
 	const fs::path peers = blockchain / "peers" / "peers_list";
-	const fs::path blockHeight = blockchain / "block_height" / "height";
+	const fs::path blockHeight = blockchain / "blockchain_height" / "height";
+	const fs::path heightDb = blockchain / "block_heights" / "heights";
 }
 
 // ============================================================================
@@ -117,16 +118,25 @@ std::vector<uint8_t> readBlockFileHeader(const Array256_t& blockHash) {
 	return std::vector<uint8_t>(blockBytes.begin(), blockBytes.begin() + headerSize);
 }
 
+// ============================================================================
+// READ INFOMATION
+// ============================================================================
+
 bool blockExists(const Array256_t& blockHash) {
 	return fs::exists(getBlockFilePath(blockHash));
 }
 
-Block getBlock(Array256_t blockHash) {
+Block getBlockByHash(const Array256_t& blockHash) {
 	return formatBlock(readBlockFile(blockHash));
 }
 
-BlockHeader getBlockHeader(Array256_t blockHash) {
+BlockHeader getBlockHeaderByHash(const Array256_t& blockHash) {
 	return formatBlockHeader(readBlockFileHeader(blockHash));
+}
+
+BlockHeader getBlockHeaderByHeight(const uint64_t& height) {
+
+	return formatBlockHeader(readBlockFileHeader(height))
 }
 
 // ============================================================================
@@ -142,14 +152,14 @@ namespace {
 		return key;
 	}
 
-	std::string serializeUtxo(const TxOutput& utxo) {
+	std::string makeUtxoValue(const TxOutput& utxo) {
 		std::string value;
 		appendBytes(value, utxo.amount);
 		appendBytes(value, utxo.recipient);
 		return value;
 	}
 
-	TxOutput deserializeUtxo(const std::string& value) {
+	TxOutput formatUtxoValue(const std::string& value) {
 		TxOutput utxo;
 		size_t offset = 0;
 		std::span<const uint8_t> data(
@@ -165,7 +175,7 @@ namespace {
 
 void putUtxo(leveldb::DB& db, const TxInput& txInput, const TxOutput& utxo) {
 	std::string key = makeUtxoKey(txInput);
-	std::string value = serializeUtxo(utxo);
+	std::string value = makeUtxoValue(utxo);
 
 	leveldb::Status status = db.Put(
 		leveldb::WriteOptions(),
@@ -191,9 +201,7 @@ void deleteUtxo(leveldb::DB& db, const TxInput& txInput) {
 	}
 }
 
-
-
-TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput) {
+TxOutput getUtxo(leveldb::DB& db, const TxInput& txInput) {
 	std::string key = makeUtxoKey(txInput);
 	std::string value;
 
@@ -207,7 +215,7 @@ TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput) {
 		throw std::runtime_error("UTXO not found: " + status.ToString());
 	}
 
-	return deserializeUtxo(value);
+	return formatUtxoValue(value);
 }
 
 std::unique_ptr<leveldb::DB> openUtxoDb() {
@@ -271,7 +279,7 @@ namespace {
 				appendToFile(undoFile, input.UTXOOutputIndex);
 
 				// Retrieve and write UTXO value
-				TxOutput usedUtxo = getUtxoValue(utxoDb, input);
+				TxOutput usedUtxo = getUtxo(utxoDb, input);
 				appendToFile(undoFile, usedUtxo.amount);
 				appendToFile(undoFile, usedUtxo.recipient);
 			}
@@ -584,4 +592,115 @@ uint64_t getBlockHeight() {
 	uint64_t height = 0;
 	takeBytesInto(height, readWholeFile(paths::blockHeight));
 	return height;
+}
+
+// ============================================================================
+// KEY:HEIGHT VALUE:HASH
+// ============================================================================
+
+namespace {
+
+	std::string makeHeightKey(const uint64_t& height) {
+		std::string key;
+		appendBytes(key, height);
+		return key;
+	}
+
+	std::string makeHashValue(const Array256_t& hash) {
+		std::string value;
+		appendBytes(value, hash);
+		return value;
+	}
+
+	Array256_t formatHashValue(const std::string& value) {
+		Array256_t hash;
+		std::span<const uint8_t> data(
+			reinterpret_cast<const uint8_t*>(value.data()),
+			value.size()
+		);
+		takeBytesInto(hash, std::span<const uint8_t>(
+			reinterpret_cast<const uint8_t*>(value.data()),
+			value.size()
+		));
+		return hash;
+	}
+
+}
+
+void putHeightHash(leveldb::DB& db, const uint64_t& height, const Array256_t& hash) {
+	std::string key = makeHeightKey(height);
+	std::string value = makeHashValue(hash);
+
+	leveldb::Status status = db.Put(
+		leveldb::WriteOptions(),
+		leveldb::Slice(key),
+		leveldb::Slice(value)
+	);
+
+	if (!status.ok()) {
+		throw std::runtime_error("Failed to put height: " + status.ToString());
+	}
+}
+
+void deleteHeightHash(leveldb::DB& db, const uint64_t& height) {
+	std::string key = makeHeightKey(height);
+
+	leveldb::Status status = db.Delete(
+		leveldb::WriteOptions(),
+		leveldb::Slice(key)
+	);
+
+	if (!status.ok()) {
+		throw std::runtime_error("Failed to delete height: " + status.ToString());
+	}
+}
+
+TxOutput getHeightHash(leveldb::DB& db, const uint64_t& height) {
+	std::string key = makeHeightKey(height);
+	std::string value;
+
+	leveldb::Status status = db.Get(
+		leveldb::ReadOptions(),
+		leveldb::Slice(key),
+		&value
+	);
+
+	if (!status.ok()) {
+		throw std::runtime_error("UTXO not found: " + status.ToString());
+	}
+
+	return formatUtxoValue(value);
+}
+
+std::unique_ptr<leveldb::DB> openHeightHash() {
+	fs::create_directories(paths::heightDb);
+
+	leveldb::Options options;
+	options.create_if_missing = true;
+
+	leveldb::DB* raw = nullptr;
+	leveldb::Status status = leveldb::DB::Open(
+		options,
+		(paths::utxo / "leveldb").string(),
+		&raw
+	);
+
+	if (!status.ok() || !raw) {
+		throw std::runtime_error("Failed to open LevelDB: " + status.ToString());
+	}
+
+	return std::unique_ptr<leveldb::DB>(raw);
+}
+
+bool HeightHashInDb(leveldb::DB& db, const TxInput& txInput) {
+	std::string key = makeUtxoKey(txInput);
+	std::string value;
+
+	leveldb::Status status = db.Get(
+		leveldb::ReadOptions(),
+		leveldb::Slice(key),
+		&value
+	);
+
+	return status.ok();
 }

@@ -25,7 +25,7 @@ constexpr size_t calculateBlockHeaderSize() {
         + sizeof(decltype(BlockHeader::merkleRoot))    // merkleRoot
         + sizeof(decltype(BlockHeader::timestamp))      // timestamp
         + sizeof(decltype(BlockHeader::difficulty))    // difficulty
-        + sizeof(decltype(BlockHeader::nonce))   // nonce
+        + sizeof(decltype(BlockHeader::nonce));   // nonce
 }
 
 // Convert hex string to 32-byte array

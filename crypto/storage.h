@@ -20,11 +20,11 @@ bool blockExists(const Array256_t& blockHash);
 
 Block getBlock(Array256_t blockHash);
 
-BlockHeader getBlockHeader(Array256_t blockHash);
+BlockHeader getBlockHeaderByHash(Array256_t blockHash);
 
 // Utxo 
 
-TxOutput getUtxoValue(leveldb::DB& db, const TxInput& txInput);
+TxOutput getUtxo(leveldb::DB& db, const TxInput& txInput);
 
 std::unique_ptr<leveldb::DB> openUtxoDb();
 

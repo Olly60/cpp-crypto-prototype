@@ -59,7 +59,7 @@ bool verifyTxSignature(const Tx& tx)
         }
 
         // Get the UTXO (previous output)
-        TxOutput utxo = getUtxoValue(*utxoDb, in);
+        TxOutput utxo = getUtxo(*utxoDb, in);
 
         // Compute the sighash for this input
         Array256_t hash = computeTxInputHash(tx, i);
@@ -108,7 +108,7 @@ bool verifyTx(const Tx& tx) {
         }
 
         // Accumulate input amount
-        totalInputAmount += getUtxoValue(*utxoDb, input).amount;
+        totalInputAmount += getUtxo(*utxoDb, input).amount;
     }
 
     // Verify outputs
@@ -158,7 +158,7 @@ namespace {
         }
 
         // Get previous block header
-        BlockHeader prevHeader = getBlockHeader(header.prevBlockHash);
+        BlockHeader prevHeader = getBlockHeaderByHash(header.prevBlockHash);
 
         // Verify timestamp is not earlier than previous block
         if (header.timestamp <= prevHeader.timestamp) {
@@ -271,7 +271,7 @@ bool verifyBlock(const Block& block) {
             }
 
             // Accumulate input amount
-            inputAmount += getUtxoValue(*utxoDb, input).amount;
+            inputAmount += getUtxo(*utxoDb, input).amount;
         }
 
         // Calculate output amount
