@@ -1,0 +1,9 @@
+{
+    "name": "my-blockchain-project",
+    "version": "1.0.0",
+    "dependencies": [
+        "leveldb",
+        "openssl",
+        "spdlog"
+    ]
+}
