@@ -89,6 +89,7 @@ Handshake formatHandshake(const std::vector<uint8_t>& buffer) {
 
 bool isValidHandshake(const Handshake& hs) {
     return
+        hs.Version == PROTOCOL_VERSION &&
         hs.genesisBlockHash == GENESIS_BLOCK_HASH &&
         hs.nonce != LOCAL_NONCE;
 }

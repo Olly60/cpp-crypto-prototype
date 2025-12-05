@@ -1,9 +1,7 @@
 {
-    "name": "my-blockchain-project",
+    "name": "crupto",
     "version": "1.0.0",
     "dependencies": [
-        "leveldb",
-        "openssl",
-        "spdlog"
+        "leveldb"
     ]
 }
