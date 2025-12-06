@@ -9,17 +9,37 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Gather source files
+# Gather project source files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-# Include directories
+# Include project headers
 target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
-# Find LevelDB
-find_package(leveldb CONFIG REQUIRED)
+# ===============================
+# LevelDB
+# ===============================
+# Include LevelDB headers
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/external/leveldb/include)
 
-# Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE leveldb::leveldb)
+# Add LevelDB source files
+file(GLOB_RECURSE LEVELDB_SOURCES "external/leveldb/*.cc")
+target_sources(${PROJECT_NAME} PRIVATE ${LEVELDB_SOURCES})
+
+# Optional: platform-specific LevelDB definitions
+if(WIN32)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE -DLEVELDB_PLATFORM_WINDOWS)
+else()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE -DLEVELDB_PLATFORM_POSIX)
+endif()
+
+# ===============================
+# ASIO (header-only)
+# ===============================
+# Include ASIO headers
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/external/asio/include)
+
+# Define ASIO_STANDALONE to use standalone ASIO (no Boost)
+target_compile_definitions(${PROJECT_NAME} PRIVATE ASIO_STANDALONE)
