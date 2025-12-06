@@ -46,7 +46,7 @@ namespace {
 			throw std::runtime_error("Filesystem error for path '" + path.string() + "': " + e.what());
 		}
 	}
-
+	
 	template <typename T>
 	void appendToFile(std::ofstream& file, const T& obj) {
 		try {
