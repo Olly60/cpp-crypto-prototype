@@ -31,12 +31,14 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE ASIO_STANDALONE)
 # ===============================
 # LevelDB (official CMake build)
 # ===============================
+
 add_subdirectory(${PROJECT_SOURCE_DIR}/depends/leveldb)
 target_link_libraries(${PROJECT_NAME} PRIVATE leveldb)
 
 # ===============================
 # libsodium (official CMake build)
 # ===============================
+
 # Build libsodium as a separate library in a dedicated binary folder
 add_subdirectory(${PROJECT_SOURCE_DIR}/depends/libsodium ${CMAKE_BINARY_DIR}/libsodium_build)
 
