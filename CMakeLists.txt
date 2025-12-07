@@ -2,44 +2,75 @@ cmake_minimum_required(VERSION 3.20)
 
 project(crypto VERSION 1.0 LANGUAGES CXX)
 
-# Export compile commands for IntelliSense
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# C++20
+# ============================================
+# Global settings
+# ============================================
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Gather project source files
+# ============================================
+# Source files
+# ============================================
 file(GLOB_RECURSE SOURCES "src/*.cpp")
-
-# Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-# Include project headers
-target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(${PROJECT_NAME}
+        PRIVATE ${PROJECT_SOURCE_DIR}/include
+)
 
-# ===============================
-# LevelDB
-# ===============================
-# Include LevelDB headers
-target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/external/leveldb/include)
+# ============================================
+# ASIO (header-only)
+# ============================================
+target_include_directories(${PROJECT_NAME}
+        PRIVATE ${PROJECT_SOURCE_DIR}/depends/asio/include
+)
+target_compile_definitions(${PROJECT_NAME} PRIVATE ASIO_STANDALONE)
 
-# Add LevelDB source files
-file(GLOB_RECURSE LEVELDB_SOURCES "external/leveldb/*.cc")
+# ============================================
+# LevelDB (bundled source)
+# ============================================
+target_include_directories(${PROJECT_NAME}
+        PRIVATE ${PROJECT_SOURCE_DIR}/depends/leveldb/include
+)
+
+file(GLOB_RECURSE LEVELDB_SOURCES "depends/leveldb/*.cc")
 target_sources(${PROJECT_NAME} PRIVATE ${LEVELDB_SOURCES})
 
-# Optional: platform-specific LevelDB definitions
 if(WIN32)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE -DLEVELDB_PLATFORM_WINDOWS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LEVELDB_PLATFORM_WINDOWS)
 else()
-    target_compile_definitions(${PROJECT_NAME} PRIVATE -DLEVELDB_PLATFORM_POSIX)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LEVELDB_PLATFORM_POSIX)
 endif()
 
-# ===============================
-# ASIO (header-only)
-# ===============================
-# Include ASIO headers
-target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/external/asio/include)
+# ============================================
+# libsodium (manual, NO vcpkg)
+# ============================================
+# Expected structure:
+# depends/libsodium/include/  (headers)
+# depends/libsodium/lib/      (.lib or .a)
+# depends/libsodium/bin/      (.dll or .so) OPTIONAL
 
-# Define ASIO_STANDALONE to use standalone ASIO (no Boost)
-target_compile_definitions(${PROJECT_NAME} PRIVATE ASIO_STANDALONE)
+# Include path
+target_include_directories(${PROJECT_NAME}
+        PRIVATE ${PROJECT_SOURCE_DIR}/depends/libsodium/include
+)
+
+# Library path
+if(WIN32)
+    # On Windows, you link the .lib file
+    target_link_directories(${PROJECT_NAME}
+            PRIVATE ${PROJECT_SOURCE_DIR}/depends/libsodium/lib
+    )
+    target_link_libraries(${PROJECT_NAME}
+            PRIVATE libsodium
+    )
+else()
+    # Linux / macOS (.a or .so)
+    target_link_directories(${PROJECT_NAME}
+            PRIVATE ${PROJECT_SOURCE_DIR}/depends/libsodium/lib
+    )
+    target_link_libraries(${PROJECT_NAME}
+            PRIVATE sodium
+    )
+endif()
