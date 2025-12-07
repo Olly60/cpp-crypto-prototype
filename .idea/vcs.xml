@@ -4,6 +4,7 @@
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/external/asio" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/external/leveldb" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/external/libsodium" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/external/leveldb/third_party/benchmark" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/external/leveldb/third_party/googletest" vcs="Git" />
   </component>
 </project>
