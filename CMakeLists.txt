@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.20)
 
 project(crypto VERSION 1.0 LANGUAGES CXX)
 
-# Export compile commands for IntelliSense
+# Export compile commands for IDEs
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Set C++ standard
+# Use C++20
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # ===============================
 file(GLOB_RECURSE SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
-# Create executable
+# Create the main executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # ===============================
@@ -37,6 +37,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE leveldb)
 # ===============================
 # libsodium (official CMake build)
 # ===============================
+# Build libsodium as a separate library in a dedicated binary folder
 add_subdirectory(${PROJECT_SOURCE_DIR}/depends/libsodium ${CMAKE_BINARY_DIR}/libsodium_build)
+
+# Only add include path if the target does not propagate it automatically
 target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/depends/libsodium/include)
 target_link_libraries(${PROJECT_NAME} PRIVATE sodium)
