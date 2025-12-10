@@ -1,9 +1,0 @@
-[submodule "depends/leveldb"]
-	path = depends/leveldb
-	url = https://github.com/google/leveldb
-[submodule "depends/libsodium"]
-	path = depends/libsodium
-	url = https://github.com/jedisct1/libsodium
-[submodule "depends/asio"]
-	path = depends/asio
-	url = https://github.com/chriskohlhoff/asio
