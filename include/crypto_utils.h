@@ -1,8 +1,10 @@
 #pragma once
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <span>
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 #include <type_traits>
@@ -14,6 +16,46 @@
 using Array256_t = std::array<uint8_t, 32>;
 
 using Signature64 = std::array<uint8_t, 64>;
+
+// ============================================================================
+// DATA STRUCTURES
+// ============================================================================
+
+struct TxOutput {
+    uint64_t amount = 0;
+    Array256_t recipient{};
+};
+
+struct TxInput {
+    Array256_t UTXOTxHash{};      // Hash of transaction containing the UTXO
+    uint64_t UTXOOutputIndex = 0; // Index of output in that transaction
+    Signature64 signature{};        // Signature proving ownership
+};
+
+struct Tx {
+    uint64_t version = 1;
+    std::vector<TxInput> txInputs;
+    std::vector<TxOutput> txOutputs;
+};
+
+struct BlockHeader {
+    uint64_t version = 1;
+    Array256_t prevBlockHash{};
+    Array256_t merkleRoot{};
+    uint64_t timestamp = 0;
+    Array256_t difficulty{};
+    Array256_t nonce{};
+
+    BlockHeader() {
+        prevBlockHash.fill(0xFF);
+        difficulty.fill(0xFF);
+    }
+};
+
+struct Block {
+    BlockHeader header;
+    std::vector<Tx> txs;
+};
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -131,61 +173,6 @@ void appendBytes(ContainerOut& out, const T& data) {
         static_assert(always_false<T>, "Type not supported in appendBytes");
     }
 }
-
-// ============================================================================
-// DATA STRUCTURES
-// ============================================================================
-
-/**
- * Transaction output (potential UTXO)
- */
-struct TxOutput {
-    uint64_t amount = 0;
-    Array256_t recipient{};
-};
-
-/**
- * Transaction input (spends a UTXO)
- */
-struct TxInput {
-    Array256_t UTXOTxHash{};      // Hash of transaction containing the UTXO
-    uint64_t UTXOOutputIndex = 0; // Index of output in that transaction
-    Signature64 signature{};        // Signature proving ownership
-};
-
-/**
- * Transaction
- */
-struct Tx {
-    uint64_t version = 1;
-    std::vector<TxInput> txInputs;
-    std::vector<TxOutput> txOutputs;
-};
-
-/**
- * Block header
- */
-struct BlockHeader {
-    uint64_t version = 1;
-    Array256_t prevBlockHash{};
-    Array256_t merkleRoot{};
-    uint64_t timestamp = 0;
-    Array256_t difficulty{};
-    Array256_t nonce{};
-
-    BlockHeader() {
-        prevBlockHash.fill(0xFF);
-        difficulty.fill(0xFF);
-    }
-};
-
-/**
- * Block (header + transactions)
- */
-struct Block {
-    BlockHeader header;
-    std::vector<Tx> txs;
-};
 
 // ============================================================================
 // SERIALIZATION FUNCTIONS
