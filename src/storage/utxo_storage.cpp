@@ -2,23 +2,26 @@
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 
-namespace {
-
-    std::string makeUtxoKey(const TxInput& txInput) {
+namespace
+{
+    std::string makeUtxoKey(const TxInput& txInput)
+    {
         std::string key;
         appendBytes(key, txInput.UTXOTxHash);
         appendBytes(key, txInput.UTXOOutputIndex);
         return key;
     }
 
-    std::string makeUtxoValue(const TxOutput& utxo) {
+    std::string makeUtxoValue(const TxOutput& utxo)
+    {
         std::string value;
         appendBytes(value, utxo.amount);
         appendBytes(value, utxo.recipient);
         return value;
     }
 
-    TxOutput formatUtxoValue(const std::string& value) {
+    TxOutput formatUtxoValue(const std::string& value)
+    {
         TxOutput utxo;
         size_t offset = 0;
         std::span<const uint8_t> data(
@@ -29,7 +32,6 @@ namespace {
         takeBytesInto(utxo.recipient, data, offset);
         return utxo;
     }
-
 } // namespace
 
 
@@ -37,7 +39,8 @@ namespace {
 // RocksDB UTXO operations
 // ============================================================================
 
-void putUtxo(rocksdb::DB& db, const TxInput& txInput, const TxOutput& utxo) {
+void putUtxo(rocksdb::DB& db, const TxInput& txInput, const TxOutput& utxo)
+{
     std::string key = makeUtxoKey(txInput);
     std::string value = makeUtxoValue(utxo);
 
@@ -47,12 +50,14 @@ void putUtxo(rocksdb::DB& db, const TxInput& txInput, const TxOutput& utxo) {
         rocksdb::Slice(value)
     );
 
-    if (!status.ok()) {
+    if (!status.ok())
+    {
         throw std::runtime_error("Failed to put UTXO: " + status.ToString());
     }
 }
 
-void deleteUtxo(rocksdb::DB& db, const TxInput& txInput) {
+void deleteUtxo(rocksdb::DB& db, const TxInput& txInput)
+{
     std::string key = makeUtxoKey(txInput);
 
     rocksdb::Status status = db.Delete(
@@ -60,12 +65,14 @@ void deleteUtxo(rocksdb::DB& db, const TxInput& txInput) {
         rocksdb::Slice(key)
     );
 
-    if (!status.ok()) {
+    if (!status.ok())
+    {
         throw std::runtime_error("Failed to delete UTXO: " + status.ToString());
     }
 }
 
-TxOutput getUtxo(rocksdb::DB& db, const TxInput& txInput) {
+TxOutput getUtxo(rocksdb::DB& db, const TxInput& txInput)
+{
     std::string key = makeUtxoKey(txInput);
     std::string value;
 
@@ -75,14 +82,16 @@ TxOutput getUtxo(rocksdb::DB& db, const TxInput& txInput) {
         &value
     );
 
-    if (!status.ok()) {
+    if (!status.ok())
+    {
         throw std::runtime_error("UTXO not found: " + status.ToString());
     }
 
     return formatUtxoValue(value);
 }
 
-std::unique_ptr<rocksdb::DB> openUtxoDb() {
+std::unique_ptr<rocksdb::DB> openUtxoDb()
+{
     fs::create_directories(paths::utxo);
 
     rocksdb::Options options;
@@ -95,14 +104,16 @@ std::unique_ptr<rocksdb::DB> openUtxoDb() {
         &raw
     );
 
-    if (!status.ok() || !raw) {
+    if (!status.ok() || !raw)
+    {
         throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
     }
 
     return std::unique_ptr<rocksdb::DB>(raw);
 }
 
-bool utxoInDb(rocksdb::DB& db, const TxInput& txInput) {
+bool utxoInDb(rocksdb::DB& db, const TxInput& txInput)
+{
     std::string key = makeUtxoKey(txInput);
     std::string value;
 

@@ -6,4 +6,4 @@ bool verifyBlockHash(const Block& block, const Array256_t& expectedHash);
 
 bool verifyTx(const Tx& tx);
 
-bool verifyBlock(const Block &block);
+bool verifyBlock(const Block& block);

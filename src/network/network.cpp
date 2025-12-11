@@ -12,7 +12,8 @@
 // Data Structures
 // ============================================
 
-struct Handshake {
+struct Handshake
+{
     uint64_t Version;
     Array256_t genesisBlockHash;
     uint64_t services;
@@ -20,7 +21,8 @@ struct Handshake {
     Array256_t blockchainTip;
 };
 
-enum class ProtocolMessage : uint8_t {
+enum class ProtocolMessage : uint8_t
+{
     Handshake = 1,
     Ping = 2,
     GetHeader = 3,
@@ -41,7 +43,8 @@ constexpr uint64_t SERVICE_FULL_NODE = 0b1;
 constexpr uint64_t PROTOCOL_VERSION = 1;
 const Array256_t GENESIS_BLOCK_HASH = getGenesisBlockHash();
 
-uint64_t generateLocalNonce() {
+uint64_t generateLocalNonce()
+{
     std::random_device rd;
     std::mt19937_64 gen(rd());
     std::uniform_int_distribution<uint64_t> dist(0, UINT64_MAX);
@@ -54,7 +57,8 @@ const uint64_t LOCAL_NONCE = generateLocalNonce();
 // Serialization Helpers
 // ============================================
 
-Handshake createHandshake() {
+Handshake createHandshake()
+{
     return {
         PROTOCOL_VERSION,
         GENESIS_BLOCK_HASH,
@@ -64,7 +68,8 @@ Handshake createHandshake() {
     };
 }
 
-std::vector<uint8_t> serializeHandshake(const Handshake& hs) {
+std::vector<uint8_t> serializeHandshake(const Handshake& hs)
+{
     std::vector<uint8_t> buffer;
     appendBytes(buffer, hs.Version);
     appendBytes(buffer, hs.genesisBlockHash);
@@ -74,7 +79,8 @@ std::vector<uint8_t> serializeHandshake(const Handshake& hs) {
     return buffer;
 }
 
-Handshake formatHandshake(const std::vector<uint8_t>& buffer) {
+Handshake formatHandshake(const std::vector<uint8_t>& buffer)
+{
     Handshake hs;
     size_t offset = 0;
     takeBytesInto(hs.Version, buffer, offset);
@@ -85,14 +91,16 @@ Handshake formatHandshake(const std::vector<uint8_t>& buffer) {
     return hs;
 }
 
-bool isValidHandshake(const Handshake& hs) {
+bool isValidHandshake(const Handshake& hs)
+{
     return
         hs.Version == PROTOCOL_VERSION &&
         hs.genesisBlockHash == GENESIS_BLOCK_HASH &&
         hs.nonce != LOCAL_NONCE;
 }
 
-void addPeer(asio::ip::tcp::socket& socket, const Handshake& hs) {
+void addPeer(asio::ip::tcp::socket& socket, const Handshake& hs)
+{
     PeerAddress addr{
         socket.remote_endpoint().address().to_string(),
         socket.remote_endpoint().port()
@@ -110,14 +118,17 @@ void addPeer(asio::ip::tcp::socket& socket, const Handshake& hs) {
 // Coroutine-based Protocol (C++20)
 // ============================================
 
-asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket)
+{
+    try
+    {
         // Read peer handshake
         std::vector<uint8_t> buffer(sizeof(Handshake));
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
         Handshake theirHandshake = formatHandshake(buffer);
-        if (!isValidHandshake(theirHandshake)) {
+        if (!isValidHandshake(theirHandshake))
+        {
             co_return;
         }
 
@@ -128,7 +139,8 @@ asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket) {
         // Read verack
         uint8_t theirVerack;
         co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
-        if (theirVerack != 0x01) {
+        if (theirVerack != 0x01)
+        {
             co_return;
         }
 
@@ -138,13 +150,16 @@ asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket) {
 
         addPeer(socket, theirHandshake);
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Connection failed
     }
 }
 
-asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
+{
+    try
+    {
         // Send message type
         uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::Handshake);
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -158,7 +173,8 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket) {
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
         Handshake theirHandshake = formatHandshake(buffer);
-        if (!isValidHandshake(theirHandshake)) {
+        if (!isValidHandshake(theirHandshake))
+        {
             co_return;
         }
 
@@ -169,28 +185,34 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket) {
         // Read verack
         uint8_t theirVerack;
         co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
-        if (theirVerack != 0x01) {
+        if (theirVerack != 0x01)
+        {
             co_return;
         }
 
         addPeer(socket, theirHandshake);
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Connection failed
     }
 }
 
-asio::awaitable<void> handlePing(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
+{
+    try
+    {
         uint8_t pong = 0x01;
         co_await asio::async_write(socket, asio::buffer(&pong, 1), asio::use_awaitable);
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Failed to respond
     }
 }
 
-asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, const Array256_t& blockHash) {
+asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
+{
     // Send request
     uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetHeader);
     co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -209,7 +231,8 @@ asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, c
     co_return formatBlockHeader(headerBytes);
 }
 
-asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash) {
+asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
+{
     // Send request
     uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
     co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -228,8 +251,10 @@ asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array25
     co_return formatBlock(blockBytes);
 }
 
-asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
+{
+    try
+    {
         // Read block hash
         Array256_t blockHash;
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
@@ -248,13 +273,16 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket) {
         // Send header
         co_await asio::async_write(socket, asio::buffer(headerBytes), asio::use_awaitable);
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Failed to send header
     }
 }
 
-asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket)
+{
+    try
+    {
         // Read block hash
         Array256_t blockHash;
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
@@ -271,13 +299,16 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket) {
         // Send block
         co_await asio::async_write(socket, asio::buffer(blockData), asio::use_awaitable);
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Failed to send block
     }
 }
 
-asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
+{
+    try
+    {
         // Read size
         uint64_t blockSize;
         std::array<uint8_t, 8> sizeBuf;
@@ -289,21 +320,26 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket) {
         co_await asio::async_read(socket, asio::buffer(blockData), asio::use_awaitable);
 
         Block newBlock = formatBlock(blockData);
-        if (verifyBlock(newBlock)) {
+        if (verifyBlock(newBlock))
+        {
             addBlock(newBlock);
             // Note: broadcastBlockToPeers would need to be implemented
         }
-        else if (!blockExists(getBlockHash(newBlock))) {
+        else if (!blockExists(getBlockHash(newBlock)))
+        {
             throw std::runtime_error("Invalid block");
         }
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Failed to process block
     }
 }
 
-asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket)
+{
+    try
+    {
         // Read size
         uint64_t txSize;
         std::array<uint8_t, 8> sizeBuf;
@@ -315,21 +351,26 @@ asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket) {
         co_await asio::async_read(socket, asio::buffer(txData), asio::use_awaitable);
 
         Tx newTx = formatTx(txData);
-        if (verifyTx(newTx)) {
+        if (verifyTx(newTx))
+        {
             mempool.push_back(newTx);
             // Note: broadcastTransaction would need to be implemented
         }
-        else {
+        else
+        {
             throw std::runtime_error("Invalid transaction");
         }
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Failed to process transaction
     }
 }
 
-asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket) {
-    try {
+asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
+{
+    try
+    {
         PeerAddress peerAddr{
             socket.remote_endpoint().address().to_string(),
             socket.remote_endpoint().port()
@@ -340,13 +381,15 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket) {
         co_await asio::async_read(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
         // Handle handshake
-        if (msgType == 1) {
+        if (msgType == 1)
+        {
             co_await handleHandshakeResponder(std::move(socket));
             co_return;
         }
 
         // Check if peer is authenticated
-        if (peers.find(peerAddr) == peers.end()) {
+        if (peers.find(peerAddr) == peers.end())
+        {
             co_return; // Unauthenticated peer
         }
 
@@ -354,7 +397,8 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket) {
         peers[peerAddr].lastSeen = getCurrentTimestamp();
 
         // Route message
-        switch (static_cast<ProtocolMessage>(msgType)) {
+        switch (static_cast<ProtocolMessage>(msgType))
+        {
         case ProtocolMessage::Ping:
             co_await handlePing(std::move(socket));
             break;
@@ -374,17 +418,20 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket) {
             break; // Unknown message
         }
     }
-    catch (const std::exception& e) {
+    catch (const std::exception& e)
+    {
         // Connection error
     }
 }
 
-asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor) {
-    while (true) {
+asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
+{
+    while (true)
+    {
         auto socket = co_await acceptor.async_accept(asio::use_awaitable);
         co_spawn(acceptor.get_executor(),
-            handleConnection(std::move(socket)),
-            asio::detached);
+                 handleConnection(std::move(socket)),
+                 asio::detached);
     }
 }
 
@@ -392,17 +439,19 @@ asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor) {
 // Main
 // ============================================
 
-int main() {
-    try {
+int main()
+{
+    try
+    {
         asio::io_context ioContext;
         asio::ip::tcp::acceptor acceptor(ioContext,
-            asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
+                                         asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
 
         co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
 
         ioContext.run();
     }
-    catch (const std::exception& e) {
-        
+    catch (const std::exception& e)
+    {
     }
 }

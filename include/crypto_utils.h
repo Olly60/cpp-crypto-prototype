@@ -21,24 +21,28 @@ using Signature64 = std::array<uint8_t, 64>;
 // DATA STRUCTURES
 // ============================================================================
 
-struct TxOutput {
+struct TxOutput
+{
     uint64_t amount = 0;
     Array256_t recipient{};
 };
 
-struct TxInput {
-    Array256_t UTXOTxHash{};      // Hash of transaction containing the UTXO
+struct TxInput
+{
+    Array256_t UTXOTxHash{}; // Hash of transaction containing the UTXO
     uint64_t UTXOOutputIndex = 0; // Index of output in that transaction
-    Signature64 signature{};        // Signature proving ownership
+    Signature64 signature{}; // Signature proving ownership
 };
 
-struct Tx {
+struct Tx
+{
     uint64_t version = 1;
     std::vector<TxInput> txInputs;
     std::vector<TxOutput> txOutputs;
 };
 
-struct BlockHeader {
+struct BlockHeader
+{
     uint64_t version = 1;
     Array256_t prevBlockHash{};
     Array256_t merkleRoot{};
@@ -46,13 +50,15 @@ struct BlockHeader {
     Array256_t difficulty{};
     Array256_t nonce{};
 
-    BlockHeader() {
+    BlockHeader()
+    {
         prevBlockHash.fill(0xFF);
         difficulty.fill(0xFF);
     }
 };
 
-struct Block {
+struct Block
+{
     BlockHeader header;
     std::vector<Tx> txs;
 };
@@ -61,13 +67,14 @@ struct Block {
 // UTILITY FUNCTIONS
 // ============================================================================
 
-constexpr size_t calculateBlockHeaderSize() {
-    return sizeof(decltype(BlockHeader::version))      // version
-        + sizeof(decltype(BlockHeader::prevBlockHash))    // prevBlockHash
-        + sizeof(decltype(BlockHeader::merkleRoot))    // merkleRoot
-        + sizeof(decltype(BlockHeader::timestamp))      // timestamp
-        + sizeof(decltype(BlockHeader::difficulty))    // difficulty
-        + sizeof(decltype(BlockHeader::nonce));   // nonce
+constexpr size_t calculateBlockHeaderSize()
+{
+    return sizeof(decltype(BlockHeader::version)) // version
+        + sizeof(decltype(BlockHeader::prevBlockHash)) // prevBlockHash
+        + sizeof(decltype(BlockHeader::merkleRoot)) // merkleRoot
+        + sizeof(decltype(BlockHeader::timestamp)) // timestamp
+        + sizeof(decltype(BlockHeader::difficulty)) // difficulty
+        + sizeof(decltype(BlockHeader::nonce)); // nonce
 }
 
 // Convert hex string to 32-byte array
@@ -86,7 +93,8 @@ uint64_t getCurrentTimestamp();
 // ============================================================================
 
 // Detect endianness at compile time
-constexpr bool isLittleEndian() {
+constexpr bool isLittleEndian()
+{
     // Use std::endian in C++20 if available
 #if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
     return __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__;
@@ -102,7 +110,7 @@ constexpr bool isLittleEndian() {
 // ============================================================================
 
 // Helper for static_assert with dependent types
-template<typename T>
+template <typename T>
 inline constexpr bool always_false = false;
 
 /**
@@ -113,8 +121,10 @@ inline constexpr bool always_false = false;
  * @throws std::runtime_error if not enough bytes available
  */
 template <typename T>
-void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset) {
-    if (offset + sizeof(T) > data.size()) {
+void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset)
+{
+    if (offset + sizeof(T) > data.size())
+    {
         throw std::runtime_error("takeBytesInto: not enough bytes");
     }
 
@@ -122,8 +132,10 @@ void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset) {
     std::memcpy(temp.data(), data.data() + offset, sizeof(T));
 
     // Convert from little-endian if needed (for integral types)
-    if constexpr (std::is_integral_v<T>) {
-        if constexpr (!isLittleEndian()) {
+    if constexpr (std::is_integral_v<T>)
+    {
+        if constexpr (!isLittleEndian())
+        {
             std::reverse(temp.begin(), temp.end());
         }
     }
@@ -138,7 +150,8 @@ void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset) {
  * @param data Input byte span
  */
 template <typename T>
-void takeBytesInto(T& out, std::span<const uint8_t> data) {
+void takeBytesInto(T& out, std::span<const uint8_t> data)
+{
     size_t offset = 0;
     takeBytesInto(out, data, offset);
 }
@@ -151,24 +164,29 @@ void takeBytesInto(T& out, std::span<const uint8_t> data) {
  * @param data Data to serialize
  */
 template <typename ContainerOut, typename T>
-void appendBytes(ContainerOut& out, const T& data) {
-    if constexpr (std::is_integral_v<T>) {
+void appendBytes(ContainerOut& out, const T& data)
+{
+    if constexpr (std::is_integral_v<T>)
+    {
         // Integral type: little-endian serialization
         std::array<uint8_t, sizeof(T)> temp{};
         std::memcpy(temp.data(), &data, sizeof(T));
 
-        if constexpr (!isLittleEndian()) {
+        if constexpr (!isLittleEndian())
+        {
             std::reverse(temp.begin(), temp.end());
         }
 
         out.insert(out.end(), temp.begin(), temp.end());
     }
-    else if constexpr (requires { std::data(data); std::size(data); }) {
+    else if constexpr (requires { std::data(data); std::size(data); })
+    {
         // Container type: write raw bytes
         const auto* ptr = reinterpret_cast<const uint8_t*>(std::data(data));
         out.insert(out.end(), ptr, ptr + std::size(data));
     }
-    else {
+    else
+    {
         static_assert(always_false<T>, "Type not supported in appendBytes");
     }
 }
@@ -213,7 +231,6 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs);
 // ============================================================================
 // SIGNING
 // ============================================================================
-
 
 Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex);
 

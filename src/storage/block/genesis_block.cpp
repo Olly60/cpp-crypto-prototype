@@ -1,13 +1,14 @@
-Block getGenesisBlock() {
+Block getGenesisBlock()
+{
     // Genesis transaction
     TxOutput genesisOutput{
-        0,         // amount
-        {}          // recipient (empty for genesis)
+        0, // amount
+        {} // recipient (empty for genesis)
     };
 
     Tx genesisTx{
-        1,          // version
-        {},         // no inputs
+        1, // version
+        {}, // no inputs
         {genesisOutput}
     };
 
@@ -23,6 +24,7 @@ Block getGenesisBlock() {
     return genesisBlock;
 }
 
-Array256_t getGenesisBlockHash() {
+Array256_t getGenesisBlockHash()
+{
     return getBlockHash(getGenesisBlock());
 }
