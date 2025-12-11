@@ -3,7 +3,7 @@
   "version-string": "1.0",
   "description": "A C++ cryptocurrency implementation using LevelDB, Libsodium, and Asio.",
   "dependencies": [
-    "leveldb",
+    "rocksdb",
     "libsodium",
     "asio"
   ]
