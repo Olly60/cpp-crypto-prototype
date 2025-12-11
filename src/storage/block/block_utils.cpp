@@ -1,5 +1,6 @@
 #include "storage/block/block_utils.h"
-#include ""
+#include "storage/file_utils"
+
 void addBlock(const Block& block)
 {
     const Array256_t blockHash = getBlockHash(block);

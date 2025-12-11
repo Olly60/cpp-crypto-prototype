@@ -7,25 +7,6 @@
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
-
-std::vector<uint8_t> addUintArrayLe(std::span<const uint8_t> a, std::span<const uint8_t> b) {
-
-	// Ensure a is the longer one
-	if (b.size() > a.size())
-		std::swap(a, b);
-
-	std::vector<uint8_t> result(a.size());
-
-	// Add two arrays
-	for (size_t i = 0; i < a.size() - 1; i++) {
-		uint16_t sum = static_cast<uint16_t>(a[a.size() - 1 - i]) + (i > b.size() - 1) ? static_cast<uint16_t>(b[b.size() - 1 - i]) : 0;
-		result[i] =+ static_cast<uint8_t>(sum & 0xFF);
-		if (i < a.size()) result[i - 1] =+ static_cast<uint8_t>(sum);
-	}
-	
-	return result;
-}
-
 namespace {
 	// Helper: convert hex character to nibble
 	constexpr uint8_t hexCharToNibble(char c) {
@@ -43,8 +24,8 @@ Array256_t hexToBytes(const std::string& hex) {
 
 	Array256_t out{};
 	for (size_t i = 0; i < out.size(); i++) {
-		uint8_t high = hexCharToNibble(hex[i * 2]);
-		uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
+		const uint8_t high = hexCharToNibble(hex[i * 2]);
+		const uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
 		out[i] = (high << 4) | low;
 	}
 
@@ -56,7 +37,7 @@ std::string bytesToHex(const Array256_t& bytes) {
 	std::string out;
 	out.reserve(bytes.size() * 2);
 
-	for (uint8_t byte : bytes) {
+	for (const uint8_t byte : bytes) {
 		out.push_back(hexChars[byte >> 4]);
 		out.push_back(hexChars[byte & 0x0F]);
 	}

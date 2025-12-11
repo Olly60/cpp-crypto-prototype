@@ -5,8 +5,7 @@ project(crypto VERSION 1.0 LANGUAGES CXX)
 file(GLOB_RECURSE SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 
 # Create executable
-add_executable(${PROJECT_NAME} ${SOURCES}
-        src/storage/file_utils.cpp)
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 # Include headers
 target_include_directories(${PROJECT_NAME} PRIVATE

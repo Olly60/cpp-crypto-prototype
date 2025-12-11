@@ -81,7 +81,6 @@ Array256_t sha256Of(std::span<const uint8_t> data);
 
 // Get current UNIX timestamp in seconds
 uint64_t getCurrentTimestamp();
-
 // ============================================================================
 // ENDIANNESS DETECTION
 // ============================================================================

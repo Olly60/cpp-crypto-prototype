@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include "crypto_utils.h"
+#include "storage/file_utils.h"
 namespace fs = std::filesystem;
 
 // ============================================================================
@@ -45,7 +46,8 @@ namespace paths {
 		try {
 			std::vector<uint8_t> buffer;
 			appendBytes(buffer, obj);
-			file.write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+			file.write(reinterpret_cast<const char*>(buffer.data()),
+		   static_cast<std::streamsize>(buffer.size()));
 		}
 		catch (const std::ios_base::failure& e) {
 			throw std::runtime_error("Failed to append to file: " + std::string(e.what()));
