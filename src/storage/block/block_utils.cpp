@@ -3,6 +3,7 @@
 #include "crypto_utils.h"
 #include <filesystem>
 #include <fstream>
+#include <rocksdb/db.h>
 
 void addBlock(const Block& block)
 {
@@ -62,7 +63,7 @@ namespace
 
     void writeUndoFile(const fs::path& undoFilePath,
                        const Block& block,
-                       leveldb::DB& utxoDb)
+                       rocksdb::DB& utxoDb)
     {
         auto undoFile = openFileForAppend(undoFilePath);
 
@@ -88,7 +89,7 @@ namespace
         }
     }
 
-    void restoreFromUndoFile(const fs::path& undoFilePath, leveldb::DB& utxoDb)
+    void restoreFromUndoFile(const fs::path& undoFilePath, rocksdb::DB& utxoDb)
     {
         auto undoDataBytes = readWholeFile(undoFilePath);
         size_t offset = 0;
