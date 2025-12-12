@@ -1,6 +1,7 @@
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
+#include "storage/file_utils.h"
 
 namespace
 {
@@ -98,7 +99,7 @@ std::unique_ptr<rocksdb::DB> openUtxoDb()
     options.create_if_missing = true;
 
     rocksdb::DB* raw = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(
+    const rocksdb::Status status = rocksdb::DB::Open(
         options,
         (paths::utxo / "rocksdb").string(),
         &raw

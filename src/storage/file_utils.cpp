@@ -1,22 +1,6 @@
 #include "storage/file_utils.h"
 
 // ============================================================================
-// FILE PATHS
-// ============================================================================
-
-namespace paths
-{
-    const fs::path blockchain = "blockchain";
-    const fs::path blockchainTip = blockchain / "blockchain_tip" / "blockchain_tip";
-    const fs::path blocks = blockchain / "blocks";
-    const fs::path utxo = blockchain / "utxo";
-    const fs::path undo = blockchain / "undo";
-    const fs::path peers = blockchain / "peers" / "peers_list";
-    const fs::path blockHeight = blockchain / "blockchain_height" / "height";
-    const fs::path heightDb = blockchain / "block_heights" / "heights";
-}
-
-// ============================================================================
 // FILE I/O UTILITIES
 // ============================================================================
 

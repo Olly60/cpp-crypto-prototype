@@ -1,6 +1,5 @@
-// ============================================================================
-// PEER STORAGE MANAGEMENT
-// ============================================================================
+#include "storage/peers.h"
+#include "storage/file_utils.h"
 
 void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash>& peers)
 {

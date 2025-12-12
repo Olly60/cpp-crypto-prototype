@@ -5,6 +5,20 @@
 
 namespace fs = std::filesystem;
 
+// ============================================================================
+// FILE PATHS
+// ============================================================================
+
+namespace paths
+{
+    const fs::path blockchain = "blockchain";
+    const fs::path blockchainTip = blockchain / "blockchain_tip" ;
+    const fs::path blocks = blockchain / "blocks";
+    const fs::path utxo = blockchain / "utxo";
+    const fs::path undo = blockchain / "undo";
+    const fs::path peers = blockchain / "peers";
+}
+
 std::vector<uint8_t> readWholeFile(const fs::path& filePath);
 
 std::ofstream openFileForAppend(const fs::path& path);

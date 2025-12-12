@@ -3,10 +3,12 @@
 #include <asio/co_spawn.hpp>
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
-#include "storage.h"
 #include <random>
 #include "network/network.h"
+#include "storage/peers.h"
+#include "block_verification.h"
 #include "block_verification/block_verification.h"
+#include "storage/block/block_utils.h"
 
 // ============================================
 // Data Structures
@@ -79,9 +81,9 @@ std::vector<uint8_t> serializeHandshake(const Handshake& hs)
     return buffer;
 }
 
-Handshake formatHandshake(const std::vector<uint8_t>& buffer)
+Handshake parseHandshake(const std::vector<uint8_t>& buffer)
 {
-    Handshake hs;
+    Handshake hs{};
     size_t offset = 0;
     takeBytesInto(hs.Version, buffer, offset);
     takeBytesInto(hs.genesisBlockHash, buffer, offset);
@@ -99,14 +101,14 @@ bool isValidHandshake(const Handshake& hs)
         hs.nonce != LOCAL_NONCE;
 }
 
-void addPeer(asio::ip::tcp::socket& socket, const Handshake& hs)
+void addPeer(const asio::ip::tcp::socket& socket, const Handshake& hs)
 {
-    PeerAddress addr{
+    const PeerAddress addr{
         socket.remote_endpoint().address().to_string(),
         socket.remote_endpoint().port()
     };
 
-    PeerStatus status{
+    const PeerStatus status{
         hs.services,
         getCurrentTimestamp()
     };
@@ -126,7 +128,7 @@ asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket)
         std::vector<uint8_t> buffer(sizeof(Handshake));
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
-        Handshake theirHandshake = formatHandshake(buffer);
+        const Handshake theirHandshake = parseHandshake(buffer);
         if (!isValidHandshake(theirHandshake))
         {
             co_return;
@@ -161,7 +163,7 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
     try
     {
         // Send message type
-        uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::Handshake);
+        auto msgType = static_cast<uint8_t>(ProtocolMessage::Handshake);
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
         // Send our handshake
@@ -172,7 +174,7 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
         std::vector<uint8_t> buffer(sizeof(Handshake));
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
-        Handshake theirHandshake = formatHandshake(buffer);
+        Handshake theirHandshake = parseHandshake(buffer);
         if (!isValidHandshake(theirHandshake))
         {
             co_return;
@@ -214,13 +216,13 @@ asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
 asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
 {
     // Send request
-    uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetHeader);
+    auto msgType = static_cast<uint8_t>(ProtocolMessage::GetHeader);
     co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
     co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
 
     // Read size
     uint64_t headerSize;
-    std::array<uint8_t, 8> sizeBuf;
+    std::array<uint8_t, 8> sizeBuf{};
     co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
     takeBytesInto(headerSize, sizeBuf);
 
@@ -234,13 +236,13 @@ asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, c
 asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
 {
     // Send request
-    uint8_t msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
+    auto msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
     co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
     co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
 
     // Read size
     uint64_t blockSize;
-    std::array<uint8_t, 8> sizeBuf;
+    std::array<uint8_t, 8> sizeBuf{};
     co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
     takeBytesInto(blockSize, sizeBuf);
 
@@ -261,7 +263,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
 
         // Get header from storage
         auto headerData = readBlockFileHeader(blockHash);
-        auto blockHeader = formatBlockHeader(headerData);
+        const auto blockHeader = formatBlockHeader(headerData);
         auto headerBytes = serialiseBlockHeader(blockHeader);
 
         // Send size
@@ -311,7 +313,7 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
     {
         // Read size
         uint64_t blockSize;
-        std::array<uint8_t, 8> sizeBuf;
+        std::array<uint8_t, 8> sizeBuf{};
         co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
         takeBytesInto(blockSize, sizeBuf);
 
@@ -319,8 +321,7 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
         std::vector<uint8_t> blockData(blockSize);
         co_await asio::async_read(socket, asio::buffer(blockData), asio::use_awaitable);
 
-        Block newBlock = formatBlock(blockData);
-        if (verifyBlock(newBlock))
+        if (const Block newBlock = formatBlock(blockData); verifyBlock(newBlock))
         {
             addBlock(newBlock);
             // Note: broadcastBlockToPeers would need to be implemented
@@ -342,7 +343,7 @@ asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket)
     {
         // Read size
         uint64_t txSize;
-        std::array<uint8_t, 8> sizeBuf;
+        std::array<uint8_t, 8> sizeBuf{};
         co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
         takeBytesInto(txSize, sizeBuf);
 
@@ -371,7 +372,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 {
     try
     {
-        PeerAddress peerAddr{
+        const PeerAddress peerAddr{
             socket.remote_endpoint().address().to_string(),
             socket.remote_endpoint().port()
         };
