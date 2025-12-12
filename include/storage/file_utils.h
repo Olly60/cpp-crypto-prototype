@@ -19,6 +19,7 @@ namespace paths
     const fs::path peers = blockchain / "peers";
 }
 
+
 std::vector<uint8_t> readWholeFile(const fs::path& filePath);
 
 std::ofstream openFileForAppend(const fs::path& path);

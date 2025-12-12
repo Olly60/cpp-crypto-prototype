@@ -1,12 +1,9 @@
-#include <cstdint>
 #include <filesystem>
-#include <iosfwd>
 #include <stdexcept>
-
 #include "crypto_utils.h"
 #include "storage/file_utils.h"
 
-void setBlockchainTip(const Array256_t& newTip, const bool revert)
+void setBlockchainTip(const Array256_t& newTip, const bool undo)
 {
     fs::create_directories(paths::blockchainTip.parent_path());
 
@@ -14,7 +11,15 @@ void setBlockchainTip(const Array256_t& newTip, const bool revert)
     auto tipBytes = readWholeFile(paths::blockchainTip);
     uint64_t currentHeight;
     takeBytesInto(currentHeight, {tipBytes.data() + sizeof(Array256_t), sizeof(currentHeight)});
-    const uint64_t newHeight = currentHeight - revert;
+    uint64_t newHeight;
+    if (undo)
+    {
+        newHeight = currentHeight - 1;
+    } else
+    {
+        newHeight = currentHeight + 1;
+    }
+
 
     // open file
     std::ofstream blockchainTipFile(paths::blockchainTip, std::ios::trunc | std::ios::binary);

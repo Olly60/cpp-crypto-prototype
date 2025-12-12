@@ -1,7 +1,7 @@
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
-#include <rocksdb/options.h>
 #include "storage/file_utils.h"
+#include "storage/utxo_storage.h"
 
 namespace
 {
@@ -21,11 +21,11 @@ namespace
         return value;
     }
 
-    TxOutput formatUtxoValue(const std::string& value)
+    TxOutput parseUtxoValue(const std::string& value)
     {
         TxOutput utxo;
         size_t offset = 0;
-        std::span<const uint8_t> data(
+        const std::span<const uint8_t> data(
             reinterpret_cast<const uint8_t*>(value.data()),
             value.size()
         );
@@ -34,7 +34,6 @@ namespace
         return utxo;
     }
 } // namespace
-
 
 // ============================================================================
 // RocksDB UTXO operations
@@ -88,7 +87,7 @@ TxOutput getUtxo(rocksdb::DB& db, const TxInput& txInput)
         throw std::runtime_error("UTXO not found: " + status.ToString());
     }
 
-    return formatUtxoValue(value);
+    return parseUtxoValue(value);
 }
 
 std::unique_ptr<rocksdb::DB> openUtxoDb()
