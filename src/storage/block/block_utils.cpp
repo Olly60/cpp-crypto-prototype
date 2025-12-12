@@ -1,5 +1,8 @@
 #include "storage/block/block_utils.h"
-#include "storage/file_utils"
+#include "storage/file_utils.h"
+#include "crypto_utils.h"
+#include <filesystem>
+#include <fstream>
 
 void addBlock(const Block& block)
 {
@@ -147,7 +150,7 @@ namespace
             throw std::runtime_error("Block file too small to contain header");
         }
 
-        return std::vector<uint8_t>(blockBytes.begin(), blockBytes.begin() + headerSize);
+        return {blockBytes.begin(), blockBytes.begin() + headerSize};
     }
 }
 

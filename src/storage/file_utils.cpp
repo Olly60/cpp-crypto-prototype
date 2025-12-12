@@ -1,8 +1,4 @@
-#include <filesystem>
-#include <fstream>
-#include "crypto_utils.h"
 #include "storage/file_utils.h"
-namespace fs = std::filesystem;
 
 // ============================================================================
 // FILE PATHS
@@ -47,22 +43,6 @@ std::ofstream openFileForAppend(const fs::path& path)
     }
 }
 
-template <typename T>
-void appendToFile(std::ofstream& file, const T& obj)
-{
-    try
-    {
-        std::vector<uint8_t> buffer;
-        appendBytes(buffer, obj);
-        file.write(reinterpret_cast<const char*>(buffer.data()),
-                   static_cast<std::streamsize>(buffer.size()));
-    }
-    catch (const std::ios_base::failure& e)
-    {
-        throw std::runtime_error("Failed to append to file: " + std::string(e.what()));
-    }
-}
-
 std::vector<uint8_t> readWholeFile(const fs::path& filePath)
 {
     if (!fs::exists(filePath))
@@ -77,7 +57,7 @@ std::vector<uint8_t> readWholeFile(const fs::path& filePath)
     {
         file.open(filePath, std::ios::binary | std::ios::ate);
 
-        std::streamsize size = file.tellg();
+        const std::streamsize size = file.tellg();
         if (size < 0)
         {
             throw std::runtime_error("Failed to determine file size: " + filePath.string());
