@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <set>
 #include <unordered_set>
-
 #include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_utils.h"
@@ -111,8 +110,7 @@ bool verifyTx(const Tx& tx)
         }
 
         // Check for duplicate inputs within this transaction
-        auto utxoKey = std::make_pair(input.UTXOTxHash, input.UTXOOutputIndex);
-        if (!seenUtxos.insert(utxoKey).second)
+        if (auto utxoKey = std::make_pair(input.UTXOTxHash, input.UTXOOutputIndex); !seenUtxos.insert(utxoKey).second)
         {
             return false; // Double-spend attempt within transaction
         }
@@ -191,7 +189,11 @@ namespace
             return false; // Timestamp too far in future
         }
         // TODO: Verify difficulty target
-        if (header.difficulty == prevHeader.difficulty) return false;
+
+        // Difficulty too small
+        Array256_t minDifficulty;
+        minDifficulty.fill(0xFF);
+        if (header.difficulty > minDifficulty) return false;
 
 
         // Verify proof-of-work (hash meets difficulty requirement)

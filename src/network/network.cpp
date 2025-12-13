@@ -21,7 +21,7 @@ struct Handshake
     Array256_t genesisBlockHash;
     uint64_t services;
     uint64_t nonce;
-    std::pair<Array256_t, uint64_t> blockchainTip;
+    Array256_t blockchainTip;
 };
 
 enum class ProtocolMessage : uint8_t
@@ -67,7 +67,7 @@ Handshake createHandshake()
         GENESIS_BLOCK_HASH,
         SERVICE_FULL_NODE,
         LOCAL_NONCE,
-        getBlockchainTip()
+        getBlockchainTip().first
     };
 }
 
@@ -78,8 +78,7 @@ std::vector<uint8_t> serialiseHandshake(const Handshake& hs)
     appendBytes(buffer, hs.genesisBlockHash);
     appendBytes(buffer, hs.services);
     appendBytes(buffer, hs.nonce);
-    appendBytes(buffer, hs.blockchainTip.first);
-    appendBytes(buffer, hs.blockchainTip.second);
+    appendBytes(buffer, hs.blockchainTip);
     return buffer;
 }
 
@@ -362,8 +361,6 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket socket)
     }
 }
 
-
-
 asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
 {
     try
@@ -381,33 +378,20 @@ asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
 // Sync blockchain
 // ============================================
 
-asio::awaitable<void> syncBlockchain(asio::ip::tcp::socket socket)
+asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket socket)
 {
+    // TODO: Ask for their blockchain work
+
+    // if work they claim > then verify else ignore
+
+    // TODO: Compare block chain work
     requestBlock()
     co_await asio::async_read(socket, asio::use_awaitable);
-}
 
-// ============================================
-// Accept connections
-// ============================================
+    // if their work > our work
+    // TODO: Remove blocks up to matching one
 
-asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
-{
-    try
-    {
-        for (;;)
-        {
-            auto socket = co_await acceptor.async_accept(asio::use_awaitable);
-            co_spawn(acceptor.get_executor(),
-                     handleConnection(std::move(socket)),
-                     asio::detached);
-        }
-    }
-    catch (const asio::system_error& e)
-    {
-        if (e.code() != asio::error::operation_aborted)
-            throw;
-    }
+    // TODO: Add new block
 }
 
 // ============================================
@@ -470,6 +454,30 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
         // Connection error
     }
 }
+
+// ============================================
+// Accept connections
+// ============================================
+
+asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
+{
+    try
+    {
+        for (;;)
+        {
+            auto socket = co_await acceptor.async_accept(asio::use_awaitable);
+            co_spawn(acceptor.get_executor(),
+                     handleConnection(std::move(socket)),
+                     asio::detached);
+        }
+    }
+    catch (const asio::system_error& e)
+    {
+        if (e.code() != asio::error::operation_aborted)
+            throw;
+    }
+}
+
 
 // ============================================
 // Main

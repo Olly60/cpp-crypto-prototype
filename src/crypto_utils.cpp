@@ -10,7 +10,7 @@
 namespace
 {
     // Helper: convert hex character to nibble
-    constexpr uint8_t hexCharToNibble(char c)
+    constexpr uint8_t hexCharToNibble(const char c)
     {
         if (c >= '0' && c <= '9') return c - '0';
         if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -52,7 +52,7 @@ std::string bytesToHex(const Array256_t& bytes)
     return out;
 }
 
-Array256_t sha256Of(std::span<const uint8_t> data)
+Array256_t sha256Of(const std::span<const uint8_t> data)
 {
     Array256_t out;
     crypto_hash_sha256(out.data(), data.data(), data.size());
@@ -123,14 +123,14 @@ std::vector<uint8_t> serialiseTx(const Tx& tx)
     appendBytes(out, tx.version);
 
     // Inputs
-    appendBytes(out, static_cast<uint64_t>(tx.txInputs.size()));
+    appendBytes(out, tx.txInputs.size());
     for (const auto& input : tx.txInputs)
     {
         appendBytes(out, serialiseTxInput(input));
     }
 
     // Outputs
-    appendBytes(out, static_cast<uint64_t>(tx.txOutputs.size()));
+    appendBytes(out, tx.txOutputs.size());
     for (const auto& output : tx.txOutputs)
     {
         appendBytes(out, serialiseTxOutput(output));
@@ -347,7 +347,7 @@ Tx signTx(const Tx& tx, const Array256_t& privKeySeed)
     {
         Array256_t hash = computeTxInputHash(signedTx, i); // Sign hash for this input
 
-        Signature64 sig;
+        Array512_t sig;
         crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), privKeySeed.data());
 
         signedTx.txInputs[i].signature = sig; // each input gets its own signature
@@ -355,3 +355,6 @@ Tx signTx(const Tx& tx, const Array256_t& privKeySeed)
 
     return signedTx;
 }
+
+
+

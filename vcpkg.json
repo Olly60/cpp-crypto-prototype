@@ -1,7 +1,7 @@
 {
   "name": "crypto",
   "version-string": "1.0",
-  "description": "A C++ cryptocurrency implementation using LevelDB, Libsodium, and Asio.",
+  "description": "A C++ cryptocurrency",
   "dependencies": [
     "rocksdb",
     "libsodium",

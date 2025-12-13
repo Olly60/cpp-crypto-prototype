@@ -15,7 +15,7 @@
 
 using Array256_t = std::array<uint8_t, 32>;
 
-using Signature64 = std::array<uint8_t, 64>;
+using Array512_t = std::array<uint8_t, 64>;
 
 // ============================================================================
 // DATA STRUCTURES
@@ -31,7 +31,7 @@ struct TxInput
 {
     Array256_t UTXOTxHash{}; // Hash of transaction containing the UTXO
     uint64_t UTXOOutputIndex = 0; // Index of output in that transaction
-    Signature64 signature{}; // Signature proving ownership
+    Array512_t signature{}; // Signature proving ownership
 };
 
 struct Tx
@@ -54,6 +54,7 @@ struct BlockHeader
     {
         prevBlockHash.fill(0xFF);
         difficulty.fill(0xFF);
+        difficulty.back() -= 1;
     }
 };
 
