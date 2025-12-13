@@ -192,6 +192,7 @@ namespace
         }
 
         // TODO: Verify difficulty target
+        if (header.difficulty == prevHeader.difficulty) return false;
 
 
         // Verify proof-of-work (hash meets difficulty requirement)
