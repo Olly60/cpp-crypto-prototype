@@ -4,4 +4,8 @@
 
 void setBlockchainTip(const Array256_t& newTip, bool undo = false);
 
-std::pair<Array256_t, uint64_t> getBlockchainTip();
+Array256_t getTipBlockTipHash();
+
+uint64_t getTipBlockHeight();
+
+Array512_t getTipBlockChainWork();

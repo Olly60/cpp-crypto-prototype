@@ -16,6 +16,7 @@ void setBlockchainTip(const Array256_t& newTip, const bool undo)
     if (undo)
     {
         newHeight = currentHeight - 1;
+
     } else
     {
         newHeight = currentHeight + 1;
@@ -35,16 +36,30 @@ void setBlockchainTip(const Array256_t& newTip, const bool undo)
 
 }
 
-std::pair<Array256_t, uint64_t> getBlockchainTip()
+Array256_t getTipHash()
 {
     auto fileBytes = readWholeFile(paths::blockchainTip);
-
     Array256_t hash;
-    uint64_t height;
-    size_t offset = 0;
-    takeBytesInto(hash, fileBytes, offset);
-    takeBytesInto(height, fileBytes, offset);
-
-    return {hash, height};
+    takeBytesInto(hash, fileBytes);
+    return hash;
 }
+
+uint64_t getTipBlockHeight()
+{
+    auto fileBytes = readWholeFile(paths::blockchainTip);
+    uint64_t currentHeight;
+    size_t offset = sizeof(Array256_t);
+    takeBytesInto(currentHeight, fileBytes, offset);
+    return currentHeight;
+}
+
+Array512_t getTipBlockChainWork()
+{
+    auto fileBytes = readWholeFile(paths::blockchainTip);
+    Array512_t totalWork;
+    size_t offset = sizeof(Array256_t) + sizeof(uint64_t);
+    takeBytesInto(totalWork, fileBytes, offset);
+    return totalWork;
+}
+
 
