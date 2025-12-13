@@ -21,7 +21,7 @@ struct Handshake
     Array256_t genesisBlockHash;
     uint64_t services;
     uint64_t nonce;
-    Array256_t blockchainTip;
+    std::pair<Array256_t, uint64_t> blockchainTip;
 };
 
 enum class ProtocolMessage : uint8_t
@@ -67,7 +67,7 @@ Handshake createHandshake()
         GENESIS_BLOCK_HASH,
         SERVICE_FULL_NODE,
         LOCAL_NONCE,
-        getBlockchainTip().first
+        getBlockchainTip()
     };
 }
 
@@ -78,7 +78,8 @@ std::vector<uint8_t> serialiseHandshake(const Handshake& hs)
     appendBytes(buffer, hs.genesisBlockHash);
     appendBytes(buffer, hs.services);
     appendBytes(buffer, hs.nonce);
-    appendBytes(buffer, hs.blockchainTip);
+    appendBytes(buffer, hs.blockchainTip.first);
+    appendBytes(buffer, hs.blockchainTip.second);
     return buffer;
 }
 
@@ -102,6 +103,10 @@ bool isValidHandshake(const Handshake& hs)
         hs.nonce != LOCAL_NONCE;
 }
 
+// ============================================
+// Add peer to peer map in memory
+// ============================================
+
 void addPeer(const asio::ip::tcp::socket& socket, const Handshake& hs)
 {
     const PeerAddress addr{
@@ -118,48 +123,10 @@ void addPeer(const asio::ip::tcp::socket& socket, const Handshake& hs)
 }
 
 // ============================================
-// Coroutine-based Protocol (C++20)
+// Request
 // ============================================
 
-asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket)
-{
-    try
-    {
-        // Read peer handshake
-        std::vector<uint8_t> buffer(sizeof(Handshake));
-        co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
-
-        const Handshake theirHandshake = parseHandshake(buffer);
-        if (!isValidHandshake(theirHandshake))
-        {
-            co_return;
-        }
-
-        // Send our handshake
-        auto myHandshake = serialiseHandshake(createHandshake());
-        co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
-
-        // Read verack
-        uint8_t theirVerack;
-        co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
-        if (theirVerack != 0x01)
-        {
-            co_return;
-        }
-
-        // Send verack
-        uint8_t myVerack = 0x01;
-        co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
-
-        addPeer(socket, theirHandshake);
-    }
-    catch (const std::exception)
-    {
-        // Connection failed
-    }
-}
-
-asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
+asio::awaitable<void> requestHandshake(asio::ip::tcp::socket socket)
 {
     try
     {
@@ -175,7 +142,7 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
         std::vector<uint8_t> buffer(sizeof(Handshake));
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
-        Handshake theirHandshake = parseHandshake(buffer);
+        const Handshake theirHandshake = parseHandshake(buffer);
         if (!isValidHandshake(theirHandshake))
         {
             co_return;
@@ -195,22 +162,8 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
 
         addPeer(socket, theirHandshake);
     }
-    catch (const std::exception)
+    catch (const std::exception&)
     {
-
-    }
-}
-
-asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
-{
-    try
-    {
-        uint8_t pong = 0x01;
-        co_await asio::async_write(socket, asio::buffer(&pong, 1), asio::use_awaitable);
-    }
-    catch (const std::exception)
-    {
-        // Failed to respond
     }
 }
 
@@ -254,6 +207,10 @@ asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array25
     co_return parseBlock(blockBytes);
 }
 
+// ============================================
+// Handle requests
+// ============================================
+
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
 {
     try
@@ -274,7 +231,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
         // Send header
         co_await asio::async_write(socket, asio::buffer(headerBytes), asio::use_awaitable);
     }
-    catch (const std::exception)
+    catch (const std::exception&)
     {
         // Failed to send header
     }
@@ -300,7 +257,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket)
         // Send block
         co_await asio::async_write(socket, asio::buffer(blockData), asio::use_awaitable);
     }
-    catch (const std::exception)
+    catch (const std::exception&)
     {
         // Failed to send block
     }
@@ -330,7 +287,7 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
             throw std::runtime_error("Invalid block");
         }
     }
-    catch (const std::exception)
+    catch (const std::exception&)
     {
         // Failed to process block
     }
@@ -361,11 +318,101 @@ asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket)
             throw std::runtime_error("Invalid transaction");
         }
     }
-    catch (const std::exception)
+    catch (const std::exception&)
     {
         // Failed to process transaction
     }
 }
+
+asio::awaitable<void> handleHandshake(asio::ip::tcp::socket socket)
+{
+    try
+    {
+        // Read peer handshake
+        std::vector<uint8_t> buffer(sizeof(Handshake));
+        co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
+
+        const Handshake theirHandshake = parseHandshake(buffer);
+        if (!isValidHandshake(theirHandshake))
+        {
+            co_return;
+        }
+
+        // Send our handshake
+        auto myHandshake = serialiseHandshake(createHandshake());
+        co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
+
+        // Read verack
+        uint8_t theirVerack;
+        co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
+        if (theirVerack != 0x01)
+        {
+            co_return;
+        }
+
+        // Send verack
+        uint8_t myVerack = 0x01;
+        co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
+
+        addPeer(socket, theirHandshake);
+    }
+    catch (const std::exception&)
+    {
+        // Connection failed
+    }
+}
+
+
+
+asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
+{
+    try
+    {
+        uint8_t pong = 0x01;
+        co_await asio::async_write(socket, asio::buffer(&pong, 1), asio::use_awaitable);
+    }
+    catch (const std::exception&)
+    {
+        // Failed to respond
+    }
+}
+
+// ============================================
+// Sync blockchain
+// ============================================
+
+asio::awaitable<void> syncBlockchain(asio::ip::tcp::socket socket)
+{
+    requestBlock()
+    co_await asio::async_read(socket, asio::use_awaitable);
+}
+
+// ============================================
+// Accept connections
+// ============================================
+
+asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
+{
+    try
+    {
+        for (;;)
+        {
+            auto socket = co_await acceptor.async_accept(asio::use_awaitable);
+            co_spawn(acceptor.get_executor(),
+                     handleConnection(std::move(socket)),
+                     asio::detached);
+        }
+    }
+    catch (const asio::system_error& e)
+    {
+        if (e.code() != asio::error::operation_aborted)
+            throw;
+    }
+}
+
+// ============================================
+// Handle connection
+// ============================================
 
 asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 {
@@ -383,12 +430,12 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
         // Handle handshake
         if (msgType == 1)
         {
-            co_await handleHandshakeResponder(std::move(socket));
+            co_await handleHandshake(std::move(socket));
             co_return;
         }
 
         // Check if peer is authenticated
-        if (peers.find(peerAddr) == peers.end())
+        if (!peers.contains(peerAddr))
         {
             co_return; // Unauthenticated peer
         }
@@ -418,28 +465,9 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             break; // Unknown message
         }
     }
-    catch (const std::exception)
+    catch (const std::exception&)
     {
         // Connection error
-    }
-}
-
-asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
-{
-    try
-    {
-        for (;;)
-        {
-            auto socket = co_await acceptor.async_accept(asio::use_awaitable);
-            co_spawn(acceptor.get_executor(),
-                     handleConnection(std::move(socket)),
-                     asio::detached);
-        }
-    }
-    catch (const asio::system_error& e)
-    {
-        if (e.code() != asio::error::operation_aborted)
-            throw;
     }
 }
 
@@ -449,8 +477,7 @@ asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
 
 int main()
 {
-    try
-    {
+
         asio::io_context ioContext;
         asio::ip::tcp::acceptor acceptor(ioContext,
                                          asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
@@ -458,8 +485,7 @@ int main()
         co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
 
         ioContext.run();
-    }
-    catch (const std::exception)
-    {
-    }
+
+        storePeers(peers);
+
 }

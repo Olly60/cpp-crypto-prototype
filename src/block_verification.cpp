@@ -190,7 +190,6 @@ namespace
         {
             return false; // Timestamp too far in future
         }
-
         // TODO: Verify difficulty target
         if (header.difficulty == prevHeader.difficulty) return false;
 
