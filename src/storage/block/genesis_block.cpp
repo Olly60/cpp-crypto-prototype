@@ -1,3 +1,6 @@
+#include "storage/block/genesis_block.h"
+#include "crypto_utils.h"
+
 Block getGenesisBlock()
 {
     // Genesis transaction

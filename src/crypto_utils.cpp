@@ -84,7 +84,7 @@ std::vector<uint8_t> serialiseTxInput(const TxInput& txInput)
     return out;
 }
 
-TxInput formatTxInput(std::span<const uint8_t> txInputBytes, size_t& offset)
+TxInput parseTxInput(std::span<const uint8_t> txInputBytes, size_t& offset)
 {
     TxInput txInput;
     takeBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
@@ -104,7 +104,7 @@ std::vector<uint8_t> serialiseTxOutput(const TxOutput& output)
     return out;
 }
 
-TxOutput formatTxOutput(std::span<const uint8_t> outputBytes, size_t& offset)
+TxOutput parseTxOutput(std::span<const uint8_t> outputBytes, size_t& offset)
 {
     TxOutput output;
     takeBytesInto(output.amount, outputBytes, offset);
@@ -139,7 +139,7 @@ std::vector<uint8_t> serialiseTx(const Tx& tx)
     return out;
 }
 
-Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset)
+Tx parseTx(std::span<const uint8_t> txBytes, size_t& offset)
 {
     Tx tx;
     takeBytesInto(tx.version, txBytes, offset);
@@ -150,7 +150,7 @@ Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset)
     tx.txInputs.reserve(inputCount);
     for (uint64_t i = 0; i < inputCount; i++)
     {
-        tx.txInputs.push_back(formatTxInput(txBytes, offset));
+        tx.txInputs.push_back(parseTxInput(txBytes, offset));
     }
 
     // Read outputs
@@ -159,16 +159,16 @@ Tx formatTx(std::span<const uint8_t> txBytes, size_t& offset)
     tx.txOutputs.reserve(outputCount);
     for (uint64_t i = 0; i < outputCount; i++)
     {
-        tx.txOutputs.push_back(formatTxOutput(txBytes, offset));
+        tx.txOutputs.push_back(parseTxOutput(txBytes, offset));
     }
 
     return tx;
 }
 
-Tx formatTx(std::span<const uint8_t> txBytes)
+Tx parseTx(std::span<const uint8_t> txBytes)
 {
     size_t offset = 0;
-    return formatTx(txBytes, offset);
+    return parseTx(txBytes, offset);
 }
 
 // ----------------------------------------
@@ -186,7 +186,7 @@ std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header)
     return out;
 }
 
-BlockHeader formatBlockHeader(std::span<const uint8_t> headerBytes)
+BlockHeader parseBlockHeader(std::span<const uint8_t> headerBytes)
 {
     BlockHeader header;
     size_t offset = 0;
@@ -219,13 +219,13 @@ std::vector<uint8_t> serialiseBlock(const Block& block)
     return out;
 }
 
-Block formatBlock(std::span<const uint8_t> blockBytes)
+Block parseBlock(std::span<const uint8_t> blockBytes)
 {
     Block block;
     size_t offset = 0;
 
     // Header
-    BlockHeader header = formatBlockHeader(blockBytes);
+    BlockHeader header = parseBlockHeader(blockBytes);
 
     // Transactions
     uint64_t txCount;
@@ -233,7 +233,7 @@ Block formatBlock(std::span<const uint8_t> blockBytes)
     block.txs.reserve(txCount);
     for (uint64_t i = 0; i < txCount; i++)
     {
-        block.txs.push_back(formatTx(blockBytes, offset));
+        block.txs.push_back(parseTx(blockBytes, offset));
     }
 
     return block;

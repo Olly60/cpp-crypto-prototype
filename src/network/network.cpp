@@ -7,7 +7,7 @@
 #include "network/network.h"
 #include "storage/peers.h"
 #include "block_verification.h"
-#include "block_verification/block_verification.h"
+#include "storage/block/"
 #include "storage/block/block_utils.h"
 
 // ============================================
@@ -230,7 +230,7 @@ asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, c
     std::vector<uint8_t> headerBytes(headerSize);
     co_await asio::async_read(socket, asio::buffer(headerBytes), asio::use_awaitable);
 
-    co_return formatBlockHeader(headerBytes);
+    co_return parseBlockHeader(headerBytes);
 }
 
 asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
@@ -250,7 +250,7 @@ asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array25
     std::vector<uint8_t> blockBytes(blockSize);
     co_await asio::async_read(socket, asio::buffer(blockBytes), asio::use_awaitable);
 
-    co_return formatBlock(blockBytes);
+    co_return parseBlock(blockBytes);
 }
 
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
@@ -263,7 +263,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
 
         // Get header from storage
         auto headerData = readBlockFileHeader(blockHash);
-        const auto blockHeader = formatBlockHeader(headerData);
+        const auto blockHeader = parseBlockHeader(headerData);
         auto headerBytes = serialiseBlockHeader(blockHeader);
 
         // Send size
@@ -321,7 +321,7 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
         std::vector<uint8_t> blockData(blockSize);
         co_await asio::async_read(socket, asio::buffer(blockData), asio::use_awaitable);
 
-        if (const Block newBlock = formatBlock(blockData); verifyBlock(newBlock))
+        if (const Block newBlock = parseBlock(blockData); verifyBlock(newBlock))
         {
             addBlock(newBlock);
             // Note: broadcastBlockToPeers would need to be implemented
@@ -351,7 +351,7 @@ asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket)
         std::vector<uint8_t> txData(txSize);
         co_await asio::async_read(socket, asio::buffer(txData), asio::use_awaitable);
 
-        Tx newTx = formatTx(txData);
+        Tx newTx = parseTx(txData);
         if (verifyTx(newTx))
         {
             mempool.push_back(newTx);

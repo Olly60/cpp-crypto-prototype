@@ -2,9 +2,11 @@
 #include "crypto_utils.h"
 #include <stdexcept>
 #include "block_verification.h"
-#include "storage.h"
+#include <cstdint>
 #include <set>
 #include <unordered_set>
+#include "storage/utxo_storage.h"
+#include "storage/block/block_utils.h"
 
 // ============================================================================
 // VALIDATION HELPERS
@@ -20,7 +22,7 @@ namespace
             // Hash the transaction hash (first 8 bytes) and output index
             std::size_t h1 = 0;
             std::memcpy(&h1, key.first.data(), std::min(sizeof(h1), key.first.size()));
-            std::size_t h2 = std::hash<uint32_t>{}(key.second);
+            const std::size_t h2 = std::hash<uint32_t>{}(key.second);
             return h1 ^ (h2 << 1);
         }
     };
@@ -28,9 +30,9 @@ namespace
     using UtxoSet = std::unordered_set<std::pair<Array256_t, uint32_t>, UtxoKeyHash>;
 
     // Calculate transaction fee (1% of input amount, minimum 1)
-    constexpr uint64_t calculateTxFee(uint64_t inputAmount)
+    constexpr uint64_t calculateTxFee(const uint64_t inputAmount)
     {
-        return std::max(inputAmount / 100, uint64_t(1));
+        return std::max(inputAmount / 100, static_cast<uint64_t>(1));
     }
 
     // Maximum time drift allowed (10 minutes in seconds)
@@ -321,10 +323,9 @@ bool verifyBlock(const Block& block)
             return false;
         }
     }
-    uint64_t coinbaseReward = BLOCK_REWARD + totalFees;
 
     // Verify coinbase transaction (first transaction)
-    if (!verifyCoinbase(block.txs[0], coinbaseReward))
+    if (uint64_t coinbaseReward = BLOCK_REWARD + totalFees; !verifyCoinbase(block.txs[0], coinbaseReward))
     {
         return false;
     }

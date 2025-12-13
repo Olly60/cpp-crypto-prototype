@@ -4,53 +4,9 @@
 #include <filesystem>
 #include <fstream>
 #include <rocksdb/db.h>
-
-void addBlock(const Block& block)
-{
-    const Array256_t blockHash = getBlockHash(block);
-    const fs::path blockFilePath = getBlockFilePath(blockHash);
-    const fs::path undoFilePath = getUndoFilePath(blockHash);
-
-    // Open UTXO database
-    auto utxoDb = openUtxoDb();
-
-    // Write undo data before modifying UTXO set
-    writeUndoFile(undoFilePath, block, *utxoDb);
-
-    // Write block to disk
-    auto blockFile = openFileForAppend(blockFilePath);
-    const auto blockBytes = serialiseBlock(block);
-    blockFile.write(
-        reinterpret_cast<const char*>(blockBytes.data()),
-        blockBytes.size()
-    );
-
-    // Update UTXO set: add new UTXOs
-    for (const auto& tx : block.txs)
-    {
-        const Array256_t txHash = getTxHash(tx);
-        for (uint64_t outputIndex = 0; outputIndex < tx.txOutputs.size(); outputIndex++)
-        {
-            TxInput utxoKey{txHash, outputIndex, {}};
-            putUtxo(*utxoDb, utxoKey, tx.txOutputs[outputIndex]);
-        }
-    }
-
-    // Update UTXO set: remove spent UTXOs
-    for (const auto& tx : block.txs)
-    {
-        for (const auto& input : tx.txInputs)
-        {
-            deleteUtxo(*utxoDb, input);
-        }
-    }
-
-    // Update blockchain tip
-    setBlockchainTip(blockHash);
-
-    // Update block height
-    addBlockHeight();
-}
+#include "storage/utxo_storage.h"
+#include "storage/block/tip_block.h"
+#include ""
 
 // Block undo helpers
 namespace
@@ -155,18 +111,60 @@ namespace
     }
 }
 
-
-void undoBlock()
+void addBlock(const Block& block)
 {
-    const Array256_t tipHash = getBlockchainTip();
-    const fs::path blockFilePath = getBlockFilePath(tipHash);
-    const fs::path undoFilePath = getUndoFilePath(tipHash);
-
-    // Read block
-    Block block = getBlock(tipHash);
+    const Array256_t blockHash = getBlockHash(block);
+    const fs::path blockFilePath = getBlockFilePath(blockHash);
+    const fs::path undoFilePath = getUndoFilePath(blockHash);
 
     // Open UTXO database
     auto utxoDb = openUtxoDb();
+
+    // Write undo data before modifying UTXO set
+    writeUndoFile(undoFilePath, block, *utxoDb);
+
+    // Write block to disk
+    auto blockFile = openFileForAppend(blockFilePath);
+    const auto blockBytes = serialiseBlock(block);
+    appendToFile(blockFile, blockBytes);
+
+    // Update UTXO set: add new UTXOs
+    for (const auto& tx : block.txs)
+    {
+        const Array256_t txHash = getTxHash(tx);
+        for (uint64_t outputIndex = 0; outputIndex < tx.txOutputs.size(); outputIndex++)
+        {
+            TxInput utxoKey{txHash, outputIndex, {}};
+            putUtxo(*utxoDb, utxoKey, tx.txOutputs[outputIndex]);
+        }
+    }
+
+    // Update UTXO set: remove spent UTXOs
+    for (const auto& tx : block.txs)
+    {
+        for (const auto& input : tx.txInputs)
+        {
+            deleteUtxo(*utxoDb, input);
+        }
+    }
+
+    // Update blockchain tip
+    setBlockchainTip(blockHash);
+
+
+}
+
+void undoBlock()
+{
+    const auto tip = getBlockchainTip();
+    const fs::path blockFilePath = getBlockFilePath(tip.first);
+    const fs::path undoFilePath = getUndoFilePath(tip.first);
+
+    // Read block
+    const auto block = getBlockByHash(tip.first);
+
+    // Open UTXO database
+    const auto utxoDb = openUtxoDb();
 
     // Remove created UTXOs
     for (const auto& tx : block.txs)
@@ -183,10 +181,7 @@ void undoBlock()
     restoreFromUndoFile(undoFilePath, *utxoDb);
 
     // Update blockchain tip
-    setBlockchainTip(block.header.prevBlockHash);
-
-    // Update block height
-    subtractBlockHeight();
+    setBlockchainTip(block.header.prevBlockHash, true);
 
     // Delete files
     fs::remove(blockFilePath);
@@ -200,15 +195,15 @@ bool blockExists(const Array256_t& blockHash)
 
 BlockHeader getBlockHeaderByHash(const Array256_t& blockHash)
 {
-    return formatBlockHeader(readBlockFileHeader(blockHash));
+    return parseBlockHeader(readBlockFileHeader(blockHash));
 }
 
 BlockHeader getBlockHeaderByHeight(const uint64_t& height)
 {
-    return formatBlockHeader(readBlockFileHeader(height))
+    return parseBlockHeader(readBlockFileHeader(height))
 }
 
 Block getBlockByHash(const Array256_t& blockHash)
 {
-    return formatBlock(readBlockFile(blockHash));
+    return parseBlock(readBlockFile(blockHash));
 }

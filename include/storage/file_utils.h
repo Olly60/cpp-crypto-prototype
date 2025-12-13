@@ -17,6 +17,7 @@ namespace paths
     const fs::path utxo = blockchain / "utxo";
     const fs::path undo = blockchain / "undo";
     const fs::path peers = blockchain / "peers";
+    const fs::path blockHeights = blockchain / "block_heights";
 }
 
 

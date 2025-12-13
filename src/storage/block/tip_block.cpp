@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "crypto_utils.h"
 #include "storage/file_utils.h"
+#include "storage/block/tip_block.h"
 
 void setBlockchainTip(const Array256_t& newTip, const bool undo)
 {

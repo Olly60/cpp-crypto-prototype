@@ -121,7 +121,7 @@ inline constexpr bool always_false = false;
  * @throws std::runtime_error if not enough bytes available
  */
 template <typename T>
-void takeBytesInto(T& out, std::span<const uint8_t> data, size_t& offset)
+void takeBytesInto(T& out, const std::span<const uint8_t> data, size_t& offset)
 {
     if (offset + sizeof(T) > data.size())
     {
@@ -200,17 +200,17 @@ std::vector<uint8_t> serialiseTxInput(const TxInput& input);
 std::vector<uint8_t> serialiseTxOutput(const TxOutput& output);
 std::vector<uint8_t> serialiseTx(const Tx& tx);
 
-TxInput formatTxInput(std::span<const uint8_t> bytes, size_t& offset);
-TxOutput formatTxOutput(std::span<const uint8_t> bytes, size_t& offset);
-Tx formatTx(std::span<const uint8_t> bytes, size_t& offset);
-Tx formatTx(std::span<const uint8_t> bytes);
+TxInput parseTxInput(std::span<const uint8_t> bytes, size_t& offset);
+TxOutput parseTxOutput(std::span<const uint8_t> bytes, size_t& offset);
+Tx parseTx(std::span<const uint8_t> bytes, size_t& offset);
+Tx parseTx(std::span<const uint8_t> bytes);
 
 // Block
 std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header);
 std::vector<uint8_t> serialiseBlock(const Block& block);
 
-BlockHeader formatBlockHeader(std::span<const uint8_t> bytes);
-Block formatBlock(std::span<const uint8_t> bytes);
+BlockHeader parseBlockHeader(std::span<const uint8_t> bytes);
+Block parseBlock(std::span<const uint8_t> bytes);
 
 // ============================================================================
 // HASHING FUNCTIONS
