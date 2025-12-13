@@ -33,7 +33,7 @@ namespace
 }
 
 // Put block hash by height
-void putHeightHash(rocksdb::DB& db, uint64_t height, const Array256_t& hash)
+void putHeightHash(rocksdb::DB& db, const uint64_t height, const Array256_t& hash)
 {
     if (!db.Put(rocksdb::WriteOptions(),
                 rocksdb::Slice(makeHeightKey(height)),

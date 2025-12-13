@@ -7,8 +7,9 @@
 #include "network/network.h"
 #include "storage/peers.h"
 #include "block_verification.h"
-#include "storage/block/"
 #include "storage/block/block_utils.h"
+#include "storage/block/genesis_block.h"
+#include "storage/block/tip_block.h"
 
 // ============================================
 // Data Structures
@@ -66,11 +67,11 @@ Handshake createHandshake()
         GENESIS_BLOCK_HASH,
         SERVICE_FULL_NODE,
         LOCAL_NONCE,
-        getBlockchainTip()
+        getBlockchainTip().first
     };
 }
 
-std::vector<uint8_t> serializeHandshake(const Handshake& hs)
+std::vector<uint8_t> serialiseHandshake(const Handshake& hs)
 {
     std::vector<uint8_t> buffer;
     appendBytes(buffer, hs.Version);
@@ -135,7 +136,7 @@ asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket)
         }
 
         // Send our handshake
-        auto myHandshake = serializeHandshake(createHandshake());
+        auto myHandshake = serialiseHandshake(createHandshake());
         co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
         // Read verack
@@ -152,7 +153,7 @@ asio::awaitable<void> handleHandshakeResponder(asio::ip::tcp::socket socket)
 
         addPeer(socket, theirHandshake);
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
         // Connection failed
     }
@@ -167,7 +168,7 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
         // Send our handshake
-        auto myHandshake = serializeHandshake(createHandshake());
+        auto myHandshake = serialiseHandshake(createHandshake());
         co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
         // Read peer handshake
@@ -194,9 +195,9 @@ asio::awaitable<void> handleHandshakeInitiator(asio::ip::tcp::socket socket)
 
         addPeer(socket, theirHandshake);
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
-        // Connection failed
+
     }
 }
 
@@ -207,7 +208,7 @@ asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
         uint8_t pong = 0x01;
         co_await asio::async_write(socket, asio::buffer(&pong, 1), asio::use_awaitable);
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
         // Failed to respond
     }
@@ -262,12 +263,10 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Get header from storage
-        auto headerData = readBlockFileHeader(blockHash);
-        const auto blockHeader = parseBlockHeader(headerData);
-        auto headerBytes = serialiseBlockHeader(blockHeader);
+        auto headerBytes = readBlockFileHeaderBytes(blockHash);
 
         // Send size
-        uint64_t headerSize = headerBytes.size();
+        const uint64_t headerSize = headerBytes.size();
         std::vector<uint8_t> sizeBuf;
         appendBytes(sizeBuf, headerSize);
         co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
@@ -275,7 +274,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
         // Send header
         co_await asio::async_write(socket, asio::buffer(headerBytes), asio::use_awaitable);
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
         // Failed to send header
     }
@@ -290,7 +289,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket)
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Get block from storage
-        auto blockData = readBlockFile(blockHash);
+        auto blockData = readBlockFileBytes(blockHash);
 
         // Send size
         uint64_t blockSize = blockData.size();
@@ -301,7 +300,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket)
         // Send block
         co_await asio::async_write(socket, asio::buffer(blockData), asio::use_awaitable);
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
         // Failed to send block
     }
@@ -331,7 +330,7 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
             throw std::runtime_error("Invalid block");
         }
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
         // Failed to process block
     }
@@ -362,7 +361,7 @@ asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket)
             throw std::runtime_error("Invalid transaction");
         }
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
         // Failed to process transaction
     }
@@ -419,7 +418,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             break; // Unknown message
         }
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
         // Connection error
     }
@@ -427,12 +426,20 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 
 asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
 {
-    while (true)
+    try
     {
-        auto socket = co_await acceptor.async_accept(asio::use_awaitable);
-        co_spawn(acceptor.get_executor(),
-                 handleConnection(std::move(socket)),
-                 asio::detached);
+        for (;;)
+        {
+            auto socket = co_await acceptor.async_accept(asio::use_awaitable);
+            co_spawn(acceptor.get_executor(),
+                     handleConnection(std::move(socket)),
+                     asio::detached);
+        }
+    }
+    catch (const asio::system_error& e)
+    {
+        if (e.code() != asio::error::operation_aborted)
+            throw;
     }
 }
 
@@ -452,7 +459,7 @@ int main()
 
         ioContext.run();
     }
-    catch (const std::exception& e)
+    catch (const std::exception)
     {
     }
 }

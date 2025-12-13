@@ -11,7 +11,6 @@
 // Block undo helpers
 namespace
 {
-
     void writeUndoFile(const fs::path& undoFilePath,
                        const Block& block,
                        rocksdb::DB& utxoDb)
@@ -85,25 +84,36 @@ namespace
     {
         return paths::undo / (bytesToHex(blockHash) + ".undo");
     }
+}
 
-    std::vector<uint8_t> readBlockFile(const Array256_t& blockHash)
+std::vector<uint8_t> readBlockFileBytes(const Array256_t& blockHash)
+{
+    return readWholeFile(getBlockFilePath(blockHash));
+}
+
+std::vector<uint8_t> readBlockFileHeaderBytes(const Array256_t& blockHash)
+{
+    const auto path = getBlockFilePath(blockHash);
+    if (!fs::exists(path))
+        throw std::runtime_error("File does not exist: " + path.string());
+
+    std::ifstream file(path, std::ios::binary);
+    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+    constexpr auto headerSize = calculateBlockHeaderSize();
+    std::vector<uint8_t> header(headerSize);
+
+    try
     {
-        return readWholeFile(getBlockFilePath(blockHash));
+        file.read(reinterpret_cast<char*>(header.data()),
+                  static_cast<std::streamsize>(headerSize));
+    }
+    catch (const std::ios_base::failure& e)
+    {
+        throw std::runtime_error("Failed to read file " + path.string() + ": " + e.what());
     }
 
-
-    std::vector<uint8_t> readBlockFileHeader(const Array256_t& blockHash)
-    {
-        auto blockBytes = readBlockFile(blockHash);
-
-        constexpr size_t headerSize = calculateBlockHeaderSize();
-        if (blockBytes.size() < headerSize)
-        {
-            throw std::runtime_error("Block file too small to contain header");
-        }
-
-        return {blockBytes.begin(), blockBytes.begin() + headerSize};
-    }
+    return header;
 }
 
 void addBlock(const Block& block)
@@ -148,7 +158,7 @@ void addBlock(const Block& block)
 
     // Add block to heights db
     auto heightsDb = openDb(paths::blockHeightsDb);
-    putBlockHeightHash()
+    putHeightHash(*heightsDb, getBlockchainTip().second, blockHash);
 }
 
 void undoBlock()
@@ -185,7 +195,8 @@ void undoBlock()
     fs::remove(undoFilePath);
 
     // Delete block from height db
-    deleteBlockHeightHash(getBlockchainTip().second);
+    const auto heightsDb = openDb(paths::blockHeightsDb);
+    deleteHeightHash(*heightsDb, getBlockchainTip().second);
 }
 
 bool blockExists(const Array256_t& blockHash)
@@ -195,15 +206,10 @@ bool blockExists(const Array256_t& blockHash)
 
 BlockHeader getBlockHeaderByHash(const Array256_t& blockHash)
 {
-    return parseBlockHeader(readBlockFileHeader(blockHash));
-}
-
-BlockHeader getBlockHeaderByHeight(const uint64_t& height)
-{
-    return parseBlockHeader(readBlockFileHeader(getBlockHeightHash(height)));
+    return parseBlockHeader(readBlockFileHeaderBytes(blockHash));
 }
 
 Block getBlockByHash(const Array256_t& blockHash)
 {
-    return parseBlock(readBlockFile(blockHash));
+    return parseBlock(readBlockFileBytes(blockHash));
 }

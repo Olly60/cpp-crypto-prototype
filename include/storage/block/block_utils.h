@@ -8,6 +8,8 @@ bool blockExists(const Array256_t& blockHash);
 
 BlockHeader getBlockHeaderByHash(const Array256_t& blockHash);
 
-BlockHeader getBlockHeaderByHeight(const uint64_t& height);
-
 Block getBlockByHash(const Array256_t& blockHash);
+
+std::vector<uint8_t> readBlockFileBytes(const Array256_t& blockHash);
+
+std::vector<uint8_t> readBlockFileHeaderBytes(const Array256_t& blockHash);

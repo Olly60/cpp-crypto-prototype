@@ -1,6 +1,5 @@
 #pragma once
 #include <filesystem>
-#include <fstream>
 #include "crypto_utils.h"
 
 void setBlockchainTip(const Array256_t& newTip, bool undo = false);
