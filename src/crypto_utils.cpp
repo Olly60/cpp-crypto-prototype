@@ -225,7 +225,7 @@ Block parseBlock(std::span<const uint8_t> blockBytes)
     size_t offset = 0;
 
     // Header
-    BlockHeader header = parseBlockHeader(blockBytes);
+    block.header = parseBlockHeader(blockBytes);
 
     // Transactions
     uint64_t txCount;
@@ -306,38 +306,38 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
 // SIGNING
 // ============================================================================
 
+
 Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
-{
-    std::vector<uint8_t> buf;
-
-    // Version
-    appendBytes(buf, tx.version);
-
-    // Inputs
-    appendBytes(buf, static_cast<uint64_t>(tx.txInputs.size()));
-
-    for (size_t i = 0; i < tx.txInputs.size(); i++)
     {
-        const TxInput& in = tx.txInputs[i];
-        appendBytes(buf, in.UTXOTxHash);
-        appendBytes(buf, in.UTXOOutputIndex);
+        std::vector<uint8_t> buf;
 
-        // Blank out other input signatures
-        std::array<uint8_t, 64> emptySig{};
-        appendBytes(buf, emptySig);
+        // Version
+        appendBytes(buf, tx.version);
+
+        // Inputs
+        appendBytes(buf, static_cast<uint64_t>(tx.txInputs.size()));
+
+        for (const auto & txInput : tx.txInputs)
+        {
+            appendBytes(buf, txInput.UTXOTxHash);
+            appendBytes(buf, txInput.UTXOOutputIndex);
+
+            // Blank out other input signatures
+            std::array<uint8_t, 64> emptySig{};
+            appendBytes(buf, emptySig);
+        }
+
+        // Outputs
+        appendBytes(buf, static_cast<uint64_t>(tx.txOutputs.size()));
+        for (const TxOutput& txOutput : tx.txOutputs)
+        {
+            appendBytes(buf, txOutput.amount);
+            appendBytes(buf, txOutput.recipient);
+        }
+
+        // Final message hash
+        return sha256Of(buf);
     }
-
-    // Outputs
-    appendBytes(buf, static_cast<uint64_t>(tx.txOutputs.size()));
-    for (const TxOutput& out : tx.txOutputs)
-    {
-        appendBytes(buf, out.amount);
-        appendBytes(buf, out.recipient);
-    }
-
-    // Final message hash
-    return sha256Of(buf);
-}
 
 Tx signTx(const Tx& tx, const Array256_t& privKeySeed)
 {
@@ -345,7 +345,7 @@ Tx signTx(const Tx& tx, const Array256_t& privKeySeed)
 
     for (size_t i = 0; i < signedTx.txInputs.size(); i++)
     {
-        Array256_t hash = computeTxInputHash(signedTx, i); // sighash for this input
+        Array256_t hash = computeTxInputHash(signedTx, i); // Sign hash for this input
 
         Signature64 sig;
         crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), privKeySeed.data());

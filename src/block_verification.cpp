@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <set>
 #include <unordered_set>
+
+#include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_utils.h"
 
@@ -17,17 +19,17 @@ namespace
     // Hash function for UTXO keys
     struct UtxoKeyHash
     {
-        std::size_t operator()(const std::pair<Array256_t, uint32_t>& key) const
+        std::size_t operator()(const std::pair<Array256_t, uint64_t>& key) const
         {
             // Hash the transaction hash (first 8 bytes) and output index
             std::size_t h1 = 0;
             std::memcpy(&h1, key.first.data(), std::min(sizeof(h1), key.first.size()));
-            const std::size_t h2 = std::hash<uint32_t>{}(key.second);
+            const std::size_t h2 = std::hash<uint64_t>{}(key.second);
             return h1 ^ (h2 << 1);
         }
     };
 
-    using UtxoSet = std::unordered_set<std::pair<Array256_t, uint32_t>, UtxoKeyHash>;
+    using UtxoSet = std::unordered_set<std::pair<Array256_t, uint64_t>, UtxoKeyHash>;
 
     // Calculate transaction fee (1% of input amount, minimum 1)
     constexpr uint64_t calculateTxFee(const uint64_t inputAmount)
@@ -49,7 +51,7 @@ namespace
 
 bool verifyTxSignature(const Tx& tx)
 {
-    auto utxoDb = openUtxoDb(); // open the UTXO database
+    const auto utxoDb = openDb(paths::utxosDb); // open the UTXO database
 
     for (size_t i = 0; i < tx.txInputs.size(); i++)
     {
@@ -91,7 +93,7 @@ bool verifyTx(const Tx& tx)
     }
 
     // Open UTXO database
-    auto utxoDb = openUtxoDb();
+    const auto utxoDb = openDb(paths::utxosDb);
 
     // Track seen UTXOs to prevent double-spending within transaction
     UtxoSet seenUtxos;
@@ -184,8 +186,7 @@ namespace
         }
 
         // Verify timestamp is not too far in the future
-        uint64_t currentTime = getCurrentTimestamp();
-        if (header.timestamp > currentTime + MAX_TIME_DRIFT)
+        if (header.timestamp > getCurrentTimestamp() + MAX_TIME_DRIFT)
         {
             return false; // Timestamp too far in future
         }
@@ -271,7 +272,7 @@ bool verifyBlock(const Block& block)
     }
 
     // Open UTXO database once for all transactions
-    auto utxoDb = openUtxoDb();
+    const auto utxoDb = openDb(paths::utxosDb);
 
     // Track UTXOs used in this block to prevent double-spending
     UtxoSet blockUtxos;
@@ -314,18 +315,11 @@ bool verifyBlock(const Block& block)
         }
 
         // Calculate and accumulate fee
-        uint64_t txFee = calculateTxFee(inputAmount);
-        totalFees += txFee;
-
-        // Verify fee calculation is consistent with verifyTx
-        if (outputAmount > inputAmount - txFee)
-        {
-            return false;
-        }
+        totalFees += calculateTxFee(inputAmount);
     }
 
     // Verify coinbase transaction (first transaction)
-    if (uint64_t coinbaseReward = BLOCK_REWARD + totalFees; !verifyCoinbase(block.txs[0], coinbaseReward))
+    if (const uint64_t coinbaseReward = getBlockReward(block.header) + totalFees; !verifyCoinbase(block.txs[0], coinbaseReward))
     {
         return false;
     }

@@ -62,3 +62,25 @@ std::vector<uint8_t> readWholeFile(const fs::path& filePath)
         throw std::runtime_error("Failed to read file " + filePath.string() + ": " + e.what());
     }
 }
+
+std::unique_ptr<rocksdb::DB> openDb(const fs::path& path)
+{
+    fs::create_directories(path);
+
+    rocksdb::Options options;
+    options.create_if_missing = true;
+
+    rocksdb::DB* raw = nullptr;
+    const rocksdb::Status status = rocksdb::DB::Open(
+        options,
+        (path).string(),
+        &raw
+    );
+
+    if (!status.ok() || !raw)
+    {
+        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
+    }
+
+    return std::unique_ptr<rocksdb::DB>(raw);
+}

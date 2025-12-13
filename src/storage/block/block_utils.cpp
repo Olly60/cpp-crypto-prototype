@@ -6,16 +6,11 @@
 #include <rocksdb/db.h>
 #include "storage/utxo_storage.h"
 #include "storage/block/tip_block.h"
-#include ""
+#include "storage/block/block_heights.h"
 
 // Block undo helpers
 namespace
 {
-    struct UndoData
-    {
-        std::vector<Tx> transactions;
-        std::vector<std::vector<TxOutput>> spentUtxos;
-    };
 
     void writeUndoFile(const fs::path& undoFilePath,
                        const Block& block,
@@ -118,7 +113,7 @@ void addBlock(const Block& block)
     const fs::path undoFilePath = getUndoFilePath(blockHash);
 
     // Open UTXO database
-    auto utxoDb = openUtxoDb();
+    auto utxoDb = openDb(paths::utxosDb);
 
     // Write undo data before modifying UTXO set
     writeUndoFile(undoFilePath, block, *utxoDb);
@@ -151,7 +146,9 @@ void addBlock(const Block& block)
     // Update blockchain tip
     setBlockchainTip(blockHash);
 
-
+    // Add block to heights db
+    auto heightsDb = openDb(paths::blockHeightsDb);
+    putBlockHeightHash()
 }
 
 void undoBlock()
@@ -164,7 +161,7 @@ void undoBlock()
     const auto block = getBlockByHash(tip.first);
 
     // Open UTXO database
-    const auto utxoDb = openUtxoDb();
+    const auto utxoDb = openDb(paths::utxosDb);
 
     // Remove created UTXOs
     for (const auto& tx : block.txs)
@@ -186,6 +183,9 @@ void undoBlock()
     // Delete files
     fs::remove(blockFilePath);
     fs::remove(undoFilePath);
+
+    // Delete block from height db
+    deleteBlockHeightHash(getBlockchainTip().second);
 }
 
 bool blockExists(const Array256_t& blockHash)
@@ -200,7 +200,7 @@ BlockHeader getBlockHeaderByHash(const Array256_t& blockHash)
 
 BlockHeader getBlockHeaderByHeight(const uint64_t& height)
 {
-    return parseBlockHeader(readBlockFileHeader(height))
+    return parseBlockHeader(readBlockFileHeader(getBlockHeightHash(height)));
 }
 
 Block getBlockByHash(const Array256_t& blockHash)

@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include "crypto_utils.h"
+#include <rocksdb/db.h>
 
 namespace fs = std::filesystem;
 
@@ -14,12 +15,13 @@ namespace paths
     const fs::path blockchain = "blockchain";
     const fs::path blockchainTip = blockchain / "blockchain_tip" ;
     const fs::path blocks = blockchain / "blocks";
-    const fs::path utxo = blockchain / "utxo";
+    const fs::path utxosDb = blockchain / "utxos";
     const fs::path undo = blockchain / "undo";
     const fs::path peers = blockchain / "peers";
-    const fs::path blockHeights = blockchain / "block_heights";
+    const fs::path blockHeightsDb = blockchain / "block_heights";
 }
 
+std::unique_ptr<rocksdb::DB> openDb(const fs::path& path);
 
 std::vector<uint8_t> readWholeFile(const fs::path& filePath);
 
