@@ -197,21 +197,21 @@ void appendBytes(ContainerOut& out, const T& data)
 // ============================================================================
 
 // Transaction
-std::vector<uint8_t> serialiseTxInput(const TxInput& input);
-std::vector<uint8_t> serialiseTxOutput(const TxOutput& output);
+std::vector<uint8_t> serialiseTxInput(const TxInput& txInput);
+std::vector<uint8_t> serialiseTxOutput(const TxOutput& txOutput);
 std::vector<uint8_t> serialiseTx(const Tx& tx);
 
-TxInput parseTxInput(std::span<const uint8_t> bytes, size_t& offset);
-TxOutput parseTxOutput(std::span<const uint8_t> bytes, size_t& offset);
-Tx parseTx(std::span<const uint8_t> bytes, size_t& offset);
-Tx parseTx(std::span<const uint8_t> bytes);
+TxInput parseTxInput(std::span<const uint8_t> txInputBytes, size_t& offset);
+TxOutput parseTxOutput(std::span<const uint8_t> txOutputBytes, size_t& offset);
+Tx parseTx(std::span<const uint8_t> txBytes, size_t& offset);
+Tx parseTx(std::span<const uint8_t> txBytes);
 
 // Block
 std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header);
 std::vector<uint8_t> serialiseBlock(const Block& block);
 
-BlockHeader parseBlockHeader(std::span<const uint8_t> bytes);
-Block parseBlock(std::span<const uint8_t> bytes);
+BlockHeader parseBlockHeader(std::span<const uint8_t> headerBytes);
+Block parseBlock(std::span<const uint8_t> blockBytes);
 
 // ============================================================================
 // HASHING FUNCTIONS

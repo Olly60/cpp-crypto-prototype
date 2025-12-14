@@ -2,8 +2,6 @@
 #include "crypto_utils.h"
 #include <stdexcept>
 #include "block_verification.h"
-#include <cstdint>
-#include <set>
 #include <unordered_set>
 #include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
@@ -65,7 +63,7 @@ bool verifyTxSignature(const Tx& tx)
         // Get the UTXO (previous output)
         TxOutput utxo = getUtxo(*utxoDb, in);
 
-        // Compute the sighash for this input
+        // Compute the sign hash for this input
         Array256_t hash = computeTxInputHash(tx, i);
 
         // Verify the signature against the public key stored in the UTXO
@@ -209,7 +207,7 @@ namespace
 
 namespace
 {
-    bool verifyCoinbase(const Tx& coinbaseTx, uint64_t expectedReward)
+    bool verifyCoinbase(const Tx& coinbaseTx, const uint64_t expectedReward)
     {
         // Coinbase must have no inputs
         if (!coinbaseTx.txInputs.empty())

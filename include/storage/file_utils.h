@@ -19,6 +19,7 @@ namespace paths
     const fs::path undo = blockchain / "undo";
     const fs::path peers = blockchain / "peers";
     const fs::path blockHeightsDb = blockchain / "block_heights";
+    const fs::path blockIndexesDb = blockchain / "block_indexes";
 }
 
 std::unique_ptr<rocksdb::DB> openDb(const fs::path& path);

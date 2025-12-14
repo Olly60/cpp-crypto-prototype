@@ -186,7 +186,7 @@ std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header)
     return out;
 }
 
-BlockHeader parseBlockHeader(std::span<const uint8_t> headerBytes)
+BlockHeader parseBlockHeader(const std::span<const uint8_t> headerBytes)
 {
     BlockHeader header;
     size_t offset = 0;
@@ -210,7 +210,7 @@ std::vector<uint8_t> serialiseBlock(const Block& block)
     appendBytes(out, serialiseBlockHeader(block.header));
 
     // Transactions
-    appendBytes(out, static_cast<uint64_t>(block.txs.size()));
+    appendBytes(out, block.txs.size());
     for (const auto& tx : block.txs)
     {
         appendBytes(out, serialiseTx(tx));
@@ -219,7 +219,7 @@ std::vector<uint8_t> serialiseBlock(const Block& block)
     return out;
 }
 
-Block parseBlock(std::span<const uint8_t> blockBytes)
+Block parseBlock(const std::span<const uint8_t> blockBytes)
 {
     Block block;
     size_t offset = 0;
@@ -315,7 +315,7 @@ Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
         appendBytes(buf, tx.version);
 
         // Inputs
-        appendBytes(buf, static_cast<uint64_t>(tx.txInputs.size()));
+        appendBytes(buf, tx.txInputs.size());
 
         for (const auto & txInput : tx.txInputs)
         {
@@ -328,7 +328,7 @@ Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
         }
 
         // Outputs
-        appendBytes(buf, static_cast<uint64_t>(tx.txOutputs.size()));
+        appendBytes(buf, tx.txOutputs.size());
         for (const TxOutput& txOutput : tx.txOutputs)
         {
             appendBytes(buf, txOutput.amount);

@@ -44,7 +44,7 @@ namespace
 // Put block index
 void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValue& value)
 {
-    rocksdb::Status s = db.Put(rocksdb::WriteOptions(),
+    const rocksdb::Status s = db.Put(rocksdb::WriteOptions(),
                                rocksdb::Slice(makeHashKey(hash)),
                                rocksdb::Slice(makeIndexValue(value)));
     if (!s.ok()) {
@@ -55,8 +55,7 @@ void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValu
 // Delete block index
 void deleteBlockIndex(rocksdb::DB& db, const Array256_t& hash)
 {
-    rocksdb::Status s = db.Delete(rocksdb::WriteOptions(), rocksdb::Slice(makeHashKey(hash)));
-    if (!s.ok()) {
+    if (const rocksdb::Status s = db.Delete(rocksdb::WriteOptions(), rocksdb::Slice(makeHashKey(hash))); !s.ok()) {
         throw std::runtime_error("Failed to delete block index: " + s.ToString());
     }
 }
@@ -65,7 +64,7 @@ void deleteBlockIndex(rocksdb::DB& db, const Array256_t& hash)
 BlockIndexValue getBlockIndex(rocksdb::DB& db, const Array256_t& hash)
 {
     std::string value;
-    rocksdb::Status s = db.Get(rocksdb::ReadOptions(),
+    const rocksdb::Status s = db.Get(rocksdb::ReadOptions(),
                                rocksdb::Slice(makeHashKey(hash)),
                                &value);
     if (!s.ok()) {

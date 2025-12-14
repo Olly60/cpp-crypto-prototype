@@ -67,7 +67,7 @@ Handshake createHandshake()
         GENESIS_BLOCK_HASH,
         SERVICE_FULL_NODE,
         LOCAL_NONCE,
-        getBlockchainTip().first
+        getTipHash()
     };
 }
 

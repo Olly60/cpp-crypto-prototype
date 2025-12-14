@@ -13,7 +13,7 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
     peersFile.exceptions(std::ios::failbit | std::ios::badbit);
 
     // Write peer count
-    appendToFile(peersFile, static_cast<uint64_t>(peers.size()));
+    appendToFile(peersFile, peers.size());
 
     // Write each peer
     for (const auto& [peerAddr, peerStatus] : peers)

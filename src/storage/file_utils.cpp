@@ -65,7 +65,7 @@ std::vector<uint8_t> readWholeFile(const fs::path& filePath)
 
 std::unique_ptr<rocksdb::DB> openDb(const fs::path& path)
 {
-    fs::create_directories(path);
+    fs::create_directories(path.parent_path());
 
     rocksdb::Options options;
     options.create_if_missing = true;
@@ -73,7 +73,7 @@ std::unique_ptr<rocksdb::DB> openDb(const fs::path& path)
     rocksdb::DB* raw = nullptr;
     const rocksdb::Status status = rocksdb::DB::Open(
         options,
-        (path).string(),
+        path.string(),
         &raw
     );
 

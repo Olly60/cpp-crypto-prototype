@@ -22,7 +22,7 @@ namespace
     TxOutput parseUtxoValue(const std::string& value) {
         TxOutput utxo;
         size_t offset = 0;
-        const auto data = std::span<const uint8_t>(
+        const auto data = std::span(
             reinterpret_cast<const uint8_t*>(value.data()), value.size());
         takeBytesInto(utxo.amount, data, offset);
         takeBytesInto(utxo.recipient, data, offset);

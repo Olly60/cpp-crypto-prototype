@@ -7,6 +7,7 @@
 #include "storage/utxo_storage.h"
 #include "storage/block/tip_block.h"
 #include "storage/block/block_heights.h"
+#include "storage/block/block_indexes.h"
 
 // Block undo helpers
 namespace
@@ -23,7 +24,7 @@ namespace
             appendToFile(undoFile, tx.version);
 
             // Write input count
-            appendToFile(undoFile, static_cast<uint64_t>(tx.txInputs.size()));
+            appendToFile(undoFile, tx.txInputs.size());
 
             // For each input, write UTXO reference and value
             for (const auto& input : tx.txInputs)
@@ -158,17 +159,18 @@ void addBlock(const Block& block)
 
     // Add block to heights db
     auto heightsDb = openDb(paths::blockHeightsDb);
-    putHeightHash(*heightsDb, getBlockchainTip().second, blockHash);
+
+    putHeightHash(*heightsDb, getBlockIndex(*openDb(paths::blockIndexesDb), getTipHash()).height, blockHash);
 }
 
 void undoBlock()
 {
-    const auto tip = getBlockchainTip();
-    const fs::path blockFilePath = getBlockFilePath(tip.first);
-    const fs::path undoFilePath = getUndoFilePath(tip.first);
+    const auto tip = getTipHash();
+    const fs::path blockFilePath = getBlockFilePath(tip);
+    const fs::path undoFilePath = getUndoFilePath(tip);
 
     // Read block
-    const auto block = getBlockByHash(tip.first);
+    const auto block = getBlockByHash(tip);
 
     // Open UTXO database
     const auto utxoDb = openDb(paths::utxosDb);
@@ -188,7 +190,7 @@ void undoBlock()
     restoreFromUndoFile(undoFilePath, *utxoDb);
 
     // Update blockchain tip
-    setBlockchainTip(block.header.prevBlockHash, true);
+    setBlockchainTip(block.header.prevBlockHash);
 
     // Delete files
     fs::remove(blockFilePath);
@@ -196,7 +198,7 @@ void undoBlock()
 
     // Delete block from height db
     const auto heightsDb = openDb(paths::blockHeightsDb);
-    deleteHeightHash(*heightsDb, getBlockchainTip().second);
+    deleteHeightHash(*heightsDb, getBlockIndex(*openDb(paths::blockIndexesDb), getTipHash()).height);
 }
 
 bool blockExists(const Array256_t& blockHash)
