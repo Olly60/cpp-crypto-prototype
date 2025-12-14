@@ -166,44 +166,72 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket socket)
     }
 }
 
-asio::awaitable<BlockHeader> requestBlockHeader(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
+asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
+    asio::ip::tcp::socket& socket,
+    const Array256_t& blockHash
+)
 {
-    // Send request
-    auto msgType = static_cast<uint8_t>(ProtocolMessage::GetHeader);
-    co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
-    co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
+    try
+    {
+        // Send request
+        auto msgType = ProtocolMessage::GetHeader;
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
 
-    // Read size
-    uint64_t headerSize;
-    std::array<uint8_t, 8> sizeBuf{};
-    co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
-    takeBytesInto(headerSize, sizeBuf);
+        // Check they have header
+        uint8_t hasHeader;
+        co_await asio::async_read(socket, asio::buffer(&hasHeader, 1), asio::use_awaitable);
+        if (hasHeader == 0) { co_return std::nullopt; }
 
-    // Read header
-    std::vector<uint8_t> headerBytes(headerSize);
-    co_await asio::async_read(socket, asio::buffer(headerBytes), asio::use_awaitable);
+        // Read size
+        uint64_t headerSize;
+        std::array<uint8_t, 8> sizeBuf{};
+        co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+        takeBytesInto(headerSize, sizeBuf);
 
-    co_return parseBlockHeader(headerBytes);
+        // Read header
+        std::vector<uint8_t> headerBytes(headerSize);
+        co_await asio::async_read(socket, asio::buffer(headerBytes), asio::use_awaitable);
+
+        co_return parseBlockHeader(headerBytes);
+    }
+    catch (const std::exception&)
+    {
+        co_return std::nullopt; // treat any failure as "unavailable"
+    }
 }
 
-asio::awaitable<Block> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
+
+asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
 {
-    // Send request
-    auto msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
-    co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
-    co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
+    try
+    {
+        // Send request
+        auto msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
 
-    // Read size
-    uint64_t blockSize;
-    std::array<uint8_t, 8> sizeBuf{};
-    co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
-    takeBytesInto(blockSize, sizeBuf);
+        // Check they have block
+        uint8_t hasBlock;
+        co_await asio::async_read(socket, asio::buffer(&hasBlock, 1), asio::use_awaitable);
+        if (hasBlock == 0) { co_return std::nullopt; }
 
-    // Read block
-    std::vector<uint8_t> blockBytes(blockSize);
-    co_await asio::async_read(socket, asio::buffer(blockBytes), asio::use_awaitable);
+        // Read size
+        uint64_t blockSize;
+        std::array<uint8_t, 8> sizeBuf{};
+        co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+        takeBytesInto(blockSize, sizeBuf);
 
-    co_return parseBlock(blockBytes);
+        // Read block
+        std::vector<uint8_t> blockBytes(blockSize);
+        co_await asio::async_read(socket, asio::buffer(blockBytes), asio::use_awaitable);
+
+        co_return parseBlock(blockBytes);
+    }
+    catch (const std::exception&)
+    {
+        co_return std::nullopt; // treat any failure as "unavailable"
+    }
 }
 
 // ============================================
@@ -217,6 +245,18 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
         // Read block hash
         Array256_t blockHash;
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
+
+        // Check header is in storage
+        if (!blockExists(blockHash))
+        {
+            uint8_t haveHeader = 0;
+            co_await asio::async_write(socket, asio::buffer(&haveHeader, 1), asio::use_awaitable);
+            co_return;
+        }
+
+        // Tell peer I have it
+        uint8_t haveBlock = 1;
+        co_await asio::async_write(socket, asio::buffer(&haveBlock, 1), asio::use_awaitable);
 
         // Get header from storage
         auto headerBytes = readBlockFileHeaderBytes(blockHash);
@@ -244,11 +284,22 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket)
         Array256_t blockHash;
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
+        // Check block is in storage
+        if (!blockExists(blockHash))
+        {
+            uint8_t haveBlock = 0;
+            co_await asio::async_write(socket, asio::buffer(&haveBlock, 1), asio::use_awaitable);
+            co_return;
+        }
+        // Tell peer I have it
+        uint8_t haveBlock = 1;
+        co_await asio::async_write(socket, asio::buffer(&haveBlock, 1), asio::use_awaitable);
+
         // Get block from storage
         auto blockData = readBlockFileBytes(blockHash);
 
         // Send size
-        uint64_t blockSize = blockData.size();
+        const uint64_t blockSize = blockData.size();
         std::vector<uint8_t> sizeBuf;
         appendBytes(sizeBuf, blockSize);
         co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
@@ -485,15 +536,13 @@ asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
 
 int main()
 {
+    asio::io_context ioContext;
+    asio::ip::tcp::acceptor acceptor(ioContext,
+                                     asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
 
-        asio::io_context ioContext;
-        asio::ip::tcp::acceptor acceptor(ioContext,
-                                         asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
+    co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
 
-        co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
+    ioContext.run();
 
-        ioContext.run();
-
-        storePeers(peers);
-
+    storePeers(peers);
 }
