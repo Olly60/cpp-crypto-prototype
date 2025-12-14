@@ -339,7 +339,7 @@ Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
         return sha256Of(buf);
     }
 
-Tx signTx(const Tx& tx, const Array256_t& privKeySeed)
+Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 {
     Tx signedTx = tx; // make a copy
 
