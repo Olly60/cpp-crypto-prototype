@@ -33,6 +33,7 @@ enum class ProtocolMessage : uint8_t
     BroadcastBlock = 5,
     BroadcastTransaction = 6,
     GetMempool = 7,
+    GetHeaders = 8
 };
 
 // ============================================
@@ -125,7 +126,7 @@ void addPeer(const asio::ip::tcp::socket& socket, const Handshake& hs)
 // Request
 // ============================================
 
-asio::awaitable<void> requestHandshake(asio::ip::tcp::socket socket)
+asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -164,6 +165,11 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket socket)
     catch (const std::exception&)
     {
     }
+}
+
+asio::awaitable<void> requestPing(asio::ip::tcp::socket& socket)
+{
+ //TODO: make function
 }
 
 asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
@@ -234,11 +240,21 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
     }
 }
 
+asio::awaitable<std::optional<Block>> requestHeaders(asio::ip::tcp::socket& socket, const std::vector<BlockHeader>& commonAncestor)
+{
+ //TODO: make function
+}
+
+asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket)
+{
+ //TODO: make function
+}
+
 // ============================================
 // Handle requests
 // ============================================
 
-asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
+asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -276,7 +292,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket socket)
     }
 }
 
-asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket)
+asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -313,7 +329,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket socket)
     }
 }
 
-asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
+asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -343,7 +359,7 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket socket)
     }
 }
 
-asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket)
+asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -374,7 +390,7 @@ asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket socket)
     }
 }
 
-asio::awaitable<void> handleHandshake(asio::ip::tcp::socket socket)
+asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -412,7 +428,7 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket socket)
     }
 }
 
-asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
+asio::awaitable<void> handlePing(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -425,14 +441,22 @@ asio::awaitable<void> handlePing(asio::ip::tcp::socket socket)
     }
 }
 
+asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
+{
+ //TODO: make function
+}
+
+asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
+{
+    //TODO: make function
+}
+
 // ============================================
 // Sync blockchain
 // ============================================
 
-asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket socket)
+asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
 {
-    // TODO: Ask for their blockchain work
-
     // if work they claim > then verify else ignore
 
     // TODO: Compare block chain work
@@ -449,7 +473,7 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket socket)
 // Handle connection
 // ============================================
 
-asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
+asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -465,7 +489,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
         // Handle handshake
         if (msgType == 1)
         {
-            co_await handleHandshake(std::move(socket));
+            co_await handleHandshake(socket);
             co_return;
         }
 
@@ -482,19 +506,25 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
         switch (static_cast<ProtocolMessage>(msgType))
         {
         case ProtocolMessage::Ping:
-            co_await handlePing(std::move(socket));
+            co_await handlePing(socket);
             break;
         case ProtocolMessage::GetHeader:
-            co_await handleGetHeader(std::move(socket));
+            co_await handleGetHeader(socket);
             break;
         case ProtocolMessage::GetBlock:
-            co_await handleGetBlock(std::move(socket));
+            co_await handleGetBlock(socket);
             break;
         case ProtocolMessage::BroadcastBlock:
-            co_await handleBroadcastBlock(std::move(socket));
+            co_await handleBroadcastBlock(socket);
             break;
         case ProtocolMessage::BroadcastTransaction:
-            co_await handleBroadcastTransaction(std::move(socket));
+            co_await handleBroadcastTransaction(socket);
+            break;
+        case ProtocolMessage::GetMempool:
+            co_await handleGetMempool(socket);
+            break;
+        case ProtocolMessage::GetHeaders:
+            co_await handleGetHeaders(socket);
             break;
         default:
             break; // Unknown message
@@ -518,7 +548,7 @@ asio::awaitable<void> acceptConnections(asio::ip::tcp::acceptor& acceptor)
         {
             auto socket = co_await acceptor.async_accept(asio::use_awaitable);
             co_spawn(acceptor.get_executor(),
-                     handleConnection(std::move(socket)),
+                     handleConnection(socket),
                      asio::detached);
         }
     }
