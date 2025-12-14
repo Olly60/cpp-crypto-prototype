@@ -31,9 +31,25 @@ enum class ProtocolMessage : uint8_t
     GetHeader = 3,
     GetBlock = 4,
     BroadcastBlock = 5,
-    BroadcastTransaction = 6,
+    BroadcastMempoolTx = 6,
     GetMempool = 7,
     GetHeaders = 8
+};
+
+struct Array256Hash {
+    size_t operator()(const Array256_t& a) const {
+        // Simple xor-folding over 8-byte chunks
+        size_t result = 0;
+        for (size_t i = 0; i < 32; i += 8) {
+            size_t chunk = 0;
+            for (size_t j = 0; j < 8; ++j) {
+                chunk <<= 8;
+                chunk |= a[i + j];
+            }
+            result ^= chunk;
+        }
+        return result;
+    }
 };
 
 // ============================================
@@ -41,7 +57,7 @@ enum class ProtocolMessage : uint8_t
 // ============================================
 
 std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
-std::vector<Tx> mempool;
+std::unordered_map<Array256_t, Tx, Array256Hash> mempool;
 
 constexpr uint64_t SERVICE_FULL_NODE = 0b1;
 constexpr uint64_t PROTOCOL_VERSION = 1;
@@ -169,7 +185,14 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
 
 asio::awaitable<void> requestPing(asio::ip::tcp::socket& socket)
 {
- //TODO: make function
+    try
+    {
+        // Send message type
+        auto msgType = static_cast<uint8_t>(ProtocolMessage::Ping);
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+    } catch (const std::exception&)
+    {
+    }
 }
 
 asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
@@ -215,6 +238,8 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
         // Send request
         auto msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+
+        // Block hash
         co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Check they have block
@@ -241,13 +266,44 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
 }
 
 asio::awaitable<std::optional<Block>> requestHeaders(asio::ip::tcp::socket& socket, const std::vector<BlockHeader>& commonAncestor)
-{
+{ try {
  //TODO: make function
+} catch (const std::exception&)
+{
+}
 }
 
 asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket)
 {
- //TODO: make function
+    try {
+    // Read inv size
+    uint64_t invSize;
+    std::array<uint8_t, 8> sizeBuf{};
+    co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+    takeBytesInto(invSize, sizeBuf);
+
+    // Read inv
+    std::vector<uint8_t> theirInv(sizeof(Array256_t) * invSize);
+    co_await asio::async_read(socket, asio::buffer(theirInv), asio::use_awaitable);
+
+    for (uint64_t i = 0; i == invSize; i++)
+    if (mempool.find()
+    {
+        mempool.push_back(newTx);
+        // Note: broadcastTransaction would need to be implemented
+    }
+
+    // Ask for missing transactions
+    co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
+
+    else
+    {
+        throw std::runtime_error("Invalid transaction");
+    }
+} catch (const std::exception&)
+{
+}
+
 }
 
 // ============================================
@@ -359,30 +415,11 @@ asio::awaitable<void> handleBroadcastBlock(asio::ip::tcp::socket& socket)
     }
 }
 
-asio::awaitable<void> handleBroadcastTransaction(asio::ip::tcp::socket& socket)
+asio::awaitable<void> handleBroadcastMempoolTx(asio::ip::tcp::socket& socket)
 {
     try
     {
-        // Read size
-        uint64_t txSize;
-        std::array<uint8_t, 8> sizeBuf{};
-        co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
-        takeBytesInto(txSize, sizeBuf);
-
-        // Read transaction
-        std::vector<uint8_t> txData(txSize);
-        co_await asio::async_read(socket, asio::buffer(txData), asio::use_awaitable);
-
-        Tx newTx = parseTx(txData);
-        if (verifyTx(newTx))
-        {
-            mempool.push_back(newTx);
-            // Note: broadcastTransaction would need to be implemented
-        }
-        else
-        {
-            throw std::runtime_error("Invalid transaction");
-        }
+        //TODO: make function
     }
     catch (const std::exception&)
     {
@@ -443,12 +480,42 @@ asio::awaitable<void> handlePing(asio::ip::tcp::socket& socket)
 
 asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
 {
- //TODO: make function
+    try {
+        //TODO: make function
+    } catch (const std::exception&)
+    {
+    }
 }
 
 asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 {
-    //TODO: make function
+    try {
+        //TODO: make function
+    } catch (const std::exception&)
+    {
+    }
+}
+
+// ============================================
+// Broadcast new data
+// ============================================
+
+asio::awaitable<void> BroadcastMempoolTx()
+{
+    try {
+        //TODO: make function
+    } catch (const std::exception&)
+    {
+    }
+}
+
+asio::awaitable<void> BroadcastNewBlock()
+{
+    try {
+        //TODO: make function
+    } catch (const std::exception&)
+    {
+    }
 }
 
 // ============================================
@@ -457,16 +524,24 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 
 asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
 {
-    // if work they claim > then verify else ignore
+    try {
+        //TODO: make function
 
-    // TODO: Compare block chain work
-    requestBlock()
-    co_await asio::async_read(socket, asio::use_awaitable);
+        // if work they claim > then verify else ignore
+        //
+        //    // TODO: Compare block chain work
+        //    requestBlock()
+        //    co_await asio::async_read(socket, asio::use_awaitable);
+        //
+        //    // if their work > our work
+        //    // TODO: Remove blocks up to matching one
+        //
+        //    // TODO: Add new block
+    }
+    catch (const std::exception&)
+    {
+    }
 
-    // if their work > our work
-    // TODO: Remove blocks up to matching one
-
-    // TODO: Add new block
 }
 
 // ============================================
@@ -517,8 +592,8 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
         case ProtocolMessage::BroadcastBlock:
             co_await handleBroadcastBlock(socket);
             break;
-        case ProtocolMessage::BroadcastTransaction:
-            co_await handleBroadcastTransaction(socket);
+        case ProtocolMessage::BroadcastMempoolTx:
+            co_await handleBroadcastMempoolTx(socket);
             break;
         case ProtocolMessage::GetMempool:
             co_await handleGetMempool(socket);
