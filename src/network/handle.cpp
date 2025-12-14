@@ -128,7 +128,7 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
     try
     {
         // Read peer handshake
-        std::vector<uint8_t> buffer(sizeof(Handshake));
+        std::vector<uint8_t> buffer(handshakeSize());
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
         const Handshake theirHandshake = parseHandshake(buffer);
@@ -254,10 +254,10 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
             std::vector<uint8_t> txBytes(txSize);
             co_await asio::async_read(socket, asio::buffer(txBytes), asio::use_awaitable);
 
-            txs.push_back( parseTx(txBytes));
-
+            txs.push_back(parseTx(txBytes));
         }
-        catch (const std::exception&)
+        catch
+        (const std::exception&)
         {
         }
     }

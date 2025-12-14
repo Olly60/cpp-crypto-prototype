@@ -19,7 +19,7 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
         // Read peer handshake
-        std::vector<uint8_t> buffer(sizeof(Handshake));
+        std::vector<uint8_t> buffer(handshakeSize());
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
         const Handshake theirHandshake = parseHandshake(buffer);
