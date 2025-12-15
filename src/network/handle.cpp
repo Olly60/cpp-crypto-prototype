@@ -68,8 +68,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
         auto blockData = readBlockFileBytes(blockHash);
 
         // Send size
-        const uint64_t blockSize = blockData.size();
-        writeUint64_t(socket)
+        co_await writeUint64_t(socket, blockData.size());
 
         // Send block
         co_await asio::async_write(socket, asio::buffer(blockData), asio::use_awaitable);
