@@ -21,8 +21,8 @@ enum class ProtocolMessage : uint8_t
     Ping = 2,
     GetHeader = 3,
     GetBlock = 4,
-    BroadcastBlock = 5,
-    BroadcastMempoolTx = 6,
+    BroadcastNewBlock = 5,
+    BroadcastNewTx = 6,
     GetMempool = 7,
     GetHeaders = 8
 };

@@ -11,7 +11,7 @@ void setBlockchainTip(const Array256_t& newTip)
     // Get new height
     auto tipBytes = readWholeFile(paths::blockchainTip);
     uint64_t currentHeight;
-    takeBytesInto(currentHeight, {tipBytes.data() + sizeof(Array256_t), sizeof(currentHeight)});
+    parseBytesInto(currentHeight, {tipBytes.data() + sizeof(Array256_t), sizeof(currentHeight)});
 
     // open file
     std::ofstream blockchainTipFile(paths::blockchainTip, std::ios::trunc | std::ios::binary);
@@ -29,7 +29,7 @@ Array256_t getTipHash()
 {
     auto fileBytes = readWholeFile(paths::blockchainTip);
     Array256_t hash;
-    takeBytesInto(hash, fileBytes);
+    parseBytesInto(hash, fileBytes);
     return hash;
 }
 

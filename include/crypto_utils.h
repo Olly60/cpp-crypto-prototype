@@ -122,7 +122,7 @@ inline constexpr bool always_false = false;
  * @throws std::runtime_error if not enough bytes available
  */
 template <typename T>
-void takeBytesInto(T& out, const std::span<const uint8_t> data, size_t& offset)
+void parseBytesInto(T& out, const std::span<const uint8_t> data, size_t& offset)
 {
     if (offset + sizeof(T) > data.size())
     {
@@ -151,10 +151,10 @@ void takeBytesInto(T& out, const std::span<const uint8_t> data, size_t& offset)
  * @param data Input byte span
  */
 template <typename T>
-void takeBytesInto(T& out, std::span<const uint8_t> data)
+void parseBytesInto(T& out, std::span<const uint8_t> data)
 {
     size_t offset = 0;
-    takeBytesInto(out, data, offset);
+    parseBytesInto(out, data, offset);
 }
 
 /**
@@ -165,7 +165,7 @@ void takeBytesInto(T& out, std::span<const uint8_t> data)
  * @param data Data to serialize
  */
 template <typename ContainerOut, typename T>
-void appendBytes(ContainerOut& out, const T& data)
+void serialiseAppendBytes(ContainerOut& out, const T& data)
 {
     if constexpr (std::is_integral_v<T>)
     {

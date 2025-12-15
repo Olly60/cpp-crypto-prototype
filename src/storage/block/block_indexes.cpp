@@ -12,7 +12,7 @@ namespace
     std::string makeHashKey(const Array256_t& hash)
     {
         std::string key;
-        appendBytes(key, hash);
+        serialiseAppendBytes(key, hash);
         return key;
     }
 
@@ -20,8 +20,8 @@ namespace
     std::string makeIndexValue(const BlockIndexValue& index)
     {
         std::string value;
-        appendBytes(value, index.height);
-        appendBytes(value, index.chainwork);
+        serialiseAppendBytes(value, index.height);
+        serialiseAppendBytes(value, index.chainwork);
         return value;
     }
 
@@ -33,9 +33,9 @@ namespace
 
         BlockIndexValue result{};
         size_t offset = 0;
-        takeBytesInto(result.height, std::span(
+        parseBytesInto(result.height, std::span(
             reinterpret_cast<const uint8_t*>(value.data()), value.size()), offset);
-        takeBytesInto(result.chainwork, std::span(
+        parseBytesInto(result.chainwork, std::span(
             reinterpret_cast<const uint8_t*>(value.data()), value.size()), offset);
         return result;
     }

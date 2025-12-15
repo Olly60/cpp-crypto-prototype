@@ -49,22 +49,22 @@ namespace
         {
             // Read transaction version
             uint64_t version;
-            takeBytesInto(version, undoDataBytes, offset);
+            parseBytesInto(version, undoDataBytes, offset);
 
             // Read input count
             uint64_t inputCount;
-            takeBytesInto(inputCount, undoDataBytes, offset);
+            parseBytesInto(inputCount, undoDataBytes, offset);
 
             // Read each input and restore UTXO
             for (uint64_t j = 0; j < inputCount; j++)
             {
                 TxInput input;
-                takeBytesInto(input.UTXOTxHash, undoDataBytes, offset);
-                takeBytesInto(input.UTXOOutputIndex, undoDataBytes, offset);
+                parseBytesInto(input.UTXOTxHash, undoDataBytes, offset);
+                parseBytesInto(input.UTXOOutputIndex, undoDataBytes, offset);
 
                 TxOutput utxo;
-                takeBytesInto(utxo.amount, undoDataBytes, offset);
-                takeBytesInto(utxo.recipient, undoDataBytes, offset);
+                parseBytesInto(utxo.amount, undoDataBytes, offset);
+                parseBytesInto(utxo.recipient, undoDataBytes, offset);
 
                 // Restore UTXO
                 putUtxo(utxoDb, input, utxo);

@@ -78,18 +78,18 @@ uint64_t getCurrentTimestamp()
 std::vector<uint8_t> serialiseTxInput(const TxInput& txInput)
 {
     std::vector<uint8_t> out;
-    appendBytes(out, txInput.UTXOTxHash);
-    appendBytes(out, txInput.UTXOOutputIndex);
-    appendBytes(out, txInput.signature);
+    serialiseAppendBytes(out, txInput.UTXOTxHash);
+    serialiseAppendBytes(out, txInput.UTXOOutputIndex);
+    serialiseAppendBytes(out, txInput.signature);
     return out;
 }
 
 TxInput parseTxInput(std::span<const uint8_t> txInputBytes, size_t& offset)
 {
     TxInput txInput;
-    takeBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
-    takeBytesInto(txInput.UTXOOutputIndex, txInputBytes, offset);
-    takeBytesInto(txInput.signature, txInputBytes, offset);
+    parseBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
+    parseBytesInto(txInput.UTXOOutputIndex, txInputBytes, offset);
+    parseBytesInto(txInput.signature, txInputBytes, offset);
     return txInput;
 }
 
@@ -99,16 +99,16 @@ TxInput parseTxInput(std::span<const uint8_t> txInputBytes, size_t& offset)
 std::vector<uint8_t> serialiseTxOutput(const TxOutput& output)
 {
     std::vector<uint8_t> out;
-    appendBytes(out, output.amount);
-    appendBytes(out, output.recipient);
+    serialiseAppendBytes(out, output.amount);
+    serialiseAppendBytes(out, output.recipient);
     return out;
 }
 
 TxOutput parseTxOutput(std::span<const uint8_t> outputBytes, size_t& offset)
 {
     TxOutput output;
-    takeBytesInto(output.amount, outputBytes, offset);
-    takeBytesInto(output.recipient, outputBytes, offset);
+    parseBytesInto(output.amount, outputBytes, offset);
+    parseBytesInto(output.recipient, outputBytes, offset);
     return output;
 }
 
@@ -120,20 +120,20 @@ std::vector<uint8_t> serialiseTx(const Tx& tx)
     std::vector<uint8_t> out;
 
     // Version
-    appendBytes(out, tx.version);
+    serialiseAppendBytes(out, tx.version);
 
     // Inputs
-    appendBytes(out, tx.txInputs.size());
+    serialiseAppendBytes(out, tx.txInputs.size());
     for (const auto& input : tx.txInputs)
     {
-        appendBytes(out, serialiseTxInput(input));
+        serialiseAppendBytes(out, serialiseTxInput(input));
     }
 
     // Outputs
-    appendBytes(out, tx.txOutputs.size());
+    serialiseAppendBytes(out, tx.txOutputs.size());
     for (const auto& output : tx.txOutputs)
     {
-        appendBytes(out, serialiseTxOutput(output));
+        serialiseAppendBytes(out, serialiseTxOutput(output));
     }
 
     return out;
@@ -142,11 +142,11 @@ std::vector<uint8_t> serialiseTx(const Tx& tx)
 Tx parseTx(std::span<const uint8_t> txBytes, size_t& offset)
 {
     Tx tx;
-    takeBytesInto(tx.version, txBytes, offset);
+    parseBytesInto(tx.version, txBytes, offset);
 
     // Read inputs
     uint64_t inputCount;
-    takeBytesInto(inputCount, txBytes, offset);
+    parseBytesInto(inputCount, txBytes, offset);
     tx.txInputs.reserve(inputCount);
     for (uint64_t i = 0; i < inputCount; i++)
     {
@@ -155,7 +155,7 @@ Tx parseTx(std::span<const uint8_t> txBytes, size_t& offset)
 
     // Read outputs
     uint64_t outputCount;
-    takeBytesInto(outputCount, txBytes, offset);
+    parseBytesInto(outputCount, txBytes, offset);
     tx.txOutputs.reserve(outputCount);
     for (uint64_t i = 0; i < outputCount; i++)
     {
@@ -177,12 +177,12 @@ Tx parseTx(std::span<const uint8_t> txBytes)
 std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header)
 {
     std::vector<uint8_t> out;
-    appendBytes(out, header.version);
-    appendBytes(out, header.prevBlockHash);
-    appendBytes(out, header.merkleRoot);
-    appendBytes(out, header.timestamp);
-    appendBytes(out, header.difficulty);
-    appendBytes(out, header.nonce);
+    serialiseAppendBytes(out, header.version);
+    serialiseAppendBytes(out, header.prevBlockHash);
+    serialiseAppendBytes(out, header.merkleRoot);
+    serialiseAppendBytes(out, header.timestamp);
+    serialiseAppendBytes(out, header.difficulty);
+    serialiseAppendBytes(out, header.nonce);
     return out;
 }
 
@@ -190,12 +190,12 @@ BlockHeader parseBlockHeader(const std::span<const uint8_t> headerBytes)
 {
     BlockHeader header;
     size_t offset = 0;
-    takeBytesInto(header.version, headerBytes, offset);
-    takeBytesInto(header.prevBlockHash, headerBytes, offset);
-    takeBytesInto(header.merkleRoot, headerBytes, offset);
-    takeBytesInto(header.timestamp, headerBytes, offset);
-    takeBytesInto(header.difficulty, headerBytes, offset);
-    takeBytesInto(header.nonce, headerBytes, offset);
+    parseBytesInto(header.version, headerBytes, offset);
+    parseBytesInto(header.prevBlockHash, headerBytes, offset);
+    parseBytesInto(header.merkleRoot, headerBytes, offset);
+    parseBytesInto(header.timestamp, headerBytes, offset);
+    parseBytesInto(header.difficulty, headerBytes, offset);
+    parseBytesInto(header.nonce, headerBytes, offset);
     return header;
 }
 
@@ -207,13 +207,13 @@ std::vector<uint8_t> serialiseBlock(const Block& block)
     std::vector<uint8_t> out;
 
     // Header
-    appendBytes(out, serialiseBlockHeader(block.header));
+    serialiseAppendBytes(out, serialiseBlockHeader(block.header));
 
     // Transactions
-    appendBytes(out, block.txs.size());
+    serialiseAppendBytes(out, block.txs.size());
     for (const auto& tx : block.txs)
     {
-        appendBytes(out, serialiseTx(tx));
+        serialiseAppendBytes(out, serialiseTx(tx));
     }
 
     return out;
@@ -229,7 +229,7 @@ Block parseBlock(const std::span<const uint8_t> blockBytes)
 
     // Transactions
     uint64_t txCount;
-    takeBytesInto(txCount, blockBytes, offset);
+    parseBytesInto(txCount, blockBytes, offset);
     block.txs.reserve(txCount);
     for (uint64_t i = 0; i < txCount; i++)
     {
@@ -290,8 +290,8 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
             // Hash the concatenation of left and right
             std::vector<uint8_t> combined;
             combined.reserve(left.size() + right.size());
-            appendBytes(combined, left);
-            appendBytes(combined, right);
+            serialiseAppendBytes(combined, left);
+            serialiseAppendBytes(combined, right);
 
             nextLayer.push_back(sha256Of(combined));
         }
@@ -312,27 +312,27 @@ Array256_t computeTxInputHash(const Tx& tx)
         std::vector<uint8_t> buf;
 
         // Version
-        appendBytes(buf, tx.version);
+        serialiseAppendBytes(buf, tx.version);
 
         // Inputs
-        appendBytes(buf, tx.txInputs.size());
+        serialiseAppendBytes(buf, tx.txInputs.size());
 
         for (const auto & txInput : tx.txInputs)
         {
-            appendBytes(buf, txInput.UTXOTxHash);
-            appendBytes(buf, txInput.UTXOOutputIndex);
+            serialiseAppendBytes(buf, txInput.UTXOTxHash);
+            serialiseAppendBytes(buf, txInput.UTXOOutputIndex);
 
             // Blank out other input signatures
             std::array<uint8_t, 64> emptySig{};
-            appendBytes(buf, emptySig);
+            serialiseAppendBytes(buf, emptySig);
         }
 
         // Outputs
-        appendBytes(buf, tx.txOutputs.size());
+        serialiseAppendBytes(buf, tx.txOutputs.size());
         for (const TxOutput& txOutput : tx.txOutputs)
         {
-            appendBytes(buf, txOutput.amount);
-            appendBytes(buf, txOutput.recipient);
+            serialiseAppendBytes(buf, txOutput.amount);
+            serialiseAppendBytes(buf, txOutput.recipient);
         }
 
         // Final message hash

@@ -7,15 +7,15 @@ namespace
 {
     std::string makeUtxoKey(const TxInput& txInput) {
         std::string key;
-        appendBytes(key, txInput.UTXOTxHash);
-        appendBytes(key, txInput.UTXOOutputIndex);
+        serialiseAppendBytes(key, txInput.UTXOTxHash);
+        serialiseAppendBytes(key, txInput.UTXOOutputIndex);
         return key;
     }
 
     std::string makeUtxoValue(const TxOutput& utxo) {
         std::string value;
-        appendBytes(value, utxo.amount);
-        appendBytes(value, utxo.recipient);
+        serialiseAppendBytes(value, utxo.amount);
+        serialiseAppendBytes(value, utxo.recipient);
         return value;
     }
 
@@ -24,8 +24,8 @@ namespace
         size_t offset = 0;
         const auto data = std::span(
             reinterpret_cast<const uint8_t*>(value.data()), value.size());
-        takeBytesInto(utxo.amount, data, offset);
-        takeBytesInto(utxo.recipient, data, offset);
+        parseBytesInto(utxo.amount, data, offset);
+        parseBytesInto(utxo.recipient, data, offset);
         return utxo;
     }
 }

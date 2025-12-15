@@ -34,11 +34,29 @@ asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket);
 // Reading helpers
 // ============================================
 
-asio::awaitable<uint64_t> readUint64_t(asio::ip::tcp::socket& socket);
+template <typename T>
+requires (std::is_integral_v<T> && std::is_unsigned_v<T>)
+asio::awaitable<T> readNumber(asio::ip::tcp::socket& socket)
+{
+    T size;
+    std::array<uint8_t, sizeof(T)> numBuf{};
+    co_await asio::async_read(socket, asio::buffer(numBuf), asio::use_awaitable);
+    parseBytesInto(size, numBuf);
+    co_return size;
+
+}
 
 // ============================================
 // Writing helpers
 // ============================================
 
-asio::awaitable<void> writeUint64_t(asio::ip::tcp::socket& socket, const uint64_t size);
+template <typename T>
+requires (std::is_integral_v<T> && std::is_unsigned_v<T>)
+asio::awaitable<void> writeNumber(asio::ip::tcp::socket& socket, const T size)
+{
+    std::vector<uint8_t> numBuf;
+    numBuf.reserve(sizeof(T));
+    serialiseAppendBytes(numBuf, size);
+    co_await asio::async_write(socket, asio::buffer(numBuf), asio::use_awaitable);
+}
 

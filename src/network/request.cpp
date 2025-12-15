@@ -80,7 +80,7 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
         if (hasHeader == 0) { co_return std::nullopt; }
 
         // Read size
-        const uint64_t headerSize = co_await readUint64_t(socket);
+        const uint64_t headerSize = co_await readNumber<uint64_t>(socket);
 
         // Read header
         std::vector<uint8_t> headerBytes(headerSize);
@@ -112,7 +112,7 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
         if (hasBlock == 0) { co_return std::nullopt; }
 
         // Read size
-        const uint64_t blockSize = co_await readUint64_t(socket);
+        const uint64_t blockSize = co_await readNumber<uint64_t>(socket);
 
         // Read block
         std::vector<uint8_t> blockBytes(blockSize);
@@ -143,7 +143,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
     try
     {
         // Read inv size
-        const uint64_t invSize = co_await readUint64_t(socket);
+        const uint64_t invSize = co_await readNumber<uint64_t>(socket);
 
         // Read inv
         std::vector<uint8_t> theirInv(sizeof(Array256_t) * invSize);
@@ -168,7 +168,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
         }
 
         // Tell missing size
-        co_await writeUint64_t(socket, missing.size());
+        co_await writeNumber(socket, missing.size());
 
         // Ask for missing transactions
         co_await asio::async_write(socket, asio::buffer(missing), asio::use_awaitable);
@@ -179,7 +179,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
         for (uint64_t i = 0; i != missing.size(); i++)
         {
             // Read size
-            const uint64_t txSize = co_await readUint64_t(socket);
+            const uint64_t txSize = co_await readNumber<uint64_t>(socket);
 
             // Read transaction
             std::vector<uint8_t> txBytes(txSize);

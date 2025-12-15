@@ -31,11 +31,11 @@ Handshake createHandshake()
 std::vector<uint8_t> serialiseHandshake(const Handshake& hs)
 {
     std::vector<uint8_t> handshakeBytes;
-    appendBytes(handshakeBytes, hs.version);
-    appendBytes(handshakeBytes, hs.genesisBlockHash);
-    appendBytes(handshakeBytes, hs.services);
-    appendBytes(handshakeBytes, hs.nonce);
-    appendBytes(handshakeBytes, hs.blockchainTip);
+    serialiseAppendBytes(handshakeBytes, hs.version);
+    serialiseAppendBytes(handshakeBytes, hs.genesisBlockHash);
+    serialiseAppendBytes(handshakeBytes, hs.services);
+    serialiseAppendBytes(handshakeBytes, hs.nonce);
+    serialiseAppendBytes(handshakeBytes, hs.blockchainTip);
     return handshakeBytes;
 }
 
@@ -43,11 +43,11 @@ Handshake parseHandshake(const std::vector<uint8_t>& buffer)
 {
     Handshake hs{};
     size_t offset = 0;
-    takeBytesInto(hs.version, buffer, offset);
-    takeBytesInto(hs.genesisBlockHash, buffer, offset);
-    takeBytesInto(hs.services, buffer, offset);
-    takeBytesInto(hs.nonce, buffer, offset);
-    takeBytesInto(hs.blockchainTip, buffer, offset);
+    parseBytesInto(hs.version, buffer, offset);
+    parseBytesInto(hs.genesisBlockHash, buffer, offset);
+    parseBytesInto(hs.services, buffer, offset);
+    parseBytesInto(hs.nonce, buffer, offset);
+    parseBytesInto(hs.blockchainTip, buffer, offset);
     return hs;
 }
 
@@ -108,48 +108,44 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
 // Broadcast
 // ============================================
 
-asio::awaitable<void> BroadcastNewTx(asio::ip::tcp::socket& socket)
+asio::awaitable<void> BroadcastNewTx(asio::ip::tcp::socket& socket, const Tx& tx)
 {
     try
     {
-        //TODO: make function
+        // Send message type
+        auto msgType = static_cast<uint8_t>(ProtocolMessage::BroadcastNewTx);
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+
+        // Send transaction size
+        const auto txBytes = serialiseTx(tx);
+        co_await writeNumber<uint64_t>(socket, txBytes.size());
+
+        // Send transaction
+        co_await asio::async_write(socket, asio::buffer(txBytes), asio::use_awaitable);
+
     }
     catch (const std::exception&)
     {
     }
 }
 
-asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket)
+asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket, const Block& block)
 {
     try
     {
-        //TODO: make function
+        // Send message type
+        auto msgType = static_cast<uint8_t>(ProtocolMessage::BroadcastNewBlock);
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+
+        // Send block size
+        const auto blockBytes = serialiseBlock(block);
+        co_await writeNumber<uint64_t>(socket, blockBytes.size());
+
+        // Send block
+        co_await asio::async_write(socket, asio::buffer(blockBytes), asio::use_awaitable);
+
     }
     catch (const std::exception&)
     {
     }
-}
-
-// ============================================
-// Reading helpers
-// ============================================
-
-asio::awaitable<uint64_t> readUint64_t(asio::ip::tcp::socket& socket)
-{
-    uint64_t size;
-    std::array<uint8_t, 8> sizeBuf{};
-    co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
-    takeBytesInto(size, sizeBuf);
-    co_return size;
-}
-
-// ============================================
-// Writing helpers
-// ============================================
-
-asio::awaitable<void> writeUint64_t(asio::ip::tcp::socket& socket, const uint64_t size)
-{
-    std::vector<uint8_t> sizeBuf;
-    appendBytes(sizeBuf, size);
-    co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
 }

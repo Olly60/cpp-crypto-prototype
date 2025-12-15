@@ -53,10 +53,10 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
         case ProtocolMessage::GetBlock:
             co_await handleGetBlock(socket);
             break;
-        case ProtocolMessage::BroadcastBlock:
+        case ProtocolMessage::BroadcastNewBlock:
             co_await handleNewBlock(socket);
             break;
-        case ProtocolMessage::BroadcastMempoolTx:
+        case ProtocolMessage::BroadcastNewTx:
             co_await handleNewTx(socket);
             break;
         case ProtocolMessage::GetMempool:

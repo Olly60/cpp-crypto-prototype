@@ -46,7 +46,7 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 
     // Read peer count
     uint64_t peersCount;
-    takeBytesInto(peersCount, peersFileBytes, offset);
+    parseBytesInto(peersCount, peersFileBytes, offset);
 
     // Read each peer
     for (uint64_t i = 0; i < peersCount; i++)
@@ -56,7 +56,7 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 
         // Read address length
         uint16_t addrLen;
-        takeBytesInto(addrLen, peersFileBytes, offset);
+        parseBytesInto(addrLen, peersFileBytes, offset);
 
         // Read address string
         if (offset + addrLen > peersFileBytes.size())
@@ -70,13 +70,13 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
         offset += addrLen;
 
         // Read port
-        takeBytesInto(peerAddr.port, peersFileBytes, offset);
+        parseBytesInto(peerAddr.port, peersFileBytes, offset);
 
         // Read services
-        takeBytesInto(peerStatus.services, peersFileBytes, offset);
+        parseBytesInto(peerStatus.services, peersFileBytes, offset);
 
         // Read last seen
-        takeBytesInto(peerStatus.lastSeen, peersFileBytes, offset);
+        parseBytesInto(peerStatus.lastSeen, peersFileBytes, offset);
 
         peers.insert({peerAddr, peerStatus});
     }
