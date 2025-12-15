@@ -2,9 +2,12 @@
 #include <asio/awaitable.hpp>
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
-#include "network/network.h"
+#include "network/network_main.h"
 #include "storage/block/tip_block.h"
 #include "network/handle.h"
+#include "network/network_main.h"
+#include "storage/block/block_utils.h"
+#include "block_verification.h"
 
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
 {
@@ -98,7 +101,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         if (const Block newBlock = parseBlock(blockData); verifyBlock(newBlock))
         {
             addBlock(newBlock);
-            // Note: broadcastBlockToPeers would need to be implemented
+            // TODO: broadcastBlockToPeers would need to be implemented
         }
         else if (!blockExists(getBlockHash(newBlock)))
         {

@@ -307,7 +307,7 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
 // ============================================================================
 
 
-Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex)
+Array256_t computeTxInputHash(const Tx& tx)
     {
         std::vector<uint8_t> buf;
 
@@ -345,7 +345,7 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 
     for (size_t i = 0; i < signedTx.txInputs.size(); i++)
     {
-        Array256_t hash = computeTxInputHash(signedTx, i); // Sign hash for this input
+        Array256_t hash = computeTxInputHash(signedTx); // Sign hash for this input
 
         Array512_t sig;
         crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), privKeySeed.data());
@@ -359,6 +359,7 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 // Get Block work
 Array256_t getBlockWork(BlockHeader header)
 {
+    // TODO: make function
     return {};
 }
 

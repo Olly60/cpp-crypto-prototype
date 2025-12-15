@@ -2,9 +2,10 @@
 #include <asio/awaitable.hpp>
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
-#include "network/network.h"
+#include "network/network_main.h"
 #include "storage/block/tip_block.h"
 #include "network/request.h"
+#include "network/network_main.h"
 
 asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
 {

@@ -1,8 +1,9 @@
-// ============================================
-// Broadcast new data
-// ============================================
+#include <asio/awaitable.hpp>
+#include <asio/ip/tcp.hpp>
 
-asio::awaitable<void> BroadcastNewTx()
+#include "network/network_main.h"
+
+asio::awaitable<void> BroadcastNewTx(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -13,7 +14,7 @@ asio::awaitable<void> BroadcastNewTx()
     }
 }
 
-asio::awaitable<void> BroadcastNewBlock()
+asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket)
 {
     try
     {

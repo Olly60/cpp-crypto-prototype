@@ -56,17 +56,17 @@ inline std::unordered_map<Array256_t, Tx, Array256Hash> mempool;
 
 enum class Service : uint64_t
 {
-    full_node = 1 << 0
+    FullNode = 1 << 0
 };
 
-constexpr uint64_t SERVICE_FULL_NODE =
-    static_cast<uint64_t>(Service::full_node);
+constexpr uint64_t FullNode =
+    static_cast<uint64_t>(Service::FullNode);
 
-constexpr uint64_t PROTOCOL_VERSION = 1;
-const Array256_t GENESIS_BLOCK_HASH = getGenesisBlockHash();
+constexpr uint64_t ProtocolVersion = 1;
+const Array256_t GenesisBlockHash = getGenesisBlockHash();
 
 
-uint64_t generateLocalNonce()
+inline uint64_t generateLocalNonce()
 {
         static std::mt19937_64 gen(std::random_device{}());
         return gen();

@@ -233,7 +233,7 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs);
 // SIGNING
 // ============================================================================
 
-Array256_t computeTxInputHash(const Tx& tx, size_t inputIndex);
+Array256_t computeTxInputHash(const Tx& tx);
 
 Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed);
 

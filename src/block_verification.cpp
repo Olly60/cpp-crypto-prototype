@@ -64,7 +64,7 @@ bool verifyTxSignature(const Tx& tx)
         TxOutput utxo = getUtxo(*utxoDb, in);
 
         // Compute the sign hash for this input
-        Array256_t hash = computeTxInputHash(tx, i);
+        Array256_t hash = computeTxInputHash(tx);
 
         // Verify the signature against the public key stored in the UTXO
         if (crypto_sign_verify_detached(
