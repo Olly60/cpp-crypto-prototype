@@ -9,6 +9,8 @@ std::vector<uint8_t> serialiseHandshake(const Handshake& hs);
 
 Handshake parseHandshake(const std::vector<uint8_t>& buffer);
 
+bool isValidHandshake(const Handshake& hs);
+
 // ============================================
 // Add peer to peer map in memory
 // ============================================

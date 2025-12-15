@@ -5,7 +5,8 @@
 #include "network/network_main.h"
 #include "storage/block/tip_block.h"
 #include "network/request.h"
-#include "network/network_main.h"
+#include "network/network_utils.h"
+
 
 asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
 {
@@ -41,7 +42,7 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
             co_return;
         }
 
-        addPeer(socket, theirHandshake);
+        addPeerToMemory(socket, theirHandshake);
     }
     catch (const std::exception&)
     {
@@ -79,10 +80,7 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
         if (hasHeader == 0) { co_return std::nullopt; }
 
         // Read size
-        uint64_t headerSize;
-        std::array<uint8_t, 8> sizeBuf{};
-        co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
-        takeBytesInto(headerSize, sizeBuf);
+        const uint64_t headerSize = co_await readUint64_t(socket);
 
         // Read header
         std::vector<uint8_t> headerBytes(headerSize);
@@ -114,10 +112,7 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
         if (hasBlock == 0) { co_return std::nullopt; }
 
         // Read size
-        uint64_t blockSize;
-        std::array<uint8_t, 8> sizeBuf{};
-        co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
-        takeBytesInto(blockSize, sizeBuf);
+        const uint64_t blockSize = co_await readUint64_t(socket);
 
         // Read block
         std::vector<uint8_t> blockBytes(blockSize);
@@ -148,10 +143,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
     try
     {
         // Read inv size
-        uint64_t invSize;
-        std::array<uint8_t, 8> invSizeBuf{};
-        co_await asio::async_read(socket, asio::buffer(invSizeBuf), asio::use_awaitable);
-        takeBytesInto(invSize, invSizeBuf);
+        const uint64_t invSize = co_await readUint64_t(socket);
 
         // Read inv
         std::vector<uint8_t> theirInv(sizeof(Array256_t) * invSize);
@@ -176,10 +168,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
         }
 
         // Tell missing size
-        const uint64_t missingSize = missing.size();
-        std::vector<uint8_t> missingSizeBuf;
-        appendBytes(missingSizeBuf, missingSize);
-        co_await asio::async_write(socket, asio::buffer(missingSizeBuf), asio::use_awaitable);
+        co_await writeUint64_t(socket, missing.size());
 
         // Ask for missing transactions
         co_await asio::async_write(socket, asio::buffer(missing), asio::use_awaitable);
@@ -190,10 +179,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
         for (uint64_t i = 0; i != missing.size(); i++)
         {
             // Read size
-            uint64_t txSize;
-            std::array<uint8_t, 8> txSizeBuf{};
-            co_await asio::async_read(socket, asio::buffer(txSizeBuf), asio::use_awaitable);
-            takeBytesInto(txSize, txSizeBuf);
+            const uint64_t txSize = co_await readUint64_t(socket);
 
             // Read transaction
             std::vector<uint8_t> txBytes(txSize);
