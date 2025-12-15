@@ -4,7 +4,8 @@
 
 #include <asio/awaitable.hpp>
 #include <asio/ip/tcp.hpp>
-
+#include <asio.hpp>
+#include "network/network_utils.h"
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "storage/peers.h"
@@ -101,4 +102,54 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
     catch (const std::exception&)
     {
     }
+}
+
+// ============================================
+// Broadcast
+// ============================================
+
+asio::awaitable<void> BroadcastNewTx(asio::ip::tcp::socket& socket)
+{
+    try
+    {
+        //TODO: make function
+    }
+    catch (const std::exception&)
+    {
+    }
+}
+
+asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket)
+{
+    try
+    {
+        //TODO: make function
+    }
+    catch (const std::exception&)
+    {
+    }
+}
+
+// ============================================
+// Reading helpers
+// ============================================
+
+asio::awaitable<uint64_t> readUint64_t(asio::ip::tcp::socket& socket)
+{
+    uint64_t size;
+    std::array<uint8_t, 8> sizeBuf{};
+    co_await asio::async_read(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+    takeBytesInto(size, sizeBuf);
+    co_return size;
+}
+
+// ============================================
+// Writing helpers
+// ============================================
+
+asio::awaitable<void> writeUint64_t(asio::ip::tcp::socket& socket, const uint64_t size)
+{
+    std::vector<uint8_t> sizeBuf;
+    appendBytes(sizeBuf, size);
+    co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
 }

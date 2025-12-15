@@ -5,7 +5,7 @@
 #include "network/network_main.h"
 #include "storage/block/tip_block.h"
 #include "network/handle.h"
-#include "network/network_main.h"
+#include "network/network_utils.h"
 #include "storage/block/block_utils.h"
 #include "block_verification.h"
 
@@ -34,9 +34,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
 
         // Send size
         const uint64_t headerSize = headerBytes.size();
-        std::vector<uint8_t> sizeBuf;
-        appendBytes(sizeBuf, headerSize);
-        co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+        co_await writeUint64_t(socket, headerSize);
 
         // Send header
         co_await asio::async_write(socket, asio::buffer(headerBytes), asio::use_awaitable);
@@ -71,9 +69,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
 
         // Send size
         const uint64_t blockSize = blockData.size();
-        std::vector<uint8_t> sizeBuf;
-        appendBytes(sizeBuf, blockSize);
-        co_await asio::async_write(socket, asio::buffer(sizeBuf), asio::use_awaitable);
+        writeUint64_t(socket)
 
         // Send block
         co_await asio::async_write(socket, asio::buffer(blockData), asio::use_awaitable);
@@ -126,7 +122,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
     }
 }
 
-asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
+asio::awaitable<bool> handleHandshake(asio::ip::tcp::socket& socket)
 {
     try
     {
@@ -134,10 +130,11 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
         std::vector<uint8_t> buffer(handshakeSize());
         co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
 
+
         const Handshake theirHandshake = parseHandshake(buffer);
         if (!isValidHandshake(theirHandshake))
         {
-            co_return;
+            co_return false;
         }
 
         // Send our handshake
@@ -149,14 +146,14 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
         co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
         if (theirVerack != 0x01)
         {
-            co_return;
+            co_return false;
         }
 
         // Send verack
         uint8_t myVerack = 0x01;
         co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
 
-        addPeer(socket, theirHandshake);
+        co_return true;
     }
     catch (const std::exception&)
     {
@@ -204,43 +201,24 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
             co_await asio::async_write(socket, asio::buffer(key), asio::use_awaitable);
         }
 
-        /////////////////////////////////////////////
-        // Read inv size
-        uint64_t invSize;
-        std::array<uint8_t, 8> invSizeBuf{};
-        co_await asio::async_read(socket, asio::buffer(invSizeBuf), asio::use_awaitable);
-        takeBytesInto(invSize, invSizeBuf);
+        // Read missing size
+        uint64_t peerMissingSize;
+        std::array<uint8_t, 8> peerMissingSizeBuf{};
+        co_await asio::async_read(socket, asio::buffer(peerMissingSizeBuf), asio::use_awaitable);
+        takeBytesInto(peerMissingSize, peerMissingSizeBuf);
 
-        // Read inv
-        std::vector<uint8_t> theirInv(sizeof(Array256_t) * invSize);
-        co_await asio::async_read(socket, asio::buffer(theirInv), asio::use_awaitable);
 
-        // Find missing
-        std::vector<Array256_t> missing;
-        missing.reserve(invSize);
-        for (uint64_t i = 0; i == invSize; i++)
+        // Read missing
+        std::vector<Array256_t> peerMissing;
+        peerMissing.reserve(peerMissingSize);
+        for (uint64_t i = 0; i < peerMissingSize; i++)
         {
-            Array256_t hash{};
-            std::memcpy(
-                hash.data(),
-                theirInv.data() + i * sizeof(Array256_t),
-                sizeof(Array256_t)
-            );
-
-            if (!mempool.contains(hash))
-            {
-                missing.push_back(hash);
-            }
+            Array256_t peerMissingHash;
+            co_await asio::async_read(socket, asio::buffer(peerMissingHash), asio::use_awaitable);
+            peerMissing.push_back(peerMissingHash);
         }
 
-        // Tell missing size
-        const uint64_t missingSize = missing.size();
-        std::vector<uint8_t> missingSizeBuf;
-        appendBytes(missingSizeBuf, missingSize);
-        co_await asio::async_write(socket, asio::buffer(missingSizeBuf), asio::use_awaitable);
-
-        // Ask for missing transactions
-        co_await asio::async_write(socket, asio::buffer(missing), asio::use_awaitable);
+        /////////////////////////////////////////////
 
         // Get each transaction
         std::vector<Tx> txs;
