@@ -8,6 +8,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <type_traits>
+#include <bit>
 
 // ============================================================================
 // TYPE ALIASES
@@ -89,108 +90,103 @@ Array256_t sha256Of(std::span<const uint8_t> data);
 
 // Get current UNIX timestamp in seconds
 uint64_t getCurrentTimestamp();
+
 // ============================================================================
-// ENDIANNESS DETECTION
+// MAIN BUFFER
 // ============================================================================
 
-// Detect endianness at compile time
-constexpr bool isLittleEndian()
+
+struct BytesBuffer
 {
-    // Use std::endian in C++20 if available
-#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
-    return __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__;
-#else
-    // Fallback for older compilers
-    constexpr uint16_t x = 1;
-    return (*reinterpret_cast<const uint8_t*>(&x)) == 1;
-#endif
-}
+private:
+    std::vector<uint8_t> data_;
+    size_t read_offset_ = 0;
 
-// ============================================================================
-// SERIALIZATION HELPERS
-// ============================================================================
+public:
 
-// Helper for static_assert with dependent types
-template <typename T>
-inline constexpr bool always_false = false;
-
-/**
- * Deserialize bytes into a value of type T
- * @param out Output value
- * @param data Input byte span
- * @param offset Current position in data (will be updated)
- * @throws std::runtime_error if not enough bytes available
- */
-template <typename T>
-void parseBytesInto(T& out, const std::span<const uint8_t> data, size_t& offset)
-{
-    if (offset + sizeof(T) > data.size())
+    // Variadic constructor: only integrals or containers
+    template <typename... Ts>
+    requires ((std::is_integral_v<Ts> ||
+              (requires(Ts c) { std::data(c); std::size(c); })) && ...)
+    explicit BytesBuffer(Ts&&... values)
     {
-        throw std::runtime_error("takeBytesInto: not enough bytes");
+        // Use operator<< to append everything
+        ( (*this << std::forward<Ts>(values)), ... ); // fold expression
     }
 
-    std::array<uint8_t, sizeof(T)> temp{};
-    std::memcpy(temp.data(), data.data() + offset, sizeof(T));
+    // Default constructor
+    BytesBuffer() = default;
 
-    // Convert from little-endian if needed (for integral types)
-    if constexpr (std::is_integral_v<T>)
+    [[nodiscard]] uint8_t* data() { return data_.data(); }
+    [[nodiscard]] const uint8_t* data() const { return data_.data(); }
+    [[nodiscard]] size_t size() const { return data_.size(); }
+
+    void resize(const size_t n) { data_.resize(n); }
+    void clear() { data_.clear(); read_offset_ = 0; }
+    void resetRead() { read_offset_ = 0; }
+    void reserve(const size_t n) { data_.reserve(n); }
+
+    // Append raw bytes
+    void append(const uint8_t* p, const size_t n) { data_.insert(data_.end(), p, p + n); }
+    void append(const std::span<const uint8_t> s) { append(s.data(), s.size()); }
+
+    // Write integral in little-endian
+    template <typename T>
+    requires std::is_integral_v<T>
+    BytesBuffer& operator<<(T v)
     {
-        if constexpr (!isLittleEndian())
+        if constexpr (std::endian::native == std::endian::big)
         {
-            std::reverse(temp.begin(), temp.end());
+            auto* p = reinterpret_cast<uint8_t*>(&v);
+            std::reverse(p, p + sizeof(T));
         }
+        append(reinterpret_cast<const uint8_t*>(&v), sizeof(T));
+        return *this;
     }
 
-    std::memcpy(&out, temp.data(), sizeof(T));
-    offset += sizeof(T);
-}
-
-/**
- * Deserialize bytes into a value of type T (without offset)
- * @param out Output value
- * @param data Input byte span
- */
-template <typename T>
-void parseBytesInto(T& out, std::span<const uint8_t> data)
-{
-    size_t offset = 0;
-    parseBytesInto(out, data, offset);
-}
-
-/**
- * Append serialized representation of data to container
- * - Integral types: serialized as little-endian
- * - Container types: raw bytes appended
- * @param out Output container
- * @param data Data to serialize
- */
-template <typename ContainerOut, typename T>
-void serialiseAppendBytes(ContainerOut& out, const T& data)
-{
-    if constexpr (std::is_integral_v<T>)
+    // Write container of bytes
+    template <typename Container>
+    requires requires(Container c) { std::data(c); std::size(c); }
+    BytesBuffer& operator<<(const Container& c)
     {
-        // Integral type: little-endian serialization
-        std::array<uint8_t, sizeof(T)> temp{};
-        std::memcpy(temp.data(), &data, sizeof(T));
+        append(reinterpret_cast<const uint8_t*>(std::data(c)), std::size(c));
+        return *this;
+    }
 
-        if constexpr (!isLittleEndian())
+    // Read integral assuming little-endian wire format
+    template <typename T>
+    requires std::is_integral_v<T>
+    BytesBuffer& operator>>(T& v)
+    {
+        if (read_offset_ + sizeof(T) > data_.size())
+            throw std::runtime_error("ByteBuffer: not enough bytes to read");
+
+        std::memcpy(&v, data_.data() + read_offset_, sizeof(T));
+        read_offset_ += sizeof(T);
+
+        if constexpr (std::endian::native == std::endian::big)
         {
-            std::reverse(temp.begin(), temp.end());
+            auto* p = reinterpret_cast<uint8_t*>(&v);
+            std::reverse(p, p + sizeof(T));
         }
 
-        out.insert(out.end(), temp.begin(), temp.end());
+        return *this;
     }
-    else if constexpr (requires { std::data(data); std::size(data); })
+
+    // Read container of bytes
+    template <typename Container>
+    requires requires(Container c) { std::data(c); std::size(c); }
+    BytesBuffer& operator>>(Container& c)
     {
-        // Container type: write raw bytes
-        const auto* ptr = reinterpret_cast<const uint8_t*>(std::data(data));
-        out.insert(out.end(), ptr, ptr + std::size(data));
+        if (read_offset_ + std::size(c) > data_.size())
+            throw std::runtime_error("ByteBuffer: not enough bytes to read container");
+
+        std::memcpy(std::data(c), data_.data() + read_offset_, std::size(c));
+        read_offset_ += std::size(c);
+        return *this;
     }
-    else
-    {
-        static_assert(always_false<T>, "Type not supported in appendBytes");
-    }
-}
+
+};
 
 // ============================================================================
 // SERIALIZATION FUNCTIONS

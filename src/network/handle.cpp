@@ -36,8 +36,8 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         auto headerBytes = readBlockFileHeaderBytes(blockHash);
 
         // Send size
-        const uint64_t headerSize = headerBytes.size();
-        co_await writeNumber(socket, headerSize);
+        BytesBuffer headerSize(headerBytes.size());
+        co_await asio::async_write(socket, asio::buffer(headerSize.data(), headerBytes.size()), asio::use_awaitable);
 
         // Send header
         co_await asio::async_write(socket, asio::buffer(headerBytes), asio::use_awaitable);
@@ -59,22 +59,25 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
         // Check block is in storage
         if (!blockExists(blockHash))
         {
+            // Write I dont have it
             uint8_t haveBlock = 0;
             co_await asio::async_write(socket, asio::buffer(&haveBlock, 1), asio::use_awaitable);
             co_return;
         }
-        // Tell peer I have it
+
+        // Write have it
         uint8_t haveBlock = 1;
         co_await asio::async_write(socket, asio::buffer(&haveBlock, 1), asio::use_awaitable);
 
         // Get block from storage
-        auto blockData = readBlockFileBytes(blockHash);
+        auto blockBytes = readBlockFileBytes(blockHash);
 
-        // Send size
-        co_await writeNumber(socket, blockData.size());
+        // Write size
+        BytesBuffer blockSize(blockBytes.size());
+        co_await asio::async_write(socket, asio::buffer(blockSize.data(), blockSize.size()), asio::use_awaitable);
 
-        // Send block
-        co_await asio::async_write(socket, asio::buffer(blockData), asio::use_awaitable);
+        // Write block
+        co_await asio::async_write(socket, asio::buffer(blockBytes), asio::use_awaitable);
     }
     catch (const std::exception&)
     {
@@ -102,14 +105,16 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
 
         // Read verack
-        if (const uint8_t theirVerack = co_await readNumber<uint8_t>(socket); theirVerack != 0x01)
+        uint8_t theirVerack;
+        co_await asio::async_read(socket, asio::buffer(&theirVerack, 1), asio::use_awaitable);
+        if (theirVerack != 0x01)
         {
             co_return;
         }
 
-        // Send verack
+        // Write verack
         constexpr uint8_t myVerack = 0x01;
-        co_await writeNumber(socket, myVerack);
+        co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
 
 
         addPeerToMemory(socket, theirHandshake);
@@ -126,7 +131,7 @@ asio::awaitable<void> handlePing(asio::ip::tcp::socket& socket)
     try
     {
         constexpr uint8_t pong = 0x01;
-        co_await writeNumber(socket, pong);
+        co_await asio::async_write(socket, asio::buffer(&pong ,1), asio::use_awaitable);
     }
     catch (const std::exception&)
     {
@@ -149,22 +154,23 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 {
     try
     {
-        // Send size
-        co_await writeNumber(socket, mempool.size());
+        // Write size
+        BytesBuffer mempoolSizeBuf(mempool.size());
+        co_await asio::async_write(socket, asio::buffer(mempoolSizeBuf.data(), mempoolSizeBuf.size()), asio::use_awaitable);
 
-        // Send inv
+        // Write inv
         for (const auto& key : mempool | std::views::keys)
         {
             co_await asio::async_write(socket, asio::buffer(key), asio::use_awaitable);
         }
 
         // Read missing size
-        const uint64_t peerMissingSize = co_await readNumber<uint64_t>(socket);
+        const uint64_t peerMissingCount = co_await readUint64_t(socket);
 
         // Read missing hashes
         std::vector<Array256_t> peerMissingHashes;
-        peerMissingHashes.reserve(peerMissingSize);
-        for (uint64_t i = 0; i < peerMissingSize; i++)
+        peerMissingHashes.reserve(peerMissingCount);
+        for (uint64_t i = 0; i < peerMissingCount; i++)
         {
             Array256_t peerMissingHash;
             co_await asio::async_read(socket, asio::buffer(peerMissingHash), asio::use_awaitable);
@@ -174,14 +180,14 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 
         // Send missing transactions
         std::vector<Tx> peerMissingTxs;
-        peerMissingTxs.reserve(peerMissingSize);
+        peerMissingTxs.reserve(peerMissingCount);
 
         for (const auto key : peerMissingHashes)
         {
             const auto peerMissingTxBytes = serialiseTx(mempool[key]);
 
             // Send transaction size
-            co_await writeNumber(socket, peerMissingTxBytes.size());
+            co_await writeUint64_t(socket, peerMissingTxBytes.size());
 
             // Send transaction
             co_await asio::async_write(socket, asio::buffer(peerMissingTxBytes), asio::use_awaitable);
@@ -203,7 +209,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     try
     {
         // Read size
-        const uint64_t blockSize = co_await readNumber<uint64_t>(socket);
+        const uint64_t blockSize = co_await readUint64_t(socket);
 
         // Read block
         std::vector<uint8_t> blockData(blockSize);
@@ -221,7 +227,15 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 {
     try
     {
-        //TODO: make function
+        // Read size
+        const uint64_t txSize = co_await readUint64_t(socket);
+
+        // Read transaction
+        std::vector<uint8_t> txBytes;
+        txBytes.reserve(txSize);
+        co_await asio::async_write(socket, asio::buffer(txBytes), asio::use_awaitable);
+
+        //TODO: process tx
     }
     catch (const std::exception&)
     {

@@ -11,22 +11,21 @@ namespace
     std::string makeHeightKey(const uint64_t& height)
     {
         std::string key;
-        serialiseAppendBytes(key, height);
+        BytesBuffer(height) >> key;
         return key;
     }
 
     std::string makeHashValue(const Array256_t& hash)
     {
         std::string value;
-        serialiseAppendBytes(value, hash);
+        BytesBuffer(hash) >> value;
         return value;
     }
 
     Array256_t parseHashValue(const std::string& value)
     {
         Array256_t hash;
-        parseBytesInto(hash, std::span(
-                reinterpret_cast<const uint8_t*>(value.data()), value.size()));
+        BytesBuffer(value) >> hash;
         return hash;
     }
 

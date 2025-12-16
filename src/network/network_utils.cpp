@@ -149,3 +149,26 @@ asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket, const Blo
     {
     }
 }
+
+// ============================================
+// Read and write helpers
+// ============================================
+
+asio::awaitable<uint64_t> readUint64_t(asio::ip::tcp::socket& socket)
+{
+    BytesBuffer buf;
+    buf.resize(sizeof(uint64_t));
+    co_await asio::async_read(socket,
+                              asio::buffer(buf.data(), buf.size()),
+                              asio::use_awaitable);
+
+    uint64_t value;
+    buf >> value; // converts from little-endian
+    co_return value;
+}
+
+asio::awaitable<void> writeUint64_t(asio::ip::tcp::socket& socket, const uint64_t num)
+{
+    BytesBuffer buf(num);
+    co_await asio::async_write(socket, asio::buffer(buf.data(), buf.size()), asio::use_awaitable);
+}

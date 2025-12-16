@@ -12,16 +12,16 @@ namespace
     std::string makeHashKey(const Array256_t& hash)
     {
         std::string key;
-        serialiseAppendBytes(key, hash);
+        BytesBuffer(hash) >> key;
         return key;
     }
 
     // Serialize BlockIndexValue
     std::string makeIndexValue(const BlockIndexValue& index)
     {
+        BytesBuffer indexBytes;
         std::string value;
-        serialiseAppendBytes(value, index.height);
-        serialiseAppendBytes(value, index.chainwork);
+        BytesBuffer(index.height, index.chainwork) >> key;
         return value;
     }
 
