@@ -37,21 +37,6 @@ Array256_t hexToBytes(const std::string& hex)
     return out;
 }
 
-std::string bytesToHex(const Array256_t& bytes)
-{
-    static constexpr char hexChars[] = "0123456789ABCDEF";
-    std::string out;
-    out.reserve(bytes.size() * 2);
-
-    for (const uint8_t byte : bytes)
-    {
-        out.push_back(hexChars[byte >> 4]);
-        out.push_back(hexChars[byte & 0x0F]);
-    }
-
-    return out;
-}
-
 Array256_t sha256Of(const std::span<const uint8_t> data)
 {
     Array256_t out;
@@ -75,127 +60,108 @@ uint64_t getCurrentTimestamp()
 // ----------------------------------------
 // TxInput
 // ----------------------------------------
-std::vector<uint8_t> serialiseTxInput(const TxInput& txInput)
+BytesBuffer serialiseTxInput(const TxInput& txInput)
 {
-    std::vector<uint8_t> out;
-    serialiseAppendBytes(out, txInput.UTXOTxHash);
-    serialiseAppendBytes(out, txInput.UTXOOutputIndex);
-    serialiseAppendBytes(out, txInput.signature);
-    return out;
+    return BytesBuffer() << txInput.UTXOTxHash << txInput.UTXOOutputIndex << txInput.signature;
 }
 
-TxInput parseTxInput(std::span<const uint8_t> txInputBytes, size_t& offset)
+TxInput parseTxInput(BytesBuffer& txInputBytes)
 {
     TxInput txInput;
-    parseBytesInto(txInput.UTXOTxHash, txInputBytes, offset);
-    parseBytesInto(txInput.UTXOOutputIndex, txInputBytes, offset);
-    parseBytesInto(txInput.signature, txInputBytes, offset);
+    txInputBytes >> txInput.UTXOTxHash >> txInput.UTXOOutputIndex >> txInput.signature;
     return txInput;
 }
 
 // ----------------------------------------
 // TxOutput
 // ----------------------------------------
-std::vector<uint8_t> serialiseTxOutput(const TxOutput& output)
+BytesBuffer serialiseTxOutput(const TxOutput& txOutput)
 {
-    std::vector<uint8_t> out;
-    serialiseAppendBytes(out, output.amount);
-    serialiseAppendBytes(out, output.recipient);
-    return out;
+    return BytesBuffer() << txOutput.amount << txOutput.recipient;
 }
 
-TxOutput parseTxOutput(std::span<const uint8_t> outputBytes, size_t& offset)
+TxOutput parseTxOutput(BytesBuffer& txOutputBytes)
 {
-    TxOutput output;
-    parseBytesInto(output.amount, outputBytes, offset);
-    parseBytesInto(output.recipient, outputBytes, offset);
-    return output;
+    TxOutput txOutput;
+    txOutputBytes >> txOutput.amount >> txOutput.recipient;
+    return txOutput;
 }
 
 // ----------------------------------------
 // Tx
 // ----------------------------------------
-std::vector<uint8_t> serialiseTx(const Tx& tx)
+BytesBuffer serialiseTx(const Tx& tx)
 {
-    std::vector<uint8_t> out;
+    BytesBuffer txBytes;
 
     // Version
-    serialiseAppendBytes(out, tx.version);
+    txBytes << tx.version;
+
+    // Inputs amount
+    txBytes << tx.txInputs.size();
 
     // Inputs
-    serialiseAppendBytes(out, tx.txInputs.size());
     for (const auto& input : tx.txInputs)
     {
-        serialiseAppendBytes(out, serialiseTxInput(input));
+        txBytes << serialiseTxInput(input);
     }
+
+    // Outputs amount
+    txBytes << tx.txOutputs.size();
 
     // Outputs
-    serialiseAppendBytes(out, tx.txOutputs.size());
     for (const auto& output : tx.txOutputs)
     {
-        serialiseAppendBytes(out, serialiseTxOutput(output));
+        txBytes << serialiseTxOutput(output);
     }
 
-    return out;
+    return txBytes;
 }
 
-Tx parseTx(std::span<const uint8_t> txBytes, size_t& offset)
+Tx parseTx(BytesBuffer& txBytes)
 {
     Tx tx;
-    parseBytesInto(tx.version, txBytes, offset);
+
+    // Tx Version
+    txBytes << tx.version;
+
+    // Input amount
+    uint64_t inputAmount;
+    txBytes >> inputAmount;
+    tx.txInputs.reserve(inputAmount);
 
     // Read inputs
-    uint64_t inputCount;
-    parseBytesInto(inputCount, txBytes, offset);
-    tx.txInputs.reserve(inputCount);
-    for (uint64_t i = 0; i < inputCount; i++)
+    for (uint64_t i = 0; i < inputAmount; i++)
     {
-        tx.txInputs.push_back(parseTxInput(txBytes, offset));
+        tx.txInputs.push_back(parseTxInput(txBytes));
     }
 
+    // Output amount
+    uint64_t outputAmount;
+    txBytes >> outputAmount;
+    tx.txOutputs.reserve(outputAmount);
+
     // Read outputs
-    uint64_t outputCount;
-    parseBytesInto(outputCount, txBytes, offset);
-    tx.txOutputs.reserve(outputCount);
-    for (uint64_t i = 0; i < outputCount; i++)
+    for (uint64_t i = 0; i < outputAmount; i++)
     {
-        tx.txOutputs.push_back(parseTxOutput(txBytes, offset));
+        tx.txOutputs.push_back(parseTxOutput(txBytes));
     }
 
     return tx;
 }
 
-Tx parseTx(std::span<const uint8_t> txBytes)
-{
-    size_t offset = 0;
-    return parseTx(txBytes, offset);
-}
-
 // ----------------------------------------
 // BlockHeader
 // ----------------------------------------
-std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header)
+BytesBuffer serialiseBlockHeader(const BlockHeader& header)
 {
-    std::vector<uint8_t> out;
-    serialiseAppendBytes(out, header.version);
-    serialiseAppendBytes(out, header.prevBlockHash);
-    serialiseAppendBytes(out, header.merkleRoot);
-    serialiseAppendBytes(out, header.timestamp);
-    serialiseAppendBytes(out, header.difficulty);
-    serialiseAppendBytes(out, header.nonce);
-    return out;
+    return BytesBuffer() << header.version << header.prevBlockHash << header.merkleRoot << header.timestamp << header.difficulty << header.nonce;
 }
 
-BlockHeader parseBlockHeader(const std::span<const uint8_t> headerBytes)
+BlockHeader parseBlockHeader(BytesBuffer& headerBytes)
 {
     BlockHeader header;
-    size_t offset = 0;
-    parseBytesInto(header.version, headerBytes, offset);
-    parseBytesInto(header.prevBlockHash, headerBytes, offset);
-    parseBytesInto(header.merkleRoot, headerBytes, offset);
-    parseBytesInto(header.timestamp, headerBytes, offset);
-    parseBytesInto(header.difficulty, headerBytes, offset);
-    parseBytesInto(header.nonce, headerBytes, offset);
+    headerBytes >> header.version >> header.prevBlockHash >> header.merkleRoot >> header.timestamp >> header.difficulty >> header.nonce;
     return header;
 }
 

@@ -11,7 +11,7 @@ namespace
     // Serialize hash key
     std::string makeHashKey(const Array256_t& hash)
     {
-        return BytesBuffer(hash).toString();
+        return BytesBuffer(hash).toStringHex();
 
     }
 

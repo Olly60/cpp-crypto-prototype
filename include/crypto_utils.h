@@ -83,7 +83,21 @@ constexpr size_t calculateBlockHeaderSize()
 Array256_t hexToBytes(const std::string& hex);
 
 // Convert 32-byte array to hex string
-std::string bytesToHex(const Array256_t& bytes);
+template <typename Container>
+std::string bytesToHex(const Container& bytes)
+{
+    static constexpr char hexChars[] = "0123456789ABCDEF";
+    std::string out;
+    out.reserve(bytes.size() * 2);
+
+    for (const auto& byte : bytes)
+    {
+        out.push_back(hexChars[byte >> 4]);
+        out.push_back(hexChars[byte & 0x0F]);
+    }
+
+    return out;
+}
 
 // Compute SHA-256 hash of data
 Array256_t sha256Of(std::span<const uint8_t> data);
@@ -94,7 +108,6 @@ uint64_t getCurrentTimestamp();
 // ============================================================================
 // MAIN BUFFER
 // ============================================================================
-
 
 struct BytesBuffer
 {
@@ -112,9 +125,6 @@ public:
         ((*this << values), ...);
     }
 
-    // Default constructor
-    BytesBuffer() = default;
-
     [[nodiscard]] uint8_t* data() { return data_.data(); }
     [[nodiscard]] const uint8_t* data() const { return data_.data(); }
     [[nodiscard]] size_t size() const { return data_.size(); }
@@ -128,9 +138,9 @@ public:
     void append(const uint8_t* p, const size_t n) { data_.insert(data_.end(), p, p + n); }
     void append(const std::span<const uint8_t> s) { append(s.data(), s.size()); }
 
-    [[nodiscard]] std::string toString() const
+    [[nodiscard]] std::string toStringHex() const
     {
-        return {reinterpret_cast<const char*>(data_.data()), data_.size()};
+        return bytesToHex(data_);
     }
 
 
@@ -148,9 +158,17 @@ public:
         return *this;
     }
 
+    // Write another BytesBuffer
+    BytesBuffer& operator<<(const BytesBuffer& other)
+    {
+        append(other.data(), other.size());
+        return *this;
+    }
+
     // Write container of bytes
     template <typename Container>
-    requires std::ranges::contiguous_range<Container>
+    requires std::ranges::contiguous_range<Container> &&
+         std::same_as<std::remove_cv_t<std::ranges::range_value_t<Container>>, uint8_t>
     BytesBuffer& operator<<(const Container& c)
     {
         append(reinterpret_cast<const uint8_t*>(std::data(c)), std::size(c));
@@ -197,22 +215,6 @@ public:
 // SERIALIZATION FUNCTIONS
 // ============================================================================
 
-// Transaction
-std::vector<uint8_t> serialiseTxInput(const TxInput& txInput);
-std::vector<uint8_t> serialiseTxOutput(const TxOutput& txOutput);
-std::vector<uint8_t> serialiseTx(const Tx& tx);
-
-TxInput parseTxInput(std::span<const uint8_t> txInputBytes, size_t& offset);
-TxOutput parseTxOutput(std::span<const uint8_t> txOutputBytes, size_t& offset);
-Tx parseTx(std::span<const uint8_t> txBytes, size_t& offset);
-Tx parseTx(std::span<const uint8_t> txBytes);
-
-// Block
-std::vector<uint8_t> serialiseBlockHeader(const BlockHeader& header);
-std::vector<uint8_t> serialiseBlock(const Block& block);
-
-BlockHeader parseBlockHeader(std::span<const uint8_t> headerBytes);
-Block parseBlock(std::span<const uint8_t> blockBytes);
 
 // ============================================================================
 // HASHING FUNCTIONS
