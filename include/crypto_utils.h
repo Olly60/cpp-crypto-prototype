@@ -107,7 +107,7 @@ public:
     // Variadic constructor: only integrals or containers
     template <typename... Ts>
     requires ((std::is_integral_v<Ts> ||
-              (requires(Ts c) { std::data(c); std::size(c); })) && ...)
+              requires(Ts c) { std::data(c); std::size(c); }) && ...)
     explicit BytesBuffer(Ts&&... values)
     {
         // Use operator<< to append everything
