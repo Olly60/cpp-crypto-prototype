@@ -104,14 +104,12 @@ private:
 
 public:
 
-    // Variadic constructor: only integrals or containers
     template <typename... Ts>
     requires ((std::is_integral_v<Ts> ||
-              requires(Ts c) { std::data(c); std::size(c); }) && ...)
-    explicit BytesBuffer(Ts&&... values)
+               requires(const Ts& c) { std::ranges::contiguous_range<Ts>; }) && ...)
+    explicit BytesBuffer(const Ts&... values)
     {
-        // Use operator<< to append everything
-        ( (*this << std::forward<Ts>(values)), ... ); // fold expression
+        ((*this << values), ...);
     }
 
     // Default constructor
@@ -130,6 +128,12 @@ public:
     void append(const uint8_t* p, const size_t n) { data_.insert(data_.end(), p, p + n); }
     void append(const std::span<const uint8_t> s) { append(s.data(), s.size()); }
 
+    [[nodiscard]] std::string toString() const
+    {
+        return {reinterpret_cast<const char*>(data_.data()), data_.size()};
+    }
+
+
     // Write integral in little-endian
     template <typename T>
     requires std::is_integral_v<T>
@@ -146,7 +150,7 @@ public:
 
     // Write container of bytes
     template <typename Container>
-    requires requires(Container c) { std::data(c); std::size(c); }
+    requires std::ranges::contiguous_range<Container>
     BytesBuffer& operator<<(const Container& c)
     {
         append(reinterpret_cast<const uint8_t*>(std::data(c)), std::size(c));
@@ -175,7 +179,7 @@ public:
 
     // Read container of bytes
     template <typename Container>
-    requires requires(Container c) { std::data(c); std::size(c); }
+    requires std::ranges::contiguous_range<Container>
     BytesBuffer& operator>>(Container& c)
     {
         if (read_offset_ + std::size(c) > data_.size())
@@ -184,6 +188,7 @@ public:
         std::memcpy(std::data(c), data_.data() + read_offset_, std::size(c));
         read_offset_ += std::size(c);
         return *this;
+
     }
 
 };

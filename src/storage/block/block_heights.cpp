@@ -28,7 +28,6 @@ namespace
         BytesBuffer(value) >> hash;
         return hash;
     }
-
 }
 
 // Put block hash by height
@@ -45,21 +44,25 @@ void putHeightHash(rocksdb::DB& db, const uint64_t height, const Array256_t& has
 
 
 // Delete block by height
-void deleteHeightHash(rocksdb::DB& db, const uint64_t height) {
-    if (!db.Delete(rocksdb::WriteOptions(), rocksdb::Slice(makeHeightKey(height))).ok()) {
+void deleteHeightHash(rocksdb::DB& db, const uint64_t height)
+{
+    if (!db.Delete(rocksdb::WriteOptions(), rocksdb::Slice(makeHeightKey(height))).ok())
+    {
         throw std::runtime_error("Failed to delete height hash");
     }
 }
 
 
 // Get block hash by height
-Array256_t getHeightHash(rocksdb::DB& db, const uint64_t height) {
+Array256_t getHeightHash(rocksdb::DB& db, const uint64_t height)
+{
     std::string value;
     if (!db.Get(rocksdb::ReadOptions(),
                 rocksdb::Slice(makeHeightKey(height)),
                 &value)
-             .ok()) {
+           .ok())
+    {
         throw std::runtime_error("UTXO not found");
-             }
+    }
     return parseHashValue(value);
 }

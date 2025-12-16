@@ -11,9 +11,8 @@ namespace
     // Serialize hash key
     std::string makeHashKey(const Array256_t& hash)
     {
-        std::string key;
-        BytesBuffer(hash) >> key;
-        return key;
+        return BytesBuffer(hash).toString();
+
     }
 
     // Serialize BlockIndexValue
@@ -21,7 +20,7 @@ namespace
     {
         BytesBuffer indexBytes;
         std::string value;
-        BytesBuffer(index.height, index.chainwork) >> key;
+        BytesBuffer(index.height, index.chainwork) >> value;
         return value;
     }
 
