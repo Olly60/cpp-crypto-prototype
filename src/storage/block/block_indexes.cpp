@@ -11,27 +11,21 @@ namespace
     // Serialize hash key
     std::string makeHashKey(const Array256_t& hash)
     {
-        return BytesBuffer(hash).toStringHex();
+        return BytesBuffer(hash).toString();
 
     }
 
     // Serialize BlockIndexValue
     std::string makeIndexValue(const BlockIndexValue& index)
     {
-        BytesBuffer indexBytes;
-        std::string value;
-        BytesBuffer(index.height, index.chainwork) >> value;
-        return value;
+        return BytesBuffer(index.height, index.chainwork).toString();
     }
 
     // Deserialize BlockIndexValue
-    BlockIndexValue parseIndexValue(BytesBuffer value)
+    BlockIndexValue parseIndexValue(const std::string& value)
     {
-        if (value.size() < sizeof(decltype(BlockIndexValue::height)) + sizeof(decltype(BlockIndexValue::chainwork)))
-            throw std::runtime_error("Invalid BlockIndexValue size");
-
         BlockIndexValue result;
-        value >> result.height >> result.chainwork;
+        BytesBuffer(value) >> result.height >> result.chainwork;
         return result;
     }
 }

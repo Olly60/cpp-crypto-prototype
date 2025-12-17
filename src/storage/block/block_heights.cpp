@@ -8,18 +8,14 @@
 
 namespace
 {
-    std::string makeHeightKey(const uint64_t& height)
+    std::string makeHeightKey(const uint64_t height)
     {
-        std::string key;
-        BytesBuffer(height) >> key;
-        return key;
+        return BytesBuffer(height).toString();
     }
 
     std::string makeHashValue(const Array256_t& hash)
     {
-        std::string value;
-        BytesBuffer(hash) >> value;
-        return value;
+        return BytesBuffer(hash).toString();
     }
 
     Array256_t parseHashValue(const std::string& value)

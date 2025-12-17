@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <bit>
+#include <istream>
 
 // ============================================================================
 // MAIN BUFFER
@@ -27,16 +28,10 @@ public:
 
     // Constructor
     template <typename... Ts>
-    requires ((std::is_integral_v<Ts> ||
-              (std::ranges::contiguous_range<Ts> &&
-               (std::same_as<std::remove_cv_t<std::ranges::range_value_t<Ts>>, uint8_t> ||
-                std::same_as<std::remove_cv_t<std::ranges::range_value_t<Ts>>, char> ||
-                std::same_as<std::remove_cv_t<std::ranges::range_value_t<Ts>>, unsigned char>))) && ...)
-    BytesBuffer(const Ts&... values)
+    explicit BytesBuffer(Ts&&... values)
     {
-        ((*this << values), ...);
+        ((*this << std::forward<Ts>(values)), ...);
     }
-
 
     // Iterator support
     [[nodiscard]] uint8_t* begin() { return data_.data(); }
@@ -66,13 +61,19 @@ public:
     void append(const uint8_t* p, const size_t n) { data_.insert(data_.end(), p, p + n); }
     void append(const std::span<const uint8_t> s) { append(s.data(), s.size()); }
 
-    [[nodiscard]] std::string toStringHex() const
+    [[nodiscard]] std::string hexString() const
     {
         return bytesToHex(*this);
     }
 
+    [[nodiscard]] std::string toString() const
+    {
+        return {this->cdata(), this->size()};
+    }
+
     // Convenience functions
     [[nodiscard]] const char* cdata() const { return reinterpret_cast<const char*>(data()); }
+    [[nodiscard]] char* cdata() { return reinterpret_cast<char*>(data()); }
     [[nodiscard]] std::streamsize ssize() const { return static_cast<std::streamsize>(size()); }
 
     // ------------------------------------------------------------------------
@@ -81,8 +82,8 @@ public:
 
     // Write integral in little-endian
     template <typename T>
-    requires std::is_integral_v<T>
-    BytesBuffer& operator<<(T v)
+    requires std::is_integral_v<std::remove_cvref_t<T>>
+    BytesBuffer& operator<<(T&& v)
     {
         if constexpr (std::endian::native == std::endian::big)
         {
@@ -102,10 +103,8 @@ public:
 
     // Write container of bytes (uint8_t, char, or unsigned char)
     template <typename Container>
-    requires std::ranges::contiguous_range<Container> &&
-             (std::same_as<std::remove_cv_t<std::ranges::range_value_t<Container>>, uint8_t> ||
-              std::same_as<std::remove_cv_t<std::ranges::range_value_t<Container>>, int8_t>)
-    BytesBuffer& operator<<(const Container& c)
+    requires std::ranges::contiguous_range<Container>
+    BytesBuffer& operator<<(Container&& c)
     {
         append(reinterpret_cast<const uint8_t*>(std::data(c)), std::size(c));
         return *this;
@@ -117,7 +116,7 @@ public:
 
     // Read integral assuming little-endian wire format
     template <typename T>
-    requires std::is_integral_v<T>
+    requires std::is_integral_v<std::remove_cvref_t<T>>
     BytesBuffer& operator>>(T& v)
     {
         if (read_offset_ + sizeof(T) > data_.size())

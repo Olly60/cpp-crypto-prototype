@@ -23,6 +23,7 @@ std::ofstream openFileForWrite(const fs::path& path)
 
 BytesBuffer readWholeFile(const fs::path& filePath)
 {
+    openFileForWrite()
     std::ifstream file(filePath, std::ios::binary);
     if (!file)
         throw std::runtime_error("Failed to open file: " + filePath.string());
@@ -33,8 +34,7 @@ BytesBuffer readWholeFile(const fs::path& filePath)
 
     if (size > 0)
     {
-        file.read(buffer.cdata(),
-                  static_cast<std::streamsize>(size));
+        file.read(buffer.cdata(), buffer.ssize());
         if (!file)
             throw std::runtime_error("Failed to read file: " + filePath.string());
     }
