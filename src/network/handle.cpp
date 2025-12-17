@@ -40,7 +40,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(headerSize.data(), headerBytes.size()), asio::use_awaitable);
 
         // Send header
-        co_await asio::async_write(socket, asio::buffer(headerBytes), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);;
     }
     catch (const std::exception&)
     {
@@ -77,7 +77,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(blockSize.data(), blockSize.size()), asio::use_awaitable);
 
         // Write block
-        co_await asio::async_write(socket, asio::buffer(blockBytes), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
     }
     catch (const std::exception&)
     {
@@ -190,7 +190,7 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
             co_await writeUint64_t(socket, peerMissingTxBytes.size());
 
             // Send transaction
-            co_await asio::async_write(socket, asio::buffer(peerMissingTxBytes), asio::use_awaitable);
+            co_await asio::async_write(socket, asio::buffer(peerMissingTxBytes.data(), peerMissingTxBytes.size()), asio::use_awaitable);
         }
 
         }

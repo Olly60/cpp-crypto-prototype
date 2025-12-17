@@ -86,8 +86,8 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
         const uint64_t headerSize = co_await readUint64_t(socket);
 
         // Read header
-        std::vector<uint8_t> headerBytes(headerSize);
-        co_await asio::async_read(socket, asio::buffer(headerBytes), asio::use_awaitable);
+        BytesBuffer headerBytes(headerSize);
+        co_await asio::async_read(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
 
         co_return parseBlockHeader(headerBytes);
     }
@@ -118,8 +118,8 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
         const uint64_t blockSize = co_await readUint64_t(socket);
 
         // Read block
-        std::vector<uint8_t> blockBytes(blockSize);
-        co_await asio::async_read(socket, asio::buffer(blockBytes), asio::use_awaitable);
+        BytesBuffer blockBytes(blockSize);
+        co_await asio::async_read(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
 
         co_return parseBlock(blockBytes);
     }
@@ -198,8 +198,8 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
             const uint64_t txSize = co_await readUint64_t(socket);
 
             // Read transaction
-            std::vector<uint8_t> txBytes(txSize);
-            co_await asio::async_read(socket, asio::buffer(txBytes), asio::use_awaitable);
+            BytesBuffer txBytes(txSize);
+            co_await asio::async_read(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
 
             txs.push_back( parseTx(txBytes));
 

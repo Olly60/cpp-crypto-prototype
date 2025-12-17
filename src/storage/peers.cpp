@@ -21,7 +21,7 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
     for (const auto& [peerAddr, peerStatus] : peers)
     {
         // Address length and string
-        peersFileBytes << uint64_t{peerAddr.address.size()};
+        peersFileBytes << static_cast<uint16_t>(peerAddr.address.size());
         peersFileBytes << peerAddr.address;
 
         // Port
@@ -49,7 +49,7 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 
     // Read peer count
     uint64_t peersCount;
-    parseBytesInto(peersCount, peersFileBytes);
+    peersFileBytes >> peersCount;
 
     // Read each peer
     for (uint64_t i = 0; i < peersCount; i++)
@@ -59,27 +59,19 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 
         // Read address length
         uint16_t addrLen;
-        parseBytesInto(addrLen, peersFileBytes, offset);
+        peersFileBytes >> addrLen;
 
         // Read address string
-        if (offset + addrLen > peersFileBytes.size())
-        {
-            throw std::runtime_error("Peers file corrupted: address exceeds file size");
-        }
-        peerAddr.address = std::string(
-            reinterpret_cast<const char*>(peersFileBytes.data() + offset),
-            addrLen
-        );
-        offset += addrLen;
+        peersFileBytes >> peerAddr.address;
 
         // Read port
-        parseBytesInto(peerAddr.port, peersFileBytes, offset);
+        peersFileBytes >> peerAddr.port;
 
         // Read services
-        parseBytesInto(peerStatus.services, peersFileBytes, offset);
+        peersFileBytes >> peerStatus.services;
 
         // Read last seen
-        parseBytesInto(peerStatus.lastSeen, peersFileBytes, offset);
+        peersFileBytes >> peerStatus.lastSeen;
 
         peers.insert({peerAddr, peerStatus});
     }

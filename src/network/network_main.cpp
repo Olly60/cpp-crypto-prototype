@@ -4,10 +4,9 @@
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "storage/block/tip_block.h"
-#include "network/request.h"
-#include "network/network_main.h"
+#include "network/handle.h"
 #include "storage/peers.h"
-#include "storage/block/genesis_block.h"
+
 // ============================================
 // Handle connection
 // ============================================

@@ -6,26 +6,16 @@
 namespace
 {
     std::string makeUtxoKey(const TxInput& txInput) {
-        std::string key;
-        serialiseAppendBytes(key, txInput.UTXOTxHash);
-        serialiseAppendBytes(key, txInput.UTXOOutputIndex);
-        return key;
+        return BytesBuffer(txInput.UTXOTxHash, txInput.UTXOOutputIndex).toString();
     }
 
     std::string makeUtxoValue(const TxOutput& utxo) {
-        std::string value;
-        serialiseAppendBytes(value, utxo.amount);
-        serialiseAppendBytes(value, utxo.recipient);
-        return value;
+        return BytesBuffer(utxo.amount, utxo.recipient).toString();
     }
 
     TxOutput parseUtxoValue(const std::string& value) {
         TxOutput utxo;
-        size_t offset = 0;
-        const auto data = std::span(
-            reinterpret_cast<const uint8_t*>(value.data()), value.size());
-        parseBytesInto(utxo.amount, data, offset);
-        parseBytesInto(utxo.recipient, data, offset);
+        BytesBuffer(value) >> utxo.amount >> utxo.recipient;
         return utxo;
     }
 }

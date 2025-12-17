@@ -5,6 +5,9 @@
 #include <fstream>
 #include "crypto_utils.h"
 
+// ============================================================================
+// FILE INCOMPLETE
+// ============================================================================
 
 using namespace std;
 array<uint8_t, crypto_box_SECRETKEYBYTES> bytesPrivateKey;
