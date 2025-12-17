@@ -25,17 +25,13 @@ namespace
     }
 
     // Deserialize BlockIndexValue
-    BlockIndexValue parseIndexValue(const std::string& value)
+    BlockIndexValue parseIndexValue(BytesBuffer value)
     {
-        if (value.size() < sizeof(uint64_t) + Array256_t{}.size())
+        if (value.size() < sizeof(decltype(BlockIndexValue::height)) + sizeof(decltype(BlockIndexValue::chainwork)))
             throw std::runtime_error("Invalid BlockIndexValue size");
 
-        BlockIndexValue result{};
-        size_t offset = 0;
-        parseBytesInto(result.height, std::span(
-            reinterpret_cast<const uint8_t*>(value.data()), value.size()), offset);
-        parseBytesInto(result.chainwork, std::span(
-            reinterpret_cast<const uint8_t*>(value.data()), value.size()), offset);
+        BlockIndexValue result;
+        value >> result.height >> result.chainwork;
         return result;
     }
 }

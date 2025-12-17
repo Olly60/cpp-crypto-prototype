@@ -4,11 +4,11 @@
 // FILE I/O UTILITIES
 // ============================================================================
 
-std::ofstream openFileForAppend(const fs::path& path)
+std::ofstream openFileForWrite(const fs::path& path)
 {
     fs::create_directories(path.parent_path());
 
-    std::ofstream file(path, std::ios::app | std::ios::binary);
+    std::ofstream file(path, std::ios::trunc | std::ios::binary);
     if (!file)
     {
         throw std::runtime_error("Failed to open file for append: " + path.string());
@@ -21,18 +21,19 @@ std::ofstream openFileForAppend(const fs::path& path)
 }
 
 
-std::vector<uint8_t> readWholeFile(const fs::path& filePath)
+BytesBuffer readWholeFile(const fs::path& filePath)
 {
     std::ifstream file(filePath, std::ios::binary);
     if (!file)
         throw std::runtime_error("Failed to open file: " + filePath.string());
 
     const auto size = fs::file_size(filePath);
-    std::vector<uint8_t> buffer(size);
+    BytesBuffer buffer;
+    buffer.reserve(size);
 
     if (size > 0)
     {
-        file.read(reinterpret_cast<char*>(buffer.data()),
+        file.read(buffer.cdata(),
                   static_cast<std::streamsize>(size));
         if (!file)
             throw std::runtime_error("Failed to read file: " + filePath.string());

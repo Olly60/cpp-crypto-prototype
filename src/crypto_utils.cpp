@@ -19,25 +19,42 @@ namespace
     }
 }
 
-Array256_t hexToBytes(const std::string& hex)
+// Convert hex string to byte array
+BytesBuffer hexToBytes(const std::string& hex)
 {
-    if (hex.size() != Array256_t{}.size() * 2)
+    if (hex.size() % 2 != 0)
     {
         throw std::runtime_error("hexToBytes: invalid hex string length");
     }
 
-    Array256_t out{};
-    for (size_t i = 0; i < out.size(); i++)
+    BytesBuffer bytes;
+    for (size_t i = 0; i < hex.size() / 2; i++)
     {
         const uint8_t high = hexCharToNibble(hex[i * 2]);
         const uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
-        out[i] = (high << 4) | low;
+        bytes << (high << 4 | low);
     }
 
-    return out;
+    return bytes;
 }
 
-Array256_t sha256Of(const std::span<const uint8_t> data)
+// Convert byte array to hex string
+std::string bytesToHex(const BytesBuffer& bytes)
+{
+    std::string hex;
+    hex.reserve(bytes.size() * 2);
+
+    for (const auto& byte : bytes)
+    {
+        constexpr char hexChars[] = "0123456789ABCDEF";
+        hex.push_back(hexChars[byte >> 4]);
+        hex.push_back(hexChars[byte & 0x0F]);
+    }
+
+    return hex;
+}
+
+Array256_t sha256Of(const BytesBuffer& data)
 {
     Array256_t out;
     crypto_hash_sha256(out.data(), data.data(), data.size());
@@ -168,38 +185,42 @@ BlockHeader parseBlockHeader(BytesBuffer& headerBytes)
 // ----------------------------------------
 // Block
 // ----------------------------------------
-std::vector<uint8_t> serialiseBlock(const Block& block)
+BytesBuffer serialiseBlock(const Block& block)
 {
-    std::vector<uint8_t> out;
+
+    BytesBuffer blockBytes;
 
     // Header
-    serialiseAppendBytes(out, serialiseBlockHeader(block.header));
+    blockBytes << serialiseBlockHeader(block.header);
+
+    // Transaction amount
+    blockBytes << block.txs.size();
 
     // Transactions
-    serialiseAppendBytes(out, block.txs.size());
     for (const auto& tx : block.txs)
     {
-        serialiseAppendBytes(out, serialiseTx(tx));
+        blockBytes << serialiseTx(tx);
     }
 
-    return out;
+    return blockBytes;
 }
 
-Block parseBlock(const std::span<const uint8_t> blockBytes)
+Block parseBlock(BytesBuffer& blockBytes)
 {
     Block block;
-    size_t offset = 0;
 
     // Header
     block.header = parseBlockHeader(blockBytes);
 
-    // Transactions
+    // Transaction amount
     uint64_t txCount;
-    parseBytesInto(txCount, blockBytes, offset);
+    blockBytes >> txCount;
+
+    // Transactions
     block.txs.reserve(txCount);
     for (uint64_t i = 0; i < txCount; i++)
     {
-        block.txs.push_back(parseTx(blockBytes, offset));
+        block.txs.push_back(parseTx(blockBytes));
     }
 
     return block;
@@ -254,10 +275,9 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
                                           : currentLayer[i];
 
             // Hash the concatenation of left and right
-            std::vector<uint8_t> combined;
+            BytesBuffer combined;
             combined.reserve(left.size() + right.size());
-            serialiseAppendBytes(combined, left);
-            serialiseAppendBytes(combined, right);
+            combined << left << right;
 
             nextLayer.push_back(sha256Of(combined));
         }
@@ -274,31 +294,31 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
 
 
 Array256_t computeTxInputHash(const Tx& tx)
-    {
-        std::vector<uint8_t> buf;
+{
+    BytesBuffer buf;
 
-        // Version
-        serialiseAppendBytes(buf, tx.version);
+    // Version
+    buf << tx.version;
+
+    // Input amount
+    buf << uint64_t{(tx.txInputs.size())};
 
         // Inputs
-        serialiseAppendBytes(buf, tx.txInputs.size());
-
         for (const auto & txInput : tx.txInputs)
         {
-            serialiseAppendBytes(buf, txInput.UTXOTxHash);
-            serialiseAppendBytes(buf, txInput.UTXOOutputIndex);
+            buf << txInput.UTXOTxHash << txInput.UTXOOutputIndex;
 
-            // Blank out other input signatures
-            std::array<uint8_t, 64> emptySig{};
-            serialiseAppendBytes(buf, emptySig);
+            // Blank out input signatures
+            buf << Array512_t{};
         }
 
+        // Output amount
+        buf << uint64_t{(tx.txOutputs.size())};
+
         // Outputs
-        serialiseAppendBytes(buf, tx.txOutputs.size());
-        for (const TxOutput& txOutput : tx.txOutputs)
+        for (const auto & txOutput : tx.txOutputs)
         {
-            serialiseAppendBytes(buf, txOutput.amount);
-            serialiseAppendBytes(buf, txOutput.recipient);
+            buf << txOutput.amount << txOutput.recipient;
         }
 
         // Final message hash

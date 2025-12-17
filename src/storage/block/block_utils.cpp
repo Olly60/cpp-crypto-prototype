@@ -16,55 +16,64 @@ namespace
                        const Block& block,
                        rocksdb::DB& utxoDb)
     {
-        auto undoFile = openFileForAppend(undoFilePath);
+        auto undoFile = openFileForWrite(undoFilePath);
+
+        BytesBuffer undoData;
+
+        // Write transaction amount
+        undoData << uint64_t{block.txs.size()};
 
         for (const auto& tx : block.txs)
         {
+
             // Write transaction version
-            appendToFile(undoFile, tx.version);
+            undoData << tx.version;
 
             // Write input count
-            appendToFile(undoFile, tx.txInputs.size());
+            undoData << uint64_t{tx.txInputs.size()};
 
             // For each input, write UTXO reference and value
             for (const auto& input : tx.txInputs)
             {
-                appendToFile(undoFile, input.UTXOTxHash);
-                appendToFile(undoFile, input.UTXOOutputIndex);
+                undoData << input.UTXOTxHash;
+                undoData << input.UTXOOutputIndex;
 
                 // Retrieve and write UTXO value
-                TxOutput usedUtxo = getUtxo(utxoDb, input);
-                appendToFile(undoFile, usedUtxo.amount);
-                appendToFile(undoFile, usedUtxo.recipient);
+                const TxOutput usedUtxo = getUtxo(utxoDb, input);
+                undoData << usedUtxo.amount;
+                undoData << usedUtxo.recipient;
             }
         }
+        undoFile.write(undoData.cdata(), undoData.ssize());
     }
 
     void restoreFromUndoFile(const fs::path& undoFilePath, rocksdb::DB& utxoDb)
     {
         auto undoDataBytes = readWholeFile(undoFilePath);
-        size_t offset = 0;
 
-        while (offset < undoDataBytes.size())
+        // Read transaction amount
+        uint64_t txAmount;
+        undoDataBytes >> txAmount;
+        for (uint64_t i = 0; i < txAmount; i++)
         {
             // Read transaction version
             uint64_t version;
-            parseBytesInto(version, undoDataBytes, offset);
+            undoDataBytes >> version;
 
             // Read input count
             uint64_t inputCount;
-            parseBytesInto(inputCount, undoDataBytes, offset);
+            undoDataBytes >> inputCount;
 
             // Read each input and restore UTXO
             for (uint64_t j = 0; j < inputCount; j++)
             {
                 TxInput input;
-                parseBytesInto(input.UTXOTxHash, undoDataBytes, offset);
-                parseBytesInto(input.UTXOOutputIndex, undoDataBytes, offset);
+                undoDataBytes >> input.UTXOTxHash;
+                undoDataBytes >> input.UTXOOutputIndex;
 
                 TxOutput utxo;
-                parseBytesInto(utxo.amount, undoDataBytes, offset);
-                parseBytesInto(utxo.recipient, undoDataBytes, offset);
+                undoDataBytes >> utxo.amount;
+                undoDataBytes >> utxo.recipient;
 
                 // Restore UTXO
                 putUtxo(utxoDb, input, utxo);
@@ -130,7 +139,7 @@ void addBlock(const Block& block)
     writeUndoFile(undoFilePath, block, *utxoDb);
 
     // Write block to disk
-    auto blockFile = openFileForAppend(blockFilePath);
+    auto blockFile = openFileForWrite(blockFilePath);
     const auto blockBytes = serialiseBlock(block);
     appendToFile(blockFile, blockBytes);
 

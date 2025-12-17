@@ -20,7 +20,7 @@ namespace
         {
             // Hash the transaction hash (first 8 bytes) and output index
             std::size_t h1 = 0;
-            std::memcpy(&h1, key.first.data(), std::min(sizeof(h1), key.first.size()));
+            std::memcpy(&h1, key.first.data(), std::min(sizeof(h1), uint64_t{key.first.size()}));
             const std::size_t h2 = std::hash<uint64_t>{}(key.second);
             return h1 ^ (h2 << 1);
         }

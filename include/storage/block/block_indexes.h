@@ -3,8 +3,8 @@
 #include "crypto_utils.h"
 
 struct BlockIndexValue {
-    uint64_t height;
-    Array256_t chainwork;
+    uint64_t height{};
+    Array256_t chainwork{};
 };
 
 void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const std::pair<uint64_t, Array256_t>& value);

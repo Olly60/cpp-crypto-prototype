@@ -11,6 +11,149 @@
 #include <bit>
 
 // ============================================================================
+// MAIN BUFFER
+// ============================================================================
+
+struct BytesBuffer;
+// Convert 32-byte array to hex string
+std::string bytesToHex(const BytesBuffer& bytes);
+
+struct BytesBuffer
+{
+private:
+    std::vector<uint8_t> data_;
+    size_t read_offset_ = 0;
+public:
+
+    // Constructor
+    template <typename... Ts>
+    requires ((std::is_integral_v<Ts> ||
+              (std::ranges::contiguous_range<Ts> &&
+               (std::same_as<std::remove_cv_t<std::ranges::range_value_t<Ts>>, uint8_t> ||
+                std::same_as<std::remove_cv_t<std::ranges::range_value_t<Ts>>, char> ||
+                std::same_as<std::remove_cv_t<std::ranges::range_value_t<Ts>>, unsigned char>))) && ...)
+    BytesBuffer(const Ts&... values)
+    {
+        ((*this << values), ...);
+    }
+
+
+    // Iterator support
+    [[nodiscard]] uint8_t* begin() { return data_.data(); }
+    [[nodiscard]] uint8_t* end()   { return data_.data() + data_.size(); }
+
+    [[nodiscard]] const uint8_t* begin() const { return data_.data(); }
+    [[nodiscard]] const uint8_t* end() const { return data_.data() + data_.size(); }
+
+    // Access raw data
+    [[nodiscard]] uint8_t* data() { return data_.data(); }
+    [[nodiscard]] const uint8_t* data() const { return data_.data(); }
+    [[nodiscard]] size_t size() const { return data_.size(); }
+
+    // Modify size
+    void resize(const size_t n) { data_.resize(n); }
+
+    // Clear buffer
+    void clear() { data_.clear(); read_offset_ = 0; }
+
+    // Reset read offset
+    void resetRead() { read_offset_ = 0; }
+
+    // Reserve capacity
+    void reserve(const size_t n) { data_.reserve(n); }
+
+    // Append raw bytes
+    void append(const uint8_t* p, const size_t n) { data_.insert(data_.end(), p, p + n); }
+    void append(const std::span<const uint8_t> s) { append(s.data(), s.size()); }
+
+    [[nodiscard]] std::string toStringHex() const
+    {
+        return bytesToHex(*this);
+    }
+
+    // Convenience functions
+    [[nodiscard]] const char* cdata() const { return reinterpret_cast<const char*>(data()); }
+    [[nodiscard]] std::streamsize ssize() const { return static_cast<std::streamsize>(size()); }
+
+    // ------------------------------------------------------------------------
+    // --- Write operations ---
+    // ------------------------------------------------------------------------
+
+    // Write integral in little-endian
+    template <typename T>
+    requires std::is_integral_v<T>
+    BytesBuffer& operator<<(T v)
+    {
+        if constexpr (std::endian::native == std::endian::big)
+        {
+            auto* p = reinterpret_cast<uint8_t*>(&v);
+            std::reverse(p, p + sizeof(T));
+        }
+        append(reinterpret_cast<const uint8_t*>(&v), sizeof(T));
+        return *this;
+    }
+
+    // Write another BytesBuffer
+    BytesBuffer& operator<<(const BytesBuffer& other)
+    {
+        append(other.data(), other.size());
+        return *this;
+    }
+
+    // Write container of bytes (uint8_t, char, or unsigned char)
+    template <typename Container>
+    requires std::ranges::contiguous_range<Container> &&
+             (std::same_as<std::remove_cv_t<std::ranges::range_value_t<Container>>, uint8_t> ||
+              std::same_as<std::remove_cv_t<std::ranges::range_value_t<Container>>, int8_t>)
+    BytesBuffer& operator<<(const Container& c)
+    {
+        append(reinterpret_cast<const uint8_t*>(std::data(c)), std::size(c));
+        return *this;
+    }
+
+    // ------------------------------------------------------------------------
+    // --- Read operations ---
+    // ------------------------------------------------------------------------
+
+    // Read integral assuming little-endian wire format
+    template <typename T>
+    requires std::is_integral_v<T>
+    BytesBuffer& operator>>(T& v)
+    {
+        if (read_offset_ + sizeof(T) > data_.size())
+            throw std::runtime_error("ByteBuffer: not enough bytes to read");
+
+        std::memcpy(&v, data_.data() + read_offset_, sizeof(T));
+        read_offset_ += sizeof(T);
+
+        if constexpr (std::endian::native == std::endian::big)
+        {
+            auto* p = reinterpret_cast<uint8_t*>(&v);
+            std::reverse(p, p + sizeof(T));
+        }
+
+        return *this;
+    }
+
+    // Read container of bytes
+    template <typename Container>
+    requires std::ranges::contiguous_range<Container>
+    BytesBuffer& operator>>(Container& c)
+    {
+        if (read_offset_ + std::size(c) > data_.size())
+            throw std::runtime_error("ByteBuffer: not enough bytes to read container");
+
+        std::memcpy(std::data(c), data_.data() + read_offset_, std::size(c));
+        read_offset_ += std::size(c);
+        return *this;
+
+    }
+
+};
+
+
+
+// ============================================================================
 // TYPE ALIASES
 // ============================================================================
 
@@ -80,136 +223,14 @@ constexpr size_t calculateBlockHeaderSize()
 }
 
 // Convert hex string to 32-byte array
-Array256_t hexToBytes(const std::string& hex);
+BytesBuffer hexToBytes(const std::string& hex);
 
-// Convert 32-byte array to hex string
-template <typename Container>
-std::string bytesToHex(const Container& bytes)
-{
-    static constexpr char hexChars[] = "0123456789ABCDEF";
-    std::string out;
-    out.reserve(bytes.size() * 2);
-
-    for (const auto& byte : bytes)
-    {
-        out.push_back(hexChars[byte >> 4]);
-        out.push_back(hexChars[byte & 0x0F]);
-    }
-
-    return out;
-}
 
 // Compute SHA-256 hash of data
-Array256_t sha256Of(std::span<const uint8_t> data);
+Array256_t sha256Of(const BytesBuffer& data);
 
 // Get current UNIX timestamp in seconds
 uint64_t getCurrentTimestamp();
-
-// ============================================================================
-// MAIN BUFFER
-// ============================================================================
-
-struct BytesBuffer
-{
-private:
-    std::vector<uint8_t> data_;
-    size_t read_offset_ = 0;
-
-public:
-
-    template <typename... Ts>
-    requires ((std::is_integral_v<Ts> ||
-               requires(const Ts& c) { std::ranges::contiguous_range<Ts>; }) && ...)
-    explicit BytesBuffer(const Ts&... values)
-    {
-        ((*this << values), ...);
-    }
-
-    [[nodiscard]] uint8_t* data() { return data_.data(); }
-    [[nodiscard]] const uint8_t* data() const { return data_.data(); }
-    [[nodiscard]] size_t size() const { return data_.size(); }
-
-    void resize(const size_t n) { data_.resize(n); }
-    void clear() { data_.clear(); read_offset_ = 0; }
-    void resetRead() { read_offset_ = 0; }
-    void reserve(const size_t n) { data_.reserve(n); }
-
-    // Append raw bytes
-    void append(const uint8_t* p, const size_t n) { data_.insert(data_.end(), p, p + n); }
-    void append(const std::span<const uint8_t> s) { append(s.data(), s.size()); }
-
-    [[nodiscard]] std::string toStringHex() const
-    {
-        return bytesToHex(data_);
-    }
-
-
-    // Write integral in little-endian
-    template <typename T>
-    requires std::is_integral_v<T>
-    BytesBuffer& operator<<(T v)
-    {
-        if constexpr (std::endian::native == std::endian::big)
-        {
-            auto* p = reinterpret_cast<uint8_t*>(&v);
-            std::reverse(p, p + sizeof(T));
-        }
-        append(reinterpret_cast<const uint8_t*>(&v), sizeof(T));
-        return *this;
-    }
-
-    // Write another BytesBuffer
-    BytesBuffer& operator<<(const BytesBuffer& other)
-    {
-        append(other.data(), other.size());
-        return *this;
-    }
-
-    // Write container of bytes
-    template <typename Container>
-    requires std::ranges::contiguous_range<Container> &&
-         std::same_as<std::remove_cv_t<std::ranges::range_value_t<Container>>, uint8_t>
-    BytesBuffer& operator<<(const Container& c)
-    {
-        append(reinterpret_cast<const uint8_t*>(std::data(c)), std::size(c));
-        return *this;
-    }
-
-    // Read integral assuming little-endian wire format
-    template <typename T>
-    requires std::is_integral_v<T>
-    BytesBuffer& operator>>(T& v)
-    {
-        if (read_offset_ + sizeof(T) > data_.size())
-            throw std::runtime_error("ByteBuffer: not enough bytes to read");
-
-        std::memcpy(&v, data_.data() + read_offset_, sizeof(T));
-        read_offset_ += sizeof(T);
-
-        if constexpr (std::endian::native == std::endian::big)
-        {
-            auto* p = reinterpret_cast<uint8_t*>(&v);
-            std::reverse(p, p + sizeof(T));
-        }
-
-        return *this;
-    }
-
-    // Read container of bytes
-    template <typename Container>
-    requires std::ranges::contiguous_range<Container>
-    BytesBuffer& operator>>(Container& c)
-    {
-        if (read_offset_ + std::size(c) > data_.size())
-            throw std::runtime_error("ByteBuffer: not enough bytes to read container");
-
-        std::memcpy(std::data(c), data_.data() + read_offset_, std::size(c));
-        read_offset_ += std::size(c);
-        return *this;
-
-    }
-
-};
 
 // ============================================================================
 // SERIALIZATION FUNCTIONS

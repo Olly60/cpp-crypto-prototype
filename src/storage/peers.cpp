@@ -12,25 +12,29 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
     }
     peersFile.exceptions(std::ios::failbit | std::ios::badbit);
 
+    BytesBuffer peersFileBytes;
+
     // Write peer count
-    appendToFile(peersFile, peers.size());
+    peersFileBytes << uint64_t{peers.size()};
 
     // Write each peer
     for (const auto& [peerAddr, peerStatus] : peers)
     {
         // Address length and string
-        appendToFile(peersFile, static_cast<uint16_t>(peerAddr.address.size()));
-        peersFile.write(peerAddr.address.data(), peerAddr.address.size());
+        peersFileBytes << uint64_t{peerAddr.address.size()};
+        peersFileBytes << peerAddr.address;
 
         // Port
-        appendToFile(peersFile, peerAddr.port);
+        peersFileBytes << peerAddr.port;
 
         // Services
-        appendToFile(peersFile, peerStatus.services);
+        peersFileBytes << peerStatus.services;
 
         // Last seen
-        appendToFile(peersFile, peerStatus.lastSeen);
+        peersFileBytes << peerStatus.lastSeen;
     }
+
+    peersFile.write(peersFileBytes.cdata(), peersFileBytes.ssize());
 }
 
 std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
@@ -42,11 +46,10 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 
     std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
     auto peersFileBytes = readWholeFile(paths::peers);
-    size_t offset = 0;
 
     // Read peer count
     uint64_t peersCount;
-    parseBytesInto(peersCount, peersFileBytes, offset);
+    parseBytesInto(peersCount, peersFileBytes);
 
     // Read each peer
     for (uint64_t i = 0; i < peersCount; i++)
