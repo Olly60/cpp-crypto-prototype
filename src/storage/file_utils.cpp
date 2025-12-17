@@ -4,7 +4,7 @@
 // FILE I/O UTILITIES
 // ============================================================================
 
-std::ofstream openFileForWrite(const fs::path& path)
+std::ofstream openFileTruncWrite(const fs::path& path)
 {
     fs::create_directories(path.parent_path());
 
@@ -23,14 +23,13 @@ std::ofstream openFileForWrite(const fs::path& path)
 
 BytesBuffer readWholeFile(const fs::path& filePath)
 {
-    openFileForWrite()
     std::ifstream file(filePath, std::ios::binary);
     if (!file)
         throw std::runtime_error("Failed to open file: " + filePath.string());
 
     const auto size = fs::file_size(filePath);
     BytesBuffer buffer;
-    buffer.reserve(size);
+    buffer.resize(size);
 
     if (size > 0)
     {

@@ -26,5 +26,5 @@ std::unique_ptr<rocksdb::DB> openDb(const fs::path& path);
 
 BytesBuffer readWholeFile(const fs::path& filePath);
 
-std::ofstream openFileForWrite(const fs::path& path);
+std::ofstream openFileTruncWrite(const fs::path& path);
 

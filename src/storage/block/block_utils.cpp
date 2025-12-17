@@ -16,7 +16,7 @@ namespace
                        const Block& block,
                        rocksdb::DB& utxoDb)
     {
-        auto undoFile = openFileForWrite(undoFilePath);
+        auto undoFile = openFileTruncWrite(undoFilePath);
 
         BytesBuffer undoData;
 
@@ -87,21 +87,21 @@ namespace
 {
     fs::path getBlockFilePath(const Array256_t& blockHash)
     {
-        return paths::blocks / (bytesToHex(blockHash) + ".block");
+        return paths::blocks / (bytesToHex(BytesBuffer(blockHash)) + ".block");
     }
 
     fs::path getUndoFilePath(const Array256_t& blockHash)
     {
-        return paths::undo / (bytesToHex(blockHash) + ".undo");
+        return paths::undo / (bytesToHex(BytesBuffer(blockHash)) + ".undo");
     }
 }
 
-std::vector<uint8_t> readBlockFileBytes(const Array256_t& blockHash)
+BytesBuffer readBlockFileBytes(const Array256_t& blockHash)
 {
     return readWholeFile(getBlockFilePath(blockHash));
 }
 
-std::vector<uint8_t> readBlockFileHeaderBytes(const Array256_t& blockHash)
+BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash)
 {
     const auto path = getBlockFilePath(blockHash);
     if (!fs::exists(path))
@@ -111,12 +111,12 @@ std::vector<uint8_t> readBlockFileHeaderBytes(const Array256_t& blockHash)
     file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 
     constexpr auto headerSize = calculateBlockHeaderSize();
-    std::vector<uint8_t> header(headerSize);
+    BytesBuffer header;
+    header.resize(headerSize);
 
     try
     {
-        file.read(reinterpret_cast<char*>(header.data()),
-                  static_cast<std::streamsize>(headerSize));
+        file.read(header.cdata(), headerSize);
     }
     catch (const std::ios_base::failure& e)
     {
@@ -128,6 +128,7 @@ std::vector<uint8_t> readBlockFileHeaderBytes(const Array256_t& blockHash)
 
 void addBlock(const Block& block)
 {
+    // Determine file paths
     const Array256_t blockHash = getBlockHash(block);
     const fs::path blockFilePath = getBlockFilePath(blockHash);
     const fs::path undoFilePath = getUndoFilePath(blockHash);
@@ -138,10 +139,14 @@ void addBlock(const Block& block)
     // Write undo data before modifying UTXO set
     writeUndoFile(undoFilePath, block, *utxoDb);
 
-    // Write block to disk
-    auto blockFile = openFileForWrite(blockFilePath);
+    // Open block file for writing
+    auto blockFile = openFileTruncWrite(blockFilePath);
+
+    // Serialize block
     const auto blockBytes = serialiseBlock(block);
-    appendToFile(blockFile, blockBytes);
+
+    // Write block data
+    blockFile.write(blockBytes.cdata(), blockBytes.ssize());
 
     // Update UTXO set: add new UTXOs
     for (const auto& tx : block.txs)
@@ -217,10 +222,12 @@ bool blockExists(const Array256_t& blockHash)
 
 BlockHeader getBlockHeaderByHash(const Array256_t& blockHash)
 {
-    return parseBlockHeader(readBlockFileHeaderBytes(blockHash));
+    auto headerBytes = readBlockFileHeaderBytes(blockHash);
+    return parseBlockHeader(headerBytes);
 }
 
 Block getBlockByHash(const Array256_t& blockHash)
 {
-    return parseBlock(readBlockFileBytes(blockHash));
+    auto blockBytes = readBlockFileBytes(blockHash);
+    return parseBlock(blockBytes);
 }

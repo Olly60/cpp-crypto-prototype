@@ -10,6 +10,6 @@ BlockHeader getBlockHeaderByHash(const Array256_t& blockHash);
 
 Block getBlockByHash(const Array256_t& blockHash);
 
-std::vector<uint8_t> readBlockFileBytes(const Array256_t& blockHash);
+BytesBuffer readBlockFileBytes(const Array256_t& blockHash);
 
-std::vector<uint8_t> readBlockFileHeaderBytes(const Array256_t& blockHash);
+BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash);
