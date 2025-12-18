@@ -40,7 +40,8 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(headerSize.data(), headerBytes.size()), asio::use_awaitable);
 
         // Send header
-        co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);;
+        co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
+
     }
     catch (const std::exception&)
     {
