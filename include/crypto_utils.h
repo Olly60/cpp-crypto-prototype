@@ -23,132 +23,85 @@ struct BytesBuffer
 {
 private:
     std::vector<uint8_t> data_;
-    size_t read_offset_ = 0;
+    uint64_t read_offset_ = 0;
+
 public:
-
-    // Constructor
-    template <typename... Ts>
-    explicit BytesBuffer(Ts&&... values)
-    {
-        ((*this << std::forward<Ts>(values)), ...);
-    }
-
-    // Iterator support
-    [[nodiscard]] uint8_t* begin() { return data_.data(); }
-    [[nodiscard]] uint8_t* end()   { return data_.data() + data_.size(); }
-
-    [[nodiscard]] const uint8_t* begin() const { return data_.data(); }
-    [[nodiscard]] const uint8_t* end() const { return data_.data() + data_.size(); }
-
-    // Access raw data
-    [[nodiscard]] uint8_t* data() { return data_.data(); }
+    // --- raw access ---
     [[nodiscard]] const uint8_t* data() const { return data_.data(); }
-    [[nodiscard]] size_t size() const { return data_.size(); }
+    [[nodiscard]] uint64_t size() const { return static_cast<uint64_t>(data_.size()); }
 
-    // Modify size
-    void resize(const size_t n) { data_.resize(n); }
-
-    // Clear buffer
     void clear() { data_.clear(); read_offset_ = 0; }
-
-    // Reset read offset
     void resetRead() { read_offset_ = 0; }
 
-    // Reserve capacity
-    void reserve(const size_t n) { data_.reserve(n); }
+    // ------------------------------------------------------------------
+    // --- low-level primitives (canonical, unsigned-only) ---
+    // ------------------------------------------------------------------
 
-    // Append raw bytes
-    void append(const uint8_t* p, const size_t n) { data_.insert(data_.end(), p, p + n); }
-    void append(const std::span<const uint8_t> s) { append(s.data(), s.size()); }
-
-    [[nodiscard]] std::string hexString() const
+    void append(const uint8_t* p, const uint64_t n)
     {
-        return bytesToHex(*this);
+        data_.insert(data_.end(), p, p + n);
     }
 
-    [[nodiscard]] std::string toString() const
-    {
-        return {this->cdata(), this->size()};
-    }
-
-    // Convenience functions
-    [[nodiscard]] const char* cdata() const { return reinterpret_cast<const char*>(data()); }
-    [[nodiscard]] char* cdata() { return reinterpret_cast<char*>(data()); }
-    [[nodiscard]] std::streamsize ssize() const { return static_cast<std::streamsize>(size()); }
-
-    // ------------------------------------------------------------------------
-    // --- Write operations ---
-    // ------------------------------------------------------------------------
-
-    // Write integral in little-endian
     template <typename T>
-    requires std::is_integral_v<std::remove_cvref_t<T>>
-    BytesBuffer& operator<<(T&& v)
+    void write_le(T v)
     {
-        if constexpr (std::endian::native == std::endian::big)
-        {
-            auto* p = reinterpret_cast<uint8_t*>(&v);
-            std::reverse(p, p + sizeof(T));
-        }
-        append(reinterpret_cast<const uint8_t*>(&v), sizeof(T));
-        return *this;
+        static_assert(std::is_unsigned_v<T>);
+        for (uint64_t i = 0; i < sizeof(T); ++i)
+            data_.push_back(static_cast<uint8_t>(v >> (8 * i)));
     }
 
-    // Write another BytesBuffer
-    BytesBuffer& operator<<(const BytesBuffer& other)
-    {
-        append(other.data(), other.size());
-        return *this;
-    }
-
-    // Write container of bytes (uint8_t, char, or unsigned char)
-    template <typename Container>
-    requires std::ranges::contiguous_range<Container>
-    BytesBuffer& operator<<(Container&& c)
-    {
-        append(reinterpret_cast<const uint8_t*>(std::data(c)), std::size(c));
-        return *this;
-    }
-
-    // ------------------------------------------------------------------------
-    // --- Read operations ---
-    // ------------------------------------------------------------------------
-
-    // Read integral assuming little-endian wire format
     template <typename T>
-    requires std::is_integral_v<std::remove_cvref_t<T>>
-    BytesBuffer& operator>>(T& v)
+    T read_le()
     {
+        static_assert(std::is_unsigned_v<T>);
         if (read_offset_ + sizeof(T) > data_.size())
-            throw std::runtime_error("ByteBuffer: not enough bytes to read");
+            throw std::runtime_error("BytesBuffer: out of bounds");
 
-        std::memcpy(&v, data_.data() + read_offset_, sizeof(T));
-        read_offset_ += sizeof(T);
-
-        if constexpr (std::endian::native == std::endian::big)
-        {
-            auto* p = reinterpret_cast<uint8_t*>(&v);
-            std::reverse(p, p + sizeof(T));
-        }
-
-        return *this;
+        T v = 0;
+        for (uint64_t i = 0; i < sizeof(T); ++i)
+            v |= static_cast<T>(data_[read_offset_++]) << (8 * i);
+        return v;
     }
 
-    // Read container of bytes
-    template <typename Container>
-    requires std::ranges::contiguous_range<Container>
-    BytesBuffer& operator>>(Container& c)
+    // ------------------------------------------------------------------
+    // --- explicit API (preferred in consensus code) ---
+    // ------------------------------------------------------------------
+
+    void write_u8(const uint8_t v)   { write_le(v); }
+    void write_u16(const uint16_t v) { write_le(v); }
+    void write_u32(const uint32_t v) { write_le(v); }
+    void write_u64(const uint64_t v) { write_le(v); }
+
+    uint8_t  read_u8()  { return read_le<uint8_t>(); }
+    uint16_t read_u16() { return read_le<uint16_t>(); }
+    uint32_t read_u32() { return read_le<uint32_t>(); }
+    uint64_t read_u64() { return read_le<uint64_t>(); }
+
+    void write_bytes(std::span<const uint8_t> bytes)
     {
-        if (read_offset_ + std::size(c) > data_.size())
-            throw std::runtime_error("ByteBuffer: not enough bytes to read container");
-
-        std::memcpy(std::data(c), data_.data() + read_offset_, std::size(c));
-        read_offset_ += std::size(c);
-        return *this;
-
+        write_u64(bytes.size());
+        append(bytes.data(), bytes.size());
     }
 
+    std::vector<uint8_t> read_bytes()
+    {
+        const uint64_t len = read_u64();
+        if (read_offset_ + len > data_.size())
+            throw std::runtime_error("BytesBuffer: out of bounds");
+
+        const auto offset = static_cast<std::vector<uint8_t>::difference_type>(read_offset_);
+        const auto count  = static_cast<std::vector<uint8_t>::difference_type>(len);
+
+        std::vector<uint8_t> out(
+            data_.begin() + offset,
+            data_.begin() + offset + count
+        );
+
+        read_offset_ += len;
+        return out;
+    }
 };
+
 
 
 
