@@ -32,11 +32,6 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         // Get header from storage
         auto headerBytes = readBlockFileHeaderBytes(blockHash);
 
-        // Send size
-        BytesBuffer headerSize;
-        headerSize.writeU64(headerBytes.size());
-        co_await asio::async_write(socket, asio::buffer(headerSize.data(), headerBytes.size()), asio::use_awaitable);
-
         // Send header
         co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
 

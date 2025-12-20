@@ -6,7 +6,7 @@
 #include "storage/block/tip_block.h"
 #include "network/handle.h"
 #include "storage/peers.h"
-
+// TODO: add limits and safety to network
 // ============================================
 // Handle connection
 // ============================================

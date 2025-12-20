@@ -2,6 +2,7 @@
 #include "storage/peers.h"
 #include <random>
 #include "storage/block/genesis_block.h"
+
 // ============================================
 // Data Structures
 // ============================================
@@ -26,6 +27,9 @@ enum class ProtocolMessage : uint8_t
     GetMempool = 7,
     GetHeaders = 8
 };
+
+constexpr uint32_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
+constexpr uint32_t MAX_TX_SIZE = 8 * 1024 * 256;
 
 struct Array256Hash
 {

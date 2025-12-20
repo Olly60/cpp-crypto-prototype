@@ -3,8 +3,7 @@
 #include <stdexcept>
 #include <sodium.h>
 #include <chrono>
-
-// TODO: improve move semantics everywhere in this project
+// TODO: make more move semantics and improve performance
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
