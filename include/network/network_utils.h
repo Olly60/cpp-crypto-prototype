@@ -5,9 +5,9 @@ constexpr uint64_t handshakeSize();
 
 Handshake createHandshake();
 
-std::vector<uint8_t> serialiseHandshake(const Handshake& hs);
+BytesBuffer serialiseHandshake(const Handshake& hs);
 
-Handshake parseHandshake(const std::vector<uint8_t>& buffer);
+Handshake parseHandshake(BytesBuffer& buffer);
 
 bool isValidHandshake(const Handshake& hs);
 
@@ -34,7 +34,7 @@ asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket);
 // Read and write helpers
 // ============================================
 
-asio::awaitable<uint64_t> readUint64_t(asio::ip::tcp::socket& socket);
+asio::awaitable<uint64_t> readU64Tcp(asio::ip::tcp::socket& socket);
 
-inline asio::awaitable<void> writeUint64_t(asio::ip::tcp::socket& socket, uint64_t num);
+asio::awaitable<void> writeU64Tcp(asio::ip::tcp::socket& socket, uint64_t num);
 

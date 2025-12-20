@@ -32,7 +32,7 @@ BytesBuffer hexToBytes(const std::string& hex)
     {
         const uint8_t high = hexCharToNibble(hex[i * 2]);
         const uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
-        bytes << (high << 4 | low);
+        bytes.writeU8((high << 4 | low));
     }
 
     return bytes;
@@ -79,13 +79,19 @@ uint64_t getCurrentTimestamp()
 // ----------------------------------------
 BytesBuffer serialiseTxInput(const TxInput& txInput)
 {
-    return BytesBuffer() << txInput.UTXOTxHash << txInput.UTXOOutputIndex << txInput.signature;
+    BytesBuffer serialisedTx;
+    serialisedTx.writeFixedArray(txInput.UTXOTxHash);
+    serialisedTx.writeU64(txInput.UTXOOutputIndex);
+    serialisedTx.writeFixedArray(txInput.signature);
+    return serialisedTx;
 }
 
 TxInput parseTxInput(BytesBuffer& txInputBytes)
 {
     TxInput txInput;
-    txInputBytes >> txInput.UTXOTxHash >> txInput.UTXOOutputIndex >> txInput.signature;
+    txInput.UTXOTxHash = txInputBytes.readFixedArray<32>();
+    txInput.UTXOOutputIndex = txInputBytes.readU64();
+    txInput.signature = txInputBytes.readFixedArray<64>();
     return txInput;
 }
 

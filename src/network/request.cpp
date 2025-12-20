@@ -16,16 +16,16 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
     try
     {
         // Write message type
-        auto msgType = static_cast<uint8_t>(ProtocolMessage::Handshake);
+        auto msgType = ProtocolMessage::Handshake;
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
         // Write our handshake
         auto myHandshake = serialiseHandshake(createHandshake());
-        co_await asio::async_write(socket, asio::buffer(myHandshake), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer(myHandshake.data(), myHandshake.size()), asio::use_awaitable);
 
         // Read peer handshake
-        std::vector<uint8_t> buffer(handshakeSize());
-        co_await asio::async_read(socket, asio::buffer(buffer), asio::use_awaitable);
+        BytesBuffer buffer(handshakeSize());
+        co_await asio::async_read(socket, asio::buffer(buffer.data(), buffer.size()), asio::use_awaitable);
 
         const Handshake theirHandshake = parseHandshake(buffer);
         if (!isValidHandshake(theirHandshake))
@@ -57,7 +57,7 @@ asio::awaitable<void> requestPing(asio::ip::tcp::socket& socket)
     try
     {
         // Send message type
-        auto msgType = static_cast<uint8_t>(ProtocolMessage::Ping);
+        auto msgType = ProtocolMessage::Ping;
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
     }
     catch (const std::exception&)
@@ -83,7 +83,7 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
         if (hasHeader == 0) { co_return std::nullopt; }
 
         // Read size
-        const uint64_t headerSize = co_await readUint64_t(socket);
+        const uint64_t headerSize = co_await readU64Tcp(socket);
 
         // Read header
         BytesBuffer headerBytes(headerSize);
@@ -115,7 +115,7 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
         if (hasBlock == 0) { co_return std::nullopt; }
 
         // Read size
-        const uint64_t blockSize = co_await readUint64_t(socket);
+        const uint64_t blockSize = co_await readU64Tcp(socket);
 
         // Read block
         BytesBuffer blockBytes(blockSize);
@@ -145,7 +145,7 @@ asio::awaitable<std::optional<std::vector<BlockHeader>>> requestHeaders(asio::ip
         {
             blockHashes.push_back(getHeightHash(*blockHeights,tipHeight-i));
         }
-
+//TODO: make function
 
 
     }
@@ -159,7 +159,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
     try
     {
         // Read inv size
-        const uint64_t invSize = co_await readUint64_t(socket);
+        const uint64_t invSize = co_await readU64Tcp(socket);
 
         // Read inv
         std::vector<uint8_t> theirInv(sizeof(Array256_t) * invSize);
@@ -184,7 +184,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
         }
 
         // Write missing size
-        co_await writeUint64_t(socket, missing.size());
+        co_await writeU64Tcp(socket, missing.size());
 
         // Ask for missing transactions
         co_await asio::async_write(socket, asio::buffer(missing), asio::use_awaitable);
@@ -195,7 +195,7 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
         for (uint64_t i = 0; i != missing.size(); i++)
         {
             // Read size
-            const uint64_t txSize = co_await readUint64_t(socket);
+            const uint64_t txSize = co_await readU64Tcp(socket);
 
             // Read transaction
             BytesBuffer txBytes(txSize);
