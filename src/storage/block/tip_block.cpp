@@ -13,7 +13,7 @@ void setBlockchainTip(const Array256_t& newTip)
 
     // Tip buffer
     BytesBuffer tipBuffer;
-    tipBuffer << newTip;
+    tipBuffer.writeArray256(newTip);
 
     // Write new tip hash
     file.write(tipBuffer.cdata(), tipBuffer.ssize());
@@ -21,9 +21,8 @@ void setBlockchainTip(const Array256_t& newTip)
 
 Array256_t getTipHash()
 {
-    Array256_t hash;
-    readWholeFile(paths::blockchainTip) >> hash;
-    return hash;
+    auto hash = readWholeFile(paths::blockchainTip);
+    return hash.readArray256();
 }
 
 

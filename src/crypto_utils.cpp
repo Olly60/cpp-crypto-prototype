@@ -4,6 +4,7 @@
 #include <sodium.h>
 #include <chrono>
 
+// TODO: improve move semantics everywhere in this project
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
@@ -82,16 +83,16 @@ BytesBuffer serialiseTxInput(const TxInput& txInput)
     BytesBuffer serialisedTx;
     serialisedTx.writeArray256(txInput.UTXOTxHash);
     serialisedTx.writeU64(txInput.UTXOOutputIndex);
-    serialisedTx.writeFixedArray(txInput.signature);
+    serialisedTx.writeArray512(txInput.signature);
     return serialisedTx;
 }
 
 TxInput parseTxInput(BytesBuffer& txInputBytes)
 {
     TxInput txInput;
-    txInput.UTXOTxHash = txInputBytes.readFixedArray<32>();
+    txInput.UTXOTxHash = txInputBytes.readArray256();
     txInput.UTXOOutputIndex = txInputBytes.readU64();
-    txInput.signature = txInputBytes.readFixedArray<64>();
+    txInput.signature = txInputBytes.readArray512();
     return txInput;
 }
 
@@ -110,7 +111,7 @@ TxOutput parseTxOutput(BytesBuffer& txOutputBytes)
 {
     TxOutput txOutput;
     txOutput.amount = txOutputBytes.readU64();
-    txOutput.recipient = txOutputBytes.readFixedArray<32>();
+    txOutput.recipient = txOutputBytes.readArray256();
     return txOutput;
 }
 
@@ -130,16 +131,16 @@ BytesBuffer serialiseTx(const Tx& tx)
     // Inputs
     for (const auto& input : tx.txInputs)
     {
-        txBytes.writeByteVector(serialiseTxInput(input));
+        txBytes.writeBytesBuffer(serialiseTxInput(input));
     }
 
     // Outputs amount
-    txBytes << tx.txOutputs.size();
+    txBytes.writeU64(tx.txOutputs.size());
 
     // Outputs
     for (const auto& output : tx.txOutputs)
     {
-        txBytes << serialiseTxOutput(output);
+        txBytes.writeBytesBuffer(serialiseTxOutput(output));
     }
 
     return txBytes;
@@ -150,11 +151,10 @@ Tx parseTx(BytesBuffer& txBytes)
     Tx tx;
 
     // Tx Version
-    txBytes << tx.version;
+    tx.version = txBytes.readU64();
 
     // Input amount
-    uint64_t inputAmount;
-    txBytes >> inputAmount;
+    uint64_t inputAmount = txBytes.readU64();
     tx.txInputs.reserve(inputAmount);
 
     // Read inputs
@@ -164,8 +164,7 @@ Tx parseTx(BytesBuffer& txBytes)
     }
 
     // Output amount
-    uint64_t outputAmount;
-    txBytes >> outputAmount;
+    uint64_t outputAmount = txBytes.readU64();
     tx.txOutputs.reserve(outputAmount);
 
     // Read outputs
@@ -182,13 +181,25 @@ Tx parseTx(BytesBuffer& txBytes)
 // ----------------------------------------
 BytesBuffer serialiseBlockHeader(const BlockHeader& header)
 {
-    return BytesBuffer() << header.version << header.prevBlockHash << header.merkleRoot << header.timestamp << header.difficulty << header.nonce;
+    BytesBuffer headerBytes;
+    headerBytes.writeU64(header.version);
+    headerBytes.writeArray256(header.prevBlockHash);
+    headerBytes.writeArray256(header.merkleRoot);
+    headerBytes.writeU64(header.timestamp);
+    headerBytes.writeArray256(header.difficulty);
+    headerBytes.writeArray256(header.nonce);
+    return headerBytes;
 }
 
 BlockHeader parseBlockHeader(BytesBuffer& headerBytes)
 {
     BlockHeader header;
-    headerBytes >> header.version >> header.prevBlockHash >> header.merkleRoot >> header.timestamp >> header.difficulty >> header.nonce;
+    header.version = headerBytes.readU64();
+    header.prevBlockHash = headerBytes.readArray256();
+    header.merkleRoot = headerBytes.readArray256();
+    header.timestamp = headerBytes.readU64();
+    header.difficulty = headerBytes.readArray256();
+    header.nonce = headerBytes.readArray256();
     return header;
 }
 
@@ -201,15 +212,15 @@ BytesBuffer serialiseBlock(const Block& block)
     BytesBuffer blockBytes;
 
     // Header
-    blockBytes << serialiseBlockHeader(block.header);
+    blockBytes.writeBytesBuffer(serialiseBlockHeader(block.header));
 
     // Transaction amount
-    blockBytes << block.txs.size();
+    blockBytes.writeU64(block.txs.size());
 
     // Transactions
     for (const auto& tx : block.txs)
     {
-        blockBytes << serialiseTx(tx);
+        blockBytes.writeBytesBuffer(serialiseTx(tx));
     }
 
     return blockBytes;
@@ -220,17 +231,16 @@ Block parseBlock(BytesBuffer& blockBytes)
     Block block;
 
     // Header
-    block.header = parseBlockHeader(blockBytes);
+    block.header = parseBlockHeader(blockBytes); // TODO: append block header bytes directly to main buffer to increase performance
 
     // Transaction amount
-    uint64_t txCount;
-    blockBytes >> txCount;
-
-    // Transactions
+    uint64_t txCount = blockBytes.readU64();
     block.txs.reserve(txCount);
+    // Transactions
+
     for (uint64_t i = 0; i < txCount; i++)
     {
-        block.txs.push_back(parseTx(blockBytes));
+        block.txs.push_back(parseTx(blockBytes)); // TODO: like the header and transactions this will also be made directly in the main buffer
     }
 
     return block;
@@ -287,7 +297,8 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
             // Hash the concatenation of left and right
             BytesBuffer combined;
             combined.reserve(left.size() + right.size());
-            combined << left << right;
+            combined.writeArray256(left);
+            combined.writeArray256(right);
 
             nextLayer.push_back(sha256Of(combined));
         }
@@ -306,29 +317,28 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
 Array256_t computeTxInputHash(const Tx& tx)
 {
     BytesBuffer buf;
+    buf.reserve(tx.txInputs.size() * 40 + tx.txOutputs.size() * 40 + 16);
 
     // Version
-    buf << tx.version;
+    buf.writeU64(tx.version);
 
     // Input amount
-    buf << uint64_t{(tx.txInputs.size())};
+    buf.writeU64(tx.txInputs.size());
 
         // Inputs
-        for (const auto & txInput : tx.txInputs)
-        {
-            buf << txInput.UTXOTxHash << txInput.UTXOOutputIndex;
-
-            // Blank out input signatures
-            buf << Array512_t{};
-        }
+    for (const auto& [UTXOTxHash, UTXOOutputIndex, Signature] : tx.txInputs) {
+        buf.writeArray256(UTXOTxHash);
+        buf.writeU64(UTXOOutputIndex);
+    }
 
         // Output amount
-        buf << uint64_t{(tx.txOutputs.size())};
+        buf.writeU64(tx.txOutputs.size());
 
         // Outputs
-        for (const auto & txOutput : tx.txOutputs)
+        for (const auto & [amount, recipient] : tx.txOutputs)
         {
-            buf << txOutput.amount << txOutput.recipient;
+            buf.writeU64(amount);
+            buf.writeArray256(recipient);
         }
 
         // Final message hash

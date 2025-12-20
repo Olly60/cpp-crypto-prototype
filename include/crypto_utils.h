@@ -70,6 +70,7 @@ public:
 
     BytesBuffer() = default;
 
+    // Set buffer size
     explicit BytesBuffer(size_t size)
         : data_(size)
     {}
@@ -82,6 +83,7 @@ public:
     [[nodiscard]] uint64_t size() const { return static_cast<uint64_t>(data_.size()); }
     [[nodiscard]] std::streamsize ssize() const {return static_cast<std::streamsize>(data_.size());}
     [[nodiscard]] const char* cdata() const { return reinterpret_cast<const char*>(data_.data()); }
+    [[nodiscard]] char* cdata() { return reinterpret_cast<char*>(data_.data()); }
 
     void clear() { data_.clear(); read_offset_ = 0; }
     void resetRead() { read_offset_ = 0; }
@@ -164,7 +166,7 @@ public:
         return out;
     }
 
-    // Fixed-size byte array (hashes, keys, nonces)
+    // Fixed-size 32-byte array (hashes, keys, nonces)
     void writeArray256(const Array256_t& a)
     {
         data_.insert(data_.end(), a.begin(), a.end());
@@ -184,8 +186,27 @@ public:
         return out;
     }
 
+    // Fixed-size 64-byte array (signatures)
+    void writeArray512(const Array512_t& a)
+    {
+        data_.insert(data_.end(), a.begin(), a.end());
+    }
+
+    Array512_t readArray512()
+    {
+        constexpr size_t SIZE = Array512_t().size();
+
+        if (read_offset_ + SIZE > data_.size())
+            throw std::runtime_error("BytesBuffer: out of bounds");
+
+        Array512_t out;
+        std::memcpy(out.data(), data_.data() + read_offset_, SIZE);
+        read_offset_ += SIZE;
+        return out;
+    }
+
     // BytesBuffer
-    void writeBytesBuffer(BytesBuffer& other)
+    void writeBytesBuffer(const BytesBuffer& other)
     {
         writeBytesImpl(other);
     }

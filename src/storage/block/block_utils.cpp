@@ -112,8 +112,7 @@ BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash)
     file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 
     constexpr auto headerSize = calculateBlockHeaderSize();
-    BytesBuffer header;
-    header.resize(headerSize);
+    BytesBuffer header(headerSize);
 
     try
     {

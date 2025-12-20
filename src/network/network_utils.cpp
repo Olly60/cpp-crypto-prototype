@@ -116,8 +116,7 @@ asio::awaitable<void> writeU64Tcp(asio::ip::tcp::socket& socket, uint64_t v)
 
 asio::awaitable<uint64_t> readU64Tcp(asio::ip::tcp::socket& socket)
 {
-    BytesBuffer buf;
-    buf.prepareRead(sizeof(uint64_t));
+    BytesBuffer buf(sizeof(uint64_t));
     co_await asio::async_read(socket, asio::buffer(buf.data(), buf.size()), asio::use_awaitable);
     co_return buf.readU64();
 }

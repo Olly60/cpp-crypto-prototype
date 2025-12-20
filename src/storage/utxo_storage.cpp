@@ -6,17 +6,26 @@
 namespace
 {
     std::string makeUtxoKey(const TxInput& txInput) {
-        return BytesBuffer(txInput.UTXOTxHash, txInput.UTXOOutputIndex).toString();
+        BytesBuffer txInputBuf;
+        txInputBuf.writeArray256(txInput.UTXOTxHash);
+        txInputBuf.writeU64(txInput.UTXOOutputIndex);
+        return txInputBuf.toString();
     }
 
     std::string makeUtxoValue(const TxOutput& utxo) {
-        return BytesBuffer(utxo.amount, utxo.recipient).toString();
+        BytesBuffer valueBuf;
+        valueBuf.writeU64(utxo.amount);
+        valueBuf.writeArray256(utxo.recipient);
+        return valueBuf.toString();
     }
 
     TxOutput parseUtxoValue(const std::string& value) {
-        TxOutput utxo;
-        BytesBuffer(value) >> utxo.amount >> utxo.recipient;
-        return utxo;
+        BytesBuffer valueBuf;
+        valueBuf.writeString(value);
+        TxOutput txOutput;
+        txOutput.amount = valueBuf.readU64();
+        txOutput.recipient = valueBuf.readArray256();
+        return txOutput;
     }
 }
 

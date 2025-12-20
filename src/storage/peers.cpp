@@ -15,23 +15,23 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
     BytesBuffer peersFileBytes;
 
     // Write peer count
-    peersFileBytes << uint64_t{peers.size()};
+    peersFileBytes.writeU64(peers.size());
 
     // Write each peer
     for (const auto& [peerAddr, peerStatus] : peers)
     {
         // Address length and string
-        peersFileBytes << static_cast<uint16_t>(peerAddr.address.size());
-        peersFileBytes << peerAddr.address;
+        peersFileBytes.writeU64(peerAddr.address.size());
+        peersFileBytes.writeString(peerAddr.address);
 
         // Port
-        peersFileBytes << peerAddr.port;
+        peersFileBytes.writeU16(peerAddr.port);
 
         // Services
-        peersFileBytes << peerStatus.services;
+        peersFileBytes.writeU64(peerStatus.services);
 
         // Last seen
-        peersFileBytes << peerStatus.lastSeen;
+        peersFileBytes.writeU64(peerStatus.lastSeen);
     }
 
     peersFile.write(peersFileBytes.cdata(), peersFileBytes.ssize());
@@ -48,8 +48,7 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
     auto peersFileBytes = readWholeFile(paths::peers);
 
     // Read peer count
-    uint64_t peersCount;
-    peersFileBytes >> peersCount;
+    uint64_t peersCount = peersFileBytes.readU64();
 
     // Read each peer
     for (uint64_t i = 0; i < peersCount; i++)
@@ -57,21 +56,17 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
         PeerAddress peerAddr;
         PeerStatus peerStatus;
 
-        // Read address length
-        uint16_t addrLen;
-        peersFileBytes >> addrLen;
-
         // Read address string
-        peersFileBytes >> peerAddr.address;
+        peerAddr.address = peersFileBytes.readString();
 
         // Read port
-        peersFileBytes >> peerAddr.port;
+        peerAddr.port = peersFileBytes.readU16();
 
         // Read services
-        peersFileBytes >> peerStatus.services;
+        peerStatus.services = peersFileBytes.readU64();
 
         // Read last seen
-        peersFileBytes >> peerStatus.lastSeen;
+        peerStatus.lastSeen = peersFileBytes.readU64();
 
         peers.insert({peerAddr, peerStatus});
     }

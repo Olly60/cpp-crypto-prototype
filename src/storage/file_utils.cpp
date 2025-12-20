@@ -17,7 +17,7 @@ std::ofstream openFileTruncWrite(const fs::path& path)
     // Enable exceptions for future I/O
     file.exceptions(std::ios::failbit | std::ios::badbit);
 
-    return file; // Moved
+    return file;
 }
 
 
@@ -27,9 +27,8 @@ BytesBuffer readWholeFile(const fs::path& filePath)
     if (!file)
         throw std::runtime_error("Failed to open file: " + filePath.string());
 
-    const auto size = fs::file_size(filePath);
-    BytesBuffer buffer;
-    buffer.resize(size);
+    auto size = fs::file_size(filePath);
+    BytesBuffer buffer(size);
 
     if (size > 0)
     {
@@ -50,7 +49,7 @@ std::unique_ptr<rocksdb::DB> openDb(const fs::path& path)
     options.create_if_missing = true;
 
     rocksdb::DB* raw = nullptr;
-    const rocksdb::Status status = rocksdb::DB::Open(
+    rocksdb::Status status = rocksdb::DB::Open(
         options,
         path.string(),
         &raw
