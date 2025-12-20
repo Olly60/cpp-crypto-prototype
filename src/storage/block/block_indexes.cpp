@@ -11,21 +11,29 @@ namespace
     // Serialize hash key
     std::string makeHashKey(const Array256_t& hash)
     {
-        return BytesBuffer(hash).toString();
+        BytesBuffer buf;
+        buf.writeArray256(hash);
+        return buf.toString();
 
     }
 
     // Serialize BlockIndexValue
     std::string makeIndexValue(const BlockIndexValue& index)
     {
-        return BytesBuffer(index.height, index.chainwork).toString();
+        BytesBuffer buf;
+        buf.writeU64(index.height);
+        buf.writeArray256(index.chainwork);
+        return buf.toString();
     }
 
     // Deserialize BlockIndexValue
     BlockIndexValue parseIndexValue(const std::string& value)
     {
+        BytesBuffer buf;
+        buf.writeString(value);
         BlockIndexValue result;
-        BytesBuffer(value) >> result.height >> result.chainwork;
+        result.height = buf.readU64();
+        result.chainwork = buf.readArray256();
         return result;
     }
 }

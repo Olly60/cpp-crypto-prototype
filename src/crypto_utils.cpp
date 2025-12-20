@@ -80,7 +80,7 @@ uint64_t getCurrentTimestamp()
 BytesBuffer serialiseTxInput(const TxInput& txInput)
 {
     BytesBuffer serialisedTx;
-    serialisedTx.writeFixedArray(txInput.UTXOTxHash);
+    serialisedTx.writeArray256(txInput.UTXOTxHash);
     serialisedTx.writeU64(txInput.UTXOOutputIndex);
     serialisedTx.writeFixedArray(txInput.signature);
     return serialisedTx;
@@ -100,13 +100,17 @@ TxInput parseTxInput(BytesBuffer& txInputBytes)
 // ----------------------------------------
 BytesBuffer serialiseTxOutput(const TxOutput& txOutput)
 {
-    return BytesBuffer() << txOutput.amount << txOutput.recipient;
+    BytesBuffer serialisedTxOutput;
+    serialisedTxOutput.writeU64(txOutput.amount);
+    serialisedTxOutput.writeArray256(txOutput.recipient);
+    return serialisedTxOutput;
 }
 
 TxOutput parseTxOutput(BytesBuffer& txOutputBytes)
 {
     TxOutput txOutput;
-    txOutputBytes >> txOutput.amount >> txOutput.recipient;
+    txOutput.amount = txOutputBytes.readU64();
+    txOutput.recipient = txOutputBytes.readFixedArray<32>();
     return txOutput;
 }
 
@@ -118,15 +122,15 @@ BytesBuffer serialiseTx(const Tx& tx)
     BytesBuffer txBytes;
 
     // Version
-    txBytes << tx.version;
+    txBytes.writeU64(tx.version);
 
     // Inputs amount
-    txBytes << tx.txInputs.size();
+    txBytes.writeU64(tx.txInputs.size());
 
     // Inputs
     for (const auto& input : tx.txInputs)
     {
-        txBytes << serialiseTxInput(input);
+        txBytes.writeByteVector(serialiseTxInput(input));
     }
 
     // Outputs amount

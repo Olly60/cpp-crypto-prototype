@@ -32,10 +32,10 @@ BytesBuffer serialiseHandshake(const Handshake& hs)
 {
     BytesBuffer handshakeBytes;
     handshakeBytes.writeU64(hs.version);
-    handshakeBytes.writeFixedArray(hs.genesisBlockHash);
+    handshakeBytes.writeArray256(hs.genesisBlockHash);
     handshakeBytes.writeU64(hs.services);
     handshakeBytes.writeU64(hs.nonce);
-    handshakeBytes.writeFixedArray(hs.blockchainTip);
+    handshakeBytes.writeArray256(hs.blockchainTip);
     return handshakeBytes;
 }
 
@@ -43,10 +43,10 @@ Handshake parseHandshake(BytesBuffer& buffer)
 {
     Handshake hs{};
     hs.version = buffer.readU64();
-    hs.genesisBlockHash = buffer.readFixedArray<32>();
+    hs.genesisBlockHash = buffer.readArray256();
     hs.services = buffer.readU64();
     hs.nonce = buffer.readU64();
-    hs.blockchainTip = buffer.readFixedArray<32>();
+    hs.blockchainTip = buffer.readArray256();
     return hs;
 }
 

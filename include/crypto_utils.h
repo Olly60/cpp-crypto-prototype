@@ -11,6 +11,15 @@
 #include <bit>
 #include <istream>
 
+
+// ============================================================================
+// TYPE ALIASES
+// ============================================================================
+
+using Array256_t = std::array<uint8_t, 32>;
+
+using Array512_t = std::array<uint8_t, 64>;
+
 // ============================================================================
 // MAIN BUFFER
 // ============================================================================
@@ -29,11 +38,6 @@ private:
     // ------------------------------------------------------------------
     // --- low-level primitives (canonical, unsigned-only) ---
     // ------------------------------------------------------------------
-
-    void append(const uint8_t* p, const uint64_t n)
-    {
-        data_.insert(data_.end(), p, p + n);
-    }
 
     template <typename T>
     void write_le(T v)
@@ -59,7 +63,7 @@ private:
     void writeBytesImpl(std::span<const uint8_t> bytes)
     {
         writeU64(bytes.size());
-        append(bytes.data(), bytes.size());
+        data_.insert(data_.end(), bytes.data(), bytes.data() + bytes.size());
     }
 
 public:
@@ -76,11 +80,16 @@ public:
     [[nodiscard]] const uint8_t* data() const { return data_.data(); }
     [[nodiscard]] uint8_t* data() { return data_.data(); }
     [[nodiscard]] uint64_t size() const { return static_cast<uint64_t>(data_.size()); }
+    [[nodiscard]] std::streamsize ssize() const {return static_cast<std::streamsize>(data_.size());}
+    [[nodiscard]] const char* cdata() const { return reinterpret_cast<const char*>(data_.data()); }
 
     void clear() { data_.clear(); read_offset_ = 0; }
     void resetRead() { read_offset_ = 0; }
     void prepareRead(size_t newSize) { data_.resize(newSize); }
     void reserve(size_t newCap) { data_.reserve(newCap); }
+
+    [[nodiscard]] std::string toHex() const { return bytesToHex(*this); }
+    [[nodiscard]] std::string toString() const { return std::string(reinterpret_cast<const char*>(data()), size()); }
 
     // ------------------------------------------------------------
     // Fixed-width integers (explicit)
@@ -100,7 +109,6 @@ public:
     // Iterator support
     // ------------------------------------------------------------
 
-
     // Mutable iterators
     uint8_t* begin() noexcept { return data_.data(); }
     uint8_t* end() noexcept { return data_.data() + data_.size(); }
@@ -108,9 +116,6 @@ public:
     // Const iterators
     [[nodiscard]] const uint8_t* begin() const noexcept { return data_.data(); }
     [[nodiscard]] const uint8_t* end() const noexcept { return data_.data() + data_.size(); }
-
-    [[nodiscard]] const uint8_t* cbegin() const noexcept { return data_.data(); }
-    [[nodiscard]] const uint8_t* cend() const noexcept { return data_.data() + data_.size(); }
 
     // ------------------------------------------------------------
     // Semantic byte APIs (preferred)
@@ -160,35 +165,31 @@ public:
     }
 
     // Fixed-size byte array (hashes, keys, nonces)
-    template <size_t N>
-    void writeFixedArray(const std::array<uint8_t, N>& a)
+    void writeArray256(const Array256_t& a)
     {
-        append(a.data(), N);
+        data_.insert(data_.end(), a.begin(), a.end());
     }
 
-    template <size_t N>
-    std::array<uint8_t, N> readFixedArray()
+    Array256_t readArray256()
     {
-        if (read_offset_ + N > data_.size())
+
+        constexpr size_t SIZE = Array256_t().size();
+
+        if (read_offset_ + SIZE > data_.size())
             throw std::runtime_error("BytesBuffer: out of bounds");
 
-        std::array<uint8_t, N> out;
-        std::memcpy(out.data(), data_.data() + read_offset_, N);
-        read_offset_ += N;
+        Array256_t out;
+        std::memcpy(out.data(), data_.data() + read_offset_, SIZE);
+        read_offset_ += SIZE;
         return out;
     }
+
+    // BytesBuffer
+    void writeBytesBuffer(BytesBuffer& other)
+    {
+        writeBytesImpl(other);
+    }
 };
-
-
-
-
-// ============================================================================
-// TYPE ALIASES
-// ============================================================================
-
-using Array256_t = std::array<uint8_t, 32>;
-
-using Array512_t = std::array<uint8_t, 64>;
 
 // ============================================================================
 // DATA STRUCTURES

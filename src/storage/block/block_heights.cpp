@@ -10,19 +10,23 @@ namespace
 {
     std::string makeHeightKey(const uint64_t height)
     {
-        return BytesBuffer(height).toString();
+        BytesBuffer heightBuffer;
+        heightBuffer.writeU64(height);
+        return heightBuffer.toString();
     }
 
     std::string makeHashValue(const Array256_t& hash)
     {
-        return BytesBuffer(hash).toString();
+        BytesBuffer valueBuf;
+        valueBuf.writeArray256(hash);
+        return valueBuf.toString();
     }
 
     Array256_t parseHashValue(const std::string& value)
     {
-        Array256_t hash;
-        BytesBuffer(value) >> hash;
-        return hash;
+        BytesBuffer valueBuf;
+        valueBuf.writeString(value);
+        return valueBuf.readArray256();
     }
 }
 
