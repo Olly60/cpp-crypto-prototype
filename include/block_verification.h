@@ -1,9 +1,7 @@
 #pragma once
 
-bool verifyMerkleRoot(const Block& block);
-
-bool verifyBlockHash(const Block& block, const Array256_t& expectedHash);
-
 bool verifyTx(const Tx& tx);
 
 bool verifyBlock(const Block& block);
+
+bool verifyBlockHeader(const BlockHeader& header);

@@ -6,6 +6,8 @@
 #include "storage/block/tip_block.h"
 #include "network/handle.h"
 #include <ranges>
+
+#include "block_verification.h"
 #include "network/network_utils.h"
 #include "storage/block/block_utils.h"
 
@@ -204,11 +206,25 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         // Read size
         const uint64_t blockSize = co_await readU64Tcp(socket);
 
+        // Limit block size
+        if (blockSize > MAX_BLOCK_SIZE) { co_return; }
+
         // Read block
         BytesBuffer blockData(blockSize);
         co_await asio::async_read(socket, asio::buffer(blockData.data(), blockData.size()), asio::use_awaitable);
 
-        // TODO: process block
+        Block block = parseBlock(blockData);
+
+        if (!verifyBlock(block))
+        {
+            if (block.header.prevBlockHash != getTipHash())
+            {
+                co_await syncIfBetter(socket);
+            }
+            co_return;
+        }
+
+        addBlock(block);
     }
     catch (const std::exception&)
     {
@@ -223,11 +239,20 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
         // Read size
         const uint64_t txSize = co_await readU64Tcp(socket);
 
+        // Limit transaction size
+        if (txSize > MAX_TX_SIZE) { co_return; }
+
         // Read transaction
         BytesBuffer txBytes(txSize);
         co_await asio::async_read(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
 
-        //TODO: process tx
+        // Verify
+        Tx tx = parseTx(txBytes);
+        verifyTx(tx);
+
+        // Add to mempool
+        mempool.insert({getTxHash(tx), tx});
+
     }
     catch (const std::exception&)
     {

@@ -6,6 +6,7 @@
 #include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_utils.h"
+#include "storage/block/tip_block.h"
 
 // ============================================================================
 // VALIDATION HELPERS
@@ -46,39 +47,42 @@ namespace
 // TRANSACTION VALIDATION
 // ============================================================================
 
-bool verifyTxSignature(const Tx& tx)
+namespace
 {
-    const auto utxoDb = openDb(paths::utxosDb); // open the UTXO database
-
-    for (size_t i = 0; i < tx.txInputs.size(); i++)
+    bool verifyTxSignature(const Tx& tx)
     {
-        const TxInput& in = tx.txInputs[i];
+        const auto utxoDb = openDb(paths::utxosDb); // open the UTXO database
 
-        // Check that the UTXO exists
-        if (!utxoInDb(*utxoDb, in))
+        for (size_t i = 0; i < tx.txInputs.size(); i++)
         {
-            return false; // trying to spend a non-existent UTXO
+            const TxInput& in = tx.txInputs[i];
+
+            // Check that the UTXO exists
+            if (!utxoInDb(*utxoDb, in))
+            {
+                return false; // trying to spend a non-existent UTXO
+            }
+
+            // Get the UTXO (previous output)
+            TxOutput utxo = getUtxo(*utxoDb, in);
+
+            // Compute the sign hash for this input
+            Array256_t hash = computeTxInputHash(tx);
+
+            // Verify the signature against the public key stored in the UTXO
+            if (crypto_sign_verify_detached(
+                in.signature.data(),
+                hash.data(),
+                hash.size(),
+                utxo.recipient.data() // public key of the UTXO owner
+            ) != 0)
+            {
+                return false; // invalid signature
+            }
         }
 
-        // Get the UTXO (previous output)
-        TxOutput utxo = getUtxo(*utxoDb, in);
-
-        // Compute the sign hash for this input
-        Array256_t hash = computeTxInputHash(tx);
-
-        // Verify the signature against the public key stored in the UTXO
-        if (crypto_sign_verify_detached(
-            in.signature.data(),
-            hash.data(),
-            hash.size(),
-            utxo.recipient.data() // public key of the UTXO owner
-        ) != 0)
-        {
-            return false; // invalid signature
-        }
+        return true; // all inputs are valid
     }
-
-    return true; // all inputs are valid
 }
 
 bool verifyTx(const Tx& tx)
@@ -150,10 +154,17 @@ bool verifyTx(const Tx& tx)
 // BLOCK HEADER VALIDATION
 // ============================================================================
 
-namespace
-{
-    bool verifyBlockHeader(const BlockHeader& header, const Array256_t& blockHash)
+    bool verifyBlockHeader(const BlockHeader& header)
     {
+
+    // Check if previous block exists
+    if (getTipHash() !=header.prevBlockHash)
+    {
+        return false; // Previous not equal to tip
+    }
+
+        Array256_t blockHash = getBlockHeaderHash(header);
+
         // Check version
         if (header.version != 1)
         {
@@ -164,12 +175,6 @@ namespace
         if (blockExists(blockHash))
         {
             return false; // Block already in chain
-        }
-
-        // Check if previous block exists
-        if (!blockExists(header.prevBlockHash))
-        {
-            return false; // Previous block not found
         }
 
         // Get previous block header
@@ -199,7 +204,7 @@ namespace
 
         return true;
     }
-}
+
 
 // ============================================================================
 // COINBASE VALIDATION
@@ -227,11 +232,6 @@ namespace
         {
             coinbaseAmount += output.amount;
 
-            // Check for overflow
-            if (coinbaseAmount < output.amount)
-            {
-                return false;
-            }
         }
 
         // Coinbase amount must equal block reward + fees
@@ -250,23 +250,20 @@ namespace
 
 bool verifyBlock(const Block& block)
 {
+    // Verify block header
+    if (!verifyBlockHeader(block.header))
+    {
+        return false;
+    }
+
     // Check block has at least coinbase transaction
     if (block.txs.empty())
     {
         return false;
     }
 
-    // Calculate block hash
-    const Array256_t blockHash = getBlockHash(block);
-
     // Verify merkle root matches transactions
     if (block.header.merkleRoot != getMerkleRoot(block.txs))
-    {
-        return false;
-    }
-
-    // Verify block header
-    if (!verifyBlockHeader(block.header, blockHash))
     {
         return false;
     }
@@ -325,18 +322,4 @@ bool verifyBlock(const Block& block)
     }
 
     return true;
-}
-
-// ============================================================================
-// SIMPLE VALIDATION HELPERS
-// ============================================================================
-
-bool verifyMerkleRoot(const Block& block)
-{
-    return block.header.merkleRoot == getMerkleRoot(block.txs);
-}
-
-bool verifyBlockHash(const Block& block, const Array256_t& expectedHash)
-{
-    return getBlockHash(block) == expectedHash;
 }
