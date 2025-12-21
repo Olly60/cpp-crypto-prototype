@@ -249,11 +249,6 @@ Block parseBlock(BytesBuffer& blockBytes)
 // HASHING FUNCTIONS
 // ============================================================================
 
-Array256_t getBlockHash(const Block& block)
-{
-    return sha256Of(serialiseBlockHeader(block.header));
-}
-
 Array256_t getBlockHeaderHash(const BlockHeader& header)
 {
     return sha256Of(serialiseBlockHeader(header));

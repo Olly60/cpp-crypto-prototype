@@ -4,7 +4,7 @@
 
 struct BlockIndexValue {
     uint64_t height{};
-    Array256_t chainwork{};
+    Array256_t chainWork{};
 };
 
 void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const std::pair<uint64_t, Array256_t>& value);

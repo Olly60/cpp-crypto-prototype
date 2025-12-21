@@ -9,6 +9,7 @@
 #include "storage/file_utils.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
+#include "storage/block/block_utils.h"
 
 
 asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
@@ -57,7 +58,7 @@ asio::awaitable<void> requestPing(asio::ip::tcp::socket& socket)
     try
     {
         // Send message type
-        auto msgType = ProtocolMessage::Ping;
+        auto msgType = static_cast<uint8_t>(ProtocolMessage::Ping);
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
     }
     catch (const std::exception&)
@@ -75,6 +76,8 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
         // Write request
         auto msgType = ProtocolMessage::GetHeader;
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+
+        // Write header hash
         co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Check they have header
@@ -103,7 +106,7 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
     try
     {
         // Write request
-        auto msgType = static_cast<uint8_t>(ProtocolMessage::GetBlock);
+        auto msgType = ProtocolMessage::GetBlock;
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
         // Block hash
@@ -133,24 +136,69 @@ asio::awaitable<std::optional<std::vector<BlockHeader>>> requestHeaders(asio::ip
 {
     try
     {
+        // Write message type
+        auto msgType = ProtocolMessage::GetHeaders;
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+
         // Get block tip height
-        const auto blockIndexesDb = openDb(paths::blockIndexesDb);
-        const auto tipHeight = getBlockIndex(*blockIndexesDb, getTipHash()).height;
+        auto tipHeight = getTipHeight();
 
-        // Make list of block hashes
+        // Make list of block hashes with (Ancestor -> Tip)
         std::vector<Array256_t> blockHashes;
-        blockHashes.reserve(10);
-        const auto blockHeights = openDb(paths::blockHeightsDb);
-        for (uint64_t i = 0; i != tipHeight; i *=2)
-        {
-            blockHashes.push_back(getHeightHash(*blockHeights,tipHeight-i));
+        auto blockIndexesDb = openDb(paths::blockIndexesDb);
+
+        // Add genesis block hash at the start
+        blockHashes.push_back(getGenesisBlockHash());
+
+        // Exponential hash collection (Ancestor -> Tip)
+        for (uint64_t i = 1; i < tipHeight; i++) {
+            blockHashes.push_back(getHeightHash(*blockIndexesDb, i));
         }
-//TODO: make function
+
+        // Add tip block hash at the end
+        blockHashes.push_back(getTipHash());
+
+        // Write amount of hashes
+        co_await writeU64Tcp(socket, blockHashes.size());
+
+        // Write hashes
+        for (const auto& hash : blockHashes)
+        {
+            co_await asio::async_write(socket, asio::buffer(hash), asio::use_awaitable);
+        }
+
+        // Read common ancestor hash
+        Array256_t commonAncestorHash;
+        co_await asio::async_read(socket, asio::buffer(commonAncestorHash), asio::use_awaitable);
+
+        // Read header amount
+        uint64_t headerAmount = co_await readU64Tcp(socket);
+
+        // Read headers
+        std::vector<BlockHeader> headers;
+        for (uint64_t i = 0; i < headerAmount; i++) {
+            BytesBuffer headerBytes(calculateBlockHeaderSize());
+            co_await asio::async_read(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
+            headers.push_back(parseBlockHeader(headerBytes));
+        }
+
+        // Drop leading headers we already have (chronological order: oldest -> newest)
+        uint64_t drop = 0;
+        while (drop < headers.size() && blockExists(getBlockHeaderHash(headers[drop])))
+        {
+            ++drop;
+        }
+        if (drop > 0)
+        {
+            headers.erase(headers.begin(), headers.begin() + drop);
+        }
 
 
+        co_return headers;
     }
     catch (const std::exception&)
     {
+        co_return std::nullopt;
     }
 }
 
@@ -158,41 +206,47 @@ asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::so
 {
     try
     {
+        // Write message type
+        auto msgType = ProtocolMessage::GetMempool;
+        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+
         // Read inv size
         const uint64_t invSize = co_await readU64Tcp(socket);
 
         // Read inv
-        std::vector<uint8_t> theirInv(sizeof(Array256_t) * invSize);
-        co_await asio::async_read(socket, asio::buffer(theirInv), asio::use_awaitable);
+        std::vector<Array256_t> theirInv(invSize);
+
+        for (uint64_t i = 0; i < invSize; i++)
+        {
+            Array256_t hash;
+            co_await asio::async_read(socket, asio::buffer(hash), asio::use_awaitable);
+            theirInv.push_back(hash);
+        }
 
         // Find missing
-        std::vector<Array256_t> missing;
-        missing.reserve(invSize);
-        for (uint64_t i = 0; i == invSize; i++)
-        {
-            Array256_t hash{};
-            std::memcpy(
-                hash.data(),
-                theirInv.data() + i * sizeof(Array256_t),
-                sizeof(Array256_t)
-            );
+        std::vector<Array256_t> missingInv;
+        missingInv.reserve(invSize);
+        for (auto& hash : theirInv){
 
             if (!mempool.contains(hash))
             {
-                missing.push_back(hash);
+                missingInv.push_back(hash);
             }
         }
 
         // Write missing size
-        co_await writeU64Tcp(socket, missing.size());
+        co_await writeU64Tcp(socket, missingInv.size());
 
         // Ask for missing transactions
-        co_await asio::async_write(socket, asio::buffer(missing), asio::use_awaitable);
+        for (const auto& hash : missingInv)
+        {
+            co_await asio::async_write(socket, asio::buffer(hash), asio::use_awaitable);
+        }
 
         // Get each transaction
         std::vector<Tx> txs;
         txs.reserve(invSize);
-        for (uint64_t i = 0; i != missing.size(); i++)
+        for (uint64_t i = 0; i != missingInv.size(); i++)
         {
             // Read size
             const uint64_t txSize = co_await readU64Tcp(socket);

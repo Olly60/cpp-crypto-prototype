@@ -323,9 +323,6 @@ Block parseBlock(BytesBuffer& blockBytes);
 // HASHING FUNCTIONS
 // ============================================================================
 
-// Get hash of a block (from its header)
-Array256_t getBlockHash(const Block& block);
-
 // Get hash of a block header
 Array256_t getBlockHeaderHash(const BlockHeader& header);
 

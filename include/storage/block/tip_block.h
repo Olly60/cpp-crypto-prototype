@@ -5,3 +5,7 @@
 void setBlockchainTip(const Array256_t& newTip);
 
 Array256_t getTipHash();
+
+uint64_t getTipHeight();
+
+Array256_t getTipChainWork();

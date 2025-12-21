@@ -3,6 +3,7 @@
 #include "crypto_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/tip_block.h"
+#include "storage/block/block_indexes.h"
 
 void setBlockchainTip(const Array256_t& newTip)
 {
@@ -23,6 +24,19 @@ Array256_t getTipHash()
 {
     auto hash = readWholeFile(paths::blockchainTip);
     return hash.readArray256();
+}
+
+uint64_t getTipHeight()
+{
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
+    return getBlockIndex(*blockIndexesDb, getTipHash()).height;
+}
+
+Array256_t getTipChainWork()
+{
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
+    return getBlockIndex(*blockIndexesDb, getTipHash()).chainWork;
+
 }
 
 

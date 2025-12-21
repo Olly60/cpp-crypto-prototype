@@ -171,14 +171,8 @@ bool verifyTx(const Tx& tx)
             return false;
         }
 
-        // Check if block already exists
-        if (blockExists(blockHash))
-        {
-            return false; // Block already in chain
-        }
-
         // Get previous block header
-        BlockHeader prevHeader = getBlockHeaderByHash(header.prevBlockHash);
+        BlockHeader prevHeader = getBlockHeader(header.prevBlockHash);
 
         // Verify timestamp is not earlier than previous block
         if (header.timestamp <= prevHeader.timestamp)

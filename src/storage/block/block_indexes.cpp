@@ -22,7 +22,7 @@ namespace
     {
         BytesBuffer buf;
         buf.writeU64(index.height);
-        buf.writeArray256(index.chainwork);
+        buf.writeArray256(index.chainWork);
         return buf.toString();
     }
 
@@ -33,7 +33,7 @@ namespace
         buf.writeString(value);
         BlockIndexValue result;
         result.height = buf.readU64();
-        result.chainwork = buf.readArray256();
+        result.chainWork = buf.readArray256();
         return result;
     }
 }
@@ -69,3 +69,5 @@ BlockIndexValue getBlockIndex(rocksdb::DB& db, const Array256_t& hash)
     }
     return parseIndexValue(value);
 }
+
+

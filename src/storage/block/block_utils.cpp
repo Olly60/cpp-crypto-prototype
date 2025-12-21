@@ -129,7 +129,7 @@ BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash)
 void addBlock(const Block& block)
 {
     // Determine file paths
-    const Array256_t blockHash = getBlockHash(block);
+    const Array256_t blockHash = getBlockHash(block.header);
     const fs::path blockFilePath = getBlockFilePath(blockHash);
     const fs::path undoFilePath = getUndoFilePath(blockHash);
 
@@ -184,7 +184,7 @@ void undoBlock()
     const fs::path undoFilePath = getUndoFilePath(tip);
 
     // Read block
-    const auto block = getBlockByHash(tip);
+    const auto block = getBlock(tip);
 
     // Open UTXO database
     const auto utxoDb = openDb(paths::utxosDb);
@@ -220,13 +220,13 @@ bool blockExists(const Array256_t& blockHash)
     return fs::exists(getBlockFilePath(blockHash));
 }
 
-BlockHeader getBlockHeaderByHash(const Array256_t& blockHash)
+BlockHeader getBlockHeader(const Array256_t& blockHash)
 {
     auto headerBytes = readBlockFileHeaderBytes(blockHash);
     return parseBlockHeader(headerBytes);
 }
 
-Block getBlockByHash(const Array256_t& blockHash)
+Block getBlock(const Array256_t& blockHash)
 {
     auto blockBytes = readBlockFileBytes(blockHash);
     return parseBlock(blockBytes);

@@ -16,16 +16,16 @@ struct Handshake
     Array256_t blockchainTip;
 };
 
-enum class ProtocolMessage : uint8_t
+namespace ProtocolMessage
 {
-    Handshake = 1,
-    Ping = 2,
-    GetHeader = 3,
-    GetBlock = 4,
-    BroadcastNewBlock = 5,
-    BroadcastNewTx = 6,
-    GetMempool = 7,
-    GetHeaders = 8
+    constexpr uint8_t Handshake = 1;
+    constexpr uint8_t Ping = 2;
+    constexpr uint8_t GetHeader = 3;
+    constexpr uint8_t GetBlock = 4;
+    constexpr uint8_t BroadcastNewBlock = 5;
+    constexpr uint8_t BroadcastNewTx = 6;
+    constexpr uint8_t GetMempool = 7;
+    constexpr uint8_t GetHeaders = 8;
 };
 
 constexpr uint32_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;

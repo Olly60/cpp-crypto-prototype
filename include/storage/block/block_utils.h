@@ -6,9 +6,9 @@ void undoBlock();
 
 bool blockExists(const Array256_t& blockHash);
 
-BlockHeader getBlockHeaderByHash(const Array256_t& blockHash);
+BlockHeader getBlockHeader(const Array256_t& blockHash);
 
-Block getBlockByHash(const Array256_t& blockHash);
+Block getBlock(const Array256_t& blockHash);
 
 BytesBuffer readBlockFileBytes(const Array256_t& blockHash);
 
