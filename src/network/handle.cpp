@@ -258,9 +258,6 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         BytesBuffer blockBytes(blockSize);
         co_await asio::async_read(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
 
-        // Limit block size if peer lied
-        if (blockBytes.size() > MAX_BLOCK_SIZE) { co_return; }
-
         Block block = parseBlock(blockBytes);
 
         if (!verifyBlock(block, getBlockHeader(getTipHash())))
@@ -293,9 +290,6 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
         // Read transaction
         BytesBuffer txBytes(txSize);
         co_await asio::async_read(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
-
-        // Limit transaction size if peer lied
-        if (txBytes.size() > MAX_TX_SIZE) { co_return; }
 
         // Verify
         Tx tx = parseTx(txBytes);
