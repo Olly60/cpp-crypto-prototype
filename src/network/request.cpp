@@ -204,6 +204,11 @@ asio::awaitable<std::optional<std::vector<BlockHeader>>> requestHeaders(asio::ip
     }
 }
 
+asio::awaitable<std::optional<std::vector<Block>>> requestBlocks(asio::ip::tcp::socket& socket, const std::vector<const Array256_t>& blockHashes)
+{
+    //TODO: make function
+}
+
 asio::awaitable<std::optional<std::vector<Tx>>> requestMempool(asio::ip::tcp::socket& socket)
 {
     try
