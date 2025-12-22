@@ -8,7 +8,6 @@
 #include "network/network_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/block_heights.h"
-#include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
 
 
@@ -183,11 +182,14 @@ asio::awaitable<std::optional<std::vector<BlockHeader>>> requestHeaders(asio::ip
         }
 
         // Drop leading headers we already have (chronological order: oldest -> newest)
-        uint64_t drop = 0;
-        while (drop < headers.size() && blockExists(getBlockHeaderHash(headers[drop])))
+        std::vector<BlockHeader>::difference_type drop = 0;
+
+        while (drop < static_cast<std::vector<BlockHeader>::difference_type>(headers.size()) &&
+               blockExists(getBlockHeaderHash(headers[drop])))
         {
             ++drop;
         }
+
         if (drop > 0)
         {
             headers.erase(headers.begin(), headers.begin() + drop);

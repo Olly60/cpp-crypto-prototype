@@ -41,7 +41,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
         peers[peerAddr].lastSeen = getCurrentTimestamp();
 
         // Route message
-        switch (static_cast<ProtocolMessage>(msgType))
+        switch (msgType)
         {
         case ProtocolMessage::Ping:
             co_await handlePing(socket);

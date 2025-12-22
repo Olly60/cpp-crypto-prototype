@@ -8,7 +8,6 @@
 #include <cstring>
 #include <stdexcept>
 #include <type_traits>
-#include <bit>
 #include <istream>
 
 
@@ -339,8 +338,6 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs);
 Array256_t computeTxInputHash(const Tx& tx);
 
 Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed);
-
-bool verifyTxSignature(const Tx& tx);
 
 // Get block work
 Array256_t getBlockWork(BlockHeader header);

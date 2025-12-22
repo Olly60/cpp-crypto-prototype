@@ -107,10 +107,10 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
 // Read/Write uint64_t helpers
 // ============================================
 
-asio::awaitable<void> writeU64Tcp(asio::ip::tcp::socket& socket, uint64_t v)
+asio::awaitable<void> writeU64Tcp(asio::ip::tcp::socket& socket, const uint64_t num)
 {
     BytesBuffer buf;
-    buf.writeU64(v);
+    buf.writeU64(num);
     co_await asio::async_write(socket, asio::buffer(buf.data(), buf.size()), asio::use_awaitable);
 }
 

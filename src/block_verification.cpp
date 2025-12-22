@@ -5,7 +5,6 @@
 #include <unordered_set>
 #include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
-#include "storage/block/block_utils.h"
 #include "storage/block/tip_block.h"
 
 // ============================================================================
@@ -40,6 +39,7 @@ namespace
 
     uint64_t getBlockReward(const BlockHeader& blockHeader)
     {
+        // TODO: make function
     }
 }
 
@@ -51,37 +51,25 @@ namespace
 {
     bool verifyTxSignature(const Tx& tx)
     {
-        const auto utxoDb = openDb(paths::utxosDb); // open the UTXO database
+        // Public key must come from the input / referenced output
+        auto utxoDb = openDb(paths::utxosDb);
 
-        for (size_t i = 0; i < tx.txInputs.size(); i++)
+        for (auto& txInput : tx.txInputs)
         {
-            const TxInput& in = tx.txInputs[i];
-
-            // Check that the UTXO exists
-            if (!utxoInDb(*utxoDb, in))
-            {
-                return false; // trying to spend a non-existent UTXO
-            }
-
-            // Get the UTXO (previous output)
-            TxOutput utxo = getUtxo(*utxoDb, in);
-
-            // Compute the sign hash for this input
+            // Recompute the hash that was signed
             Array256_t hash = computeTxInputHash(tx);
 
-            // Verify the signature against the public key stored in the UTXO
             if (crypto_sign_verify_detached(
-                in.signature.data(),
-                hash.data(),
-                hash.size(),
-                utxo.recipient.data() // public key of the UTXO owner
-            ) != 0)
+                    txInput.signature.data(),
+                    hash.data(),
+                    hash.size(),
+                    getUtxo(*utxoDb, txInput).recipient.data()) != 0)
             {
                 return false; // invalid signature
             }
         }
 
-        return true; // all inputs are valid
+        return true;
     }
 }
 
@@ -141,8 +129,7 @@ bool verifyTx(const Tx& tx)
     }
 
     // Verify that outputs don't exceed inputs (accounting for fee)
-    uint64_t txFee = calculateTxFee(totalInputAmount);
-    if (totalOutputAmount > totalInputAmount - txFee)
+    if (uint64_t txFee = calculateTxFee(totalInputAmount); totalOutputAmount > totalInputAmount - txFee)
     {
         return false; // Output exceeds input minus fee
     }
@@ -154,14 +141,8 @@ bool verifyTx(const Tx& tx)
 // BLOCK HEADER VALIDATION
 // ============================================================================
 
-    bool verifyBlockHeader(const BlockHeader& header)
+    bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader)
     {
-
-    // Check if previous block exists
-    if (getTipHash() !=header.prevBlockHash)
-    {
-        return false; // Previous not equal to tip
-    }
 
         Array256_t blockHash = getBlockHeaderHash(header);
 
@@ -171,8 +152,8 @@ bool verifyTx(const Tx& tx)
             return false;
         }
 
-        // Get previous block header
-        BlockHeader prevHeader = getBlockHeader(header.prevBlockHash);
+        // Check previous header matches merkle root
+        if (header.prevBlockHash != getBlockHeaderHash(prevHeader)) {return false; }
 
         // Verify timestamp is not earlier than previous block
         if (header.timestamp <= prevHeader.timestamp)
@@ -185,6 +166,8 @@ bool verifyTx(const Tx& tx)
         {
             return false; // Timestamp too far in future
         }
+
+
         // TODO: Verify difficulty target
 
         // Difficulty too small
@@ -242,10 +225,10 @@ namespace
 // FULL BLOCK VALIDATION
 // ============================================================================
 
-bool verifyBlock(const Block& block)
+bool verifyBlock(const Block& block, const BlockHeader& prevHeader)
 {
     // Verify block header
-    if (!verifyBlockHeader(block.header))
+    if (!verifyBlockHeader(block.header, prevHeader))
     {
         return false;
     }
@@ -289,8 +272,7 @@ bool verifyBlock(const Block& block)
         for (const TxInput& input : tx.txInputs)
         {
             // Check UTXO hasn't been used in this block already
-            auto utxoKey = std::make_pair(input.UTXOTxHash, input.UTXOOutputIndex);
-            if (!blockUtxos.insert(utxoKey).second)
+            if (!blockUtxos.insert(std::make_pair(input.UTXOTxHash, input.UTXOOutputIndex)).second)
             {
                 return false; // Double-spend within block
             }

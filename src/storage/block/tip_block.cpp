@@ -1,5 +1,4 @@
 #include <filesystem>
-#include <stdexcept>
 #include "crypto_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/tip_block.h"

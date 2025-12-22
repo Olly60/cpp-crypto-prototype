@@ -39,9 +39,9 @@ namespace
                 undoData.writeU64(input.UTXOOutputIndex);
 
                 // Retrieve and write UTXO value
-                const TxOutput usedUtxo = getUtxo(utxoDb, input);
-                undoData.writeU64(usedUtxo.amount);
-                undoData.writeU64(usedUtxo.recipient.size());
+                auto [amount, recipient] = getUtxo(utxoDb, input);
+                undoData.writeU64(amount);
+                undoData.writeU64(recipient.size());
             }
         }
         undoFile.write(undoData.cdata(), undoData.ssize());
@@ -55,7 +55,7 @@ namespace
         uint64_t txAmount = undoDataBytes.readU64();
         for (uint64_t i = 0; i < txAmount; i++)
         {
-            // Read transaction version
+            // Read transaction version (for later use)
             uint64_t version = undoDataBytes.readU64();
 
             // Read input count
@@ -129,7 +129,7 @@ BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash)
 void addBlock(const Block& block)
 {
     // Determine file paths
-    const Array256_t blockHash = getBlockHash(block.header);
+    const Array256_t blockHash = getBlockHeaderHash(block.header);
     const fs::path blockFilePath = getBlockFilePath(blockHash);
     const fs::path undoFilePath = getUndoFilePath(blockHash);
 
@@ -184,7 +184,7 @@ void undoBlock()
     const fs::path undoFilePath = getUndoFilePath(tip);
 
     // Read block
-    const auto block = getBlock(tip);
+    auto block = getBlock(tip);
 
     // Open UTXO database
     const auto utxoDb = openDb(paths::utxosDb);

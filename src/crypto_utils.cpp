@@ -3,7 +3,8 @@
 #include <stdexcept>
 #include <sodium.h>
 #include <chrono>
-// TODO: make more move semantics and improve performance
+#include "storage/file_utils.h"
+
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
@@ -230,16 +231,16 @@ Block parseBlock(BytesBuffer& blockBytes)
     Block block;
 
     // Header
-    block.header = parseBlockHeader(blockBytes); // TODO: append block header bytes directly to main buffer to increase performance
+    block.header = parseBlockHeader(blockBytes);
 
     // Transaction amount
     uint64_t txCount = blockBytes.readU64();
     block.txs.reserve(txCount);
-    // Transactions
 
+    // Transactions
     for (uint64_t i = 0; i < txCount; i++)
     {
-        block.txs.push_back(parseTx(blockBytes)); // TODO: like the header and transactions this will also be made directly in the main buffer
+        block.txs.push_back(parseTx(blockBytes));
     }
 
     return block;

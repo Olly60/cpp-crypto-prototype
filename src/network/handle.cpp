@@ -263,7 +263,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 
         Block block = parseBlock(blockBytes);
 
-        if (!verifyBlock(block))
+        if (!verifyBlock(block, getBlockHeader(getTipHash())))
         {
             if (block.header.prevBlockHash != getTipHash())
             {

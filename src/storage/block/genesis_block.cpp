@@ -29,5 +29,5 @@ Block getGenesisBlock()
 
 Array256_t getGenesisBlockHash()
 {
-    return getBlockHash(getGenesisBlock().header);
+    return getBlockHeaderHash(getGenesisBlock().header);
 }
