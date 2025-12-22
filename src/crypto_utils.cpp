@@ -358,9 +358,35 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 }
 
 // Get Block work
-Array256_t getBlockWork(BlockHeader header)
+Array256_t getBlockWork(BlockHeader& header)
 {
     // TODO: make function
     return {};
+}
+
+// Decrease difficulty (easier -> shift left)
+void decreaseDifficulty(std::array<uint8_t, 32>& arr)
+{
+    uint8_t carry = 0;
+    for (auto& u8: arr) {
+        uint8_t newCarry = u8 >> 7;
+        u8 = (u8 << 1) | carry;
+        carry = newCarry;
+    }
+    // Set end bit to 1
+    arr.back() |= 1;
+}
+
+// Increase difficulty (harder -> shift right)
+void increaseDifficulty(std::array<uint8_t, 32>& arr)
+{
+    uint8_t carry = 0;
+    for (size_t i = arr.size(); i-- > 0;) {
+        uint8_t newCarry = arr[i] & 1;
+        arr[i] = (arr[i] >> 1) | (carry << 7);
+        carry = newCarry;
+    }
+    // Set end bit to 1 (minimum difficulty)
+    arr.back() |= 1;
 }
 

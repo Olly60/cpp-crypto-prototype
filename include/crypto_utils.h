@@ -340,4 +340,10 @@ Array256_t computeTxInputHash(const Tx& tx);
 Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed);
 
 // Get block work
-Array256_t getBlockWork(BlockHeader header);
+Array256_t getBlockWork(BlockHeader& header);
+
+// Decrease difficulty (easier -> shift left)
+void decreaseDifficulty(std::array<uint8_t, 32>& arr);
+
+// Increase difficulty (harder -> shift right)
+void increaseDifficulty(std::array<uint8_t, 32>& arr);

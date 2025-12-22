@@ -39,7 +39,7 @@ namespace
 
     uint64_t getBlockReward(const BlockHeader& blockHeader)
     {
-        // TODO: make function
+
     }
 }
 
@@ -174,6 +174,8 @@ bool verifyTx(const Tx& tx)
         Array256_t minDifficulty;
         minDifficulty.fill(0xFF);
         if (header.difficulty > minDifficulty) return false;
+
+        if ()
 
 
         // Verify proof-of-work (hash meets difficulty requirement)
