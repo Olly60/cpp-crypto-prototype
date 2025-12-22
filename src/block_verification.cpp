@@ -307,3 +307,5 @@ bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const uint64
 
     return true;
 }
+
+// TODO: add function to verify temp chain

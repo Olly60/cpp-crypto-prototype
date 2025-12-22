@@ -339,6 +339,10 @@ Array256_t computeTxInputHash(const Tx& tx);
 
 Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed);
 
+// ============================================================================
+// BLOCK WORK
+// ============================================================================
+
 // Get block work
 Array256_t getBlockWork(BlockHeader& header);
 

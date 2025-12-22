@@ -14,6 +14,7 @@ struct Handshake
     uint64_t services;
     uint64_t nonce;
     Array256_t blockchainTip;
+    uint8_t relay;
 };
 
 namespace ProtocolMessage
@@ -69,7 +70,6 @@ constexpr uint64_t FullNode =
 constexpr uint64_t ProtocolVersion = 1;
 const Array256_t GenesisBlockHash = getGenesisBlockHash();
 
-
 inline uint64_t generateLocalNonce()
 {
         static std::mt19937_64 gen(std::random_device{}());
@@ -78,3 +78,5 @@ inline uint64_t generateLocalNonce()
 
 
 const uint64_t LOCAL_NONCE = generateLocalNonce();
+
+constexpr uint64_t RELAY = 0;

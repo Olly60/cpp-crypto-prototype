@@ -14,7 +14,7 @@
 constexpr uint64_t handshakeSize()
 {
     return sizeof(decltype(Handshake::nonce)) + sizeof(decltype(Handshake::blockchainTip)) + sizeof(decltype(
-        Handshake::genesisBlockHash)) + sizeof(decltype(Handshake::services)) + sizeof(decltype(Handshake::version));
+        Handshake::genesisBlockHash)) + sizeof(decltype(Handshake::services)) + sizeof(decltype(Handshake::version)) + sizeof(decltype(Handshake::relay));
 }
 
 Handshake createHandshake()
@@ -24,7 +24,8 @@ Handshake createHandshake()
         GenesisBlockHash,
         FullNode,
         LOCAL_NONCE,
-        getTipHash()
+        getTipHash(),
+        RELAY
     };
 }
 
@@ -36,6 +37,7 @@ BytesBuffer serialiseHandshake(const Handshake& hs)
     handshakeBytes.writeU64(hs.services);
     handshakeBytes.writeU64(hs.nonce);
     handshakeBytes.writeArray256(hs.blockchainTip);
+    handshakeBytes.writeU8(hs.relay);
     return handshakeBytes;
 }
 
@@ -47,6 +49,7 @@ Handshake parseHandshake(BytesBuffer& buffer)
     hs.services = buffer.readU64();
     hs.nonce = buffer.readU64();
     hs.blockchainTip = buffer.readArray256();
+    hs.relay = buffer.readU8();
     return hs;
 }
 

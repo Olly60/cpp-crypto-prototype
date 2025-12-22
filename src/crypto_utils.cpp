@@ -357,6 +357,10 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
     return signedTx;
 }
 
+// ============================================================================
+// BLOCK WORK
+// ============================================================================
+
 // Get Block work
 Array256_t getBlockWork(BlockHeader& header)
 {

@@ -2,6 +2,8 @@
 #include "crypto_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/tip_block.h"
+
+#include "block_verification.h"
 #include "storage/block/block_indexes.h"
 
 void setBlockchainTip(const Array256_t& newTip)
@@ -36,6 +38,11 @@ Array256_t getTipChainWork()
     auto blockIndexesDb = openDb(paths::blockIndexesDb);
     return getBlockIndex(*blockIndexesDb, getTipHash()).chainWork;
 
+}
+
+bool verifyNewBlockTip(const Block& block)
+{
+    return verifyBlock(block, getBlockHeader(getTipHash()), getBlockHeader(getBlockHeader(getTipHash()).prevBlockHash).timestamp);
 }
 
 

@@ -260,16 +260,18 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 
         Block block = parseBlock(blockBytes);
 
-        if (!verifyBlock(block, getBlockHeader(getTipHash())))
+        // New block doesnt match current tip -> take peers chain if better
+        if (block.header.prevBlockHash != getTipHash())
         {
-            if (block.header.prevBlockHash != getTipHash())
-            {
-                co_await syncIfBetter(socket);
-            }
+            co_await syncIfBetter(socket);
             co_return;
         }
 
-        addBlock(block);
+        // Add block if valid
+        if (!verifyNewBlockTip(block))
+        {
+            addBlock(block);
+        }
     }
     catch (const std::exception&)
     {
