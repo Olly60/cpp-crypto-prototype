@@ -4,6 +4,7 @@
 #include <sodium.h>
 #include <chrono>
 #include "storage/file_utils.h"
+#include "storage/block/block_utils.h"
 
 // ============================================================================
 // BASIC UTILITIES
@@ -362,10 +363,56 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 // ============================================================================
 
 // Get Block work
-Array256_t getBlockWork(BlockHeader& header)
+Array256_t getBlockWork(const Array256_t& difficulty)
 {
-    // TODO: make function
-    return {};
+    Array256_t blockWork;
+    blockWork.fill(0xFF);  // start with 2^256 - 1
+    uint64_t shiftAmount = 0;
+
+    // Count consecutive 1 bits in difficulty
+    for (auto u8 : difficulty)
+    {
+        for (uint8_t mask = 1; mask != 0; mask <<= 1)
+        {
+            if ((u8 & mask) != 0)
+                shiftAmount++;
+            else
+                break; // stop at first 0 if bits are always in a row
+        }
+    }
+
+    // Shift work left by shiftAmount
+    for (uint64_t i = 0; i < shiftAmount; ++i)
+        blockWork = increaseDifficulty(blockWork);
+
+    return blockWork;
+}
+
+Array256_t addBlockWork(const Array256_t& a, const Array256_t& b)
+{
+    Array256_t result{};
+    uint16_t carry = 0;  // allow overflow beyond 8 bits
+
+    // Iterate from least significant byte to most significant
+    for (int i = 31; i >= 0; --i)
+    {
+        uint16_t sum = uint16_t{a[i]} + uint16_t{b[i]} + carry;
+        result[i] = uint8_t{static_cast<unsigned char>(sum & 0xFF)};  // keep lowest 8 bits
+        carry = sum >> 8;                 // upper bits become carry
+    }
+
+    return result;
+}
+
+// Returns true if a > b
+bool isLessLE(const Array256_t& a, const Array256_t& b)
+{
+    for (int i = 31; i >= 0; --i)
+    {
+        if (a[i] < b[i]) return true;
+        if (a[i] > b[i]) return false;
+    }
+    return false; // a == b
 }
 
 // Decrease difficulty (easier -> shift left)

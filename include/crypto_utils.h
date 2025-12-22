@@ -248,7 +248,6 @@ struct BlockHeader
     {
         prevBlockHash.fill(0xFF);
         difficulty.fill(0xFF);
-        difficulty.back() -= 1;
     }
 };
 
@@ -344,7 +343,12 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed);
 // ============================================================================
 
 // Get block work
-Array256_t getBlockWork(BlockHeader& header);
+Array256_t getBlockWork(const Array256_t& difficulty);
+
+Array256_t addBlockWork(const Array256_t& a, const Array256_t& b);
+
+// Returns true if a > b
+bool isLessLE(const Array256_t& a, const Array256_t& b);
 
 // Decrease difficulty (easier -> shift left)
 Array256_t decreaseDifficulty(const Array256_t& arr);

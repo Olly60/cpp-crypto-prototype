@@ -129,9 +129,12 @@ BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash)
 void addBlock(const Block& block)
 {
     // Determine file paths
-    const Array256_t blockHash = getBlockHeaderHash(block.header);
-    const fs::path blockFilePath = getBlockFilePath(blockHash);
-    const fs::path undoFilePath = getUndoFilePath(blockHash);
+    Array256_t blockHash = getBlockHeaderHash(block.header);
+    fs::path blockFilePath = getBlockFilePath(blockHash);
+    fs::path undoFilePath = getUndoFilePath(blockHash);
+
+    uint64_t blockHeight = getBlockIndex(*openDb(paths::blockIndexesDb), getTipHash()).height + 1;
+    auto blockWork = getBlockWork(block.header.difficulty);
 
     // Open UTXO database
     auto utxoDb = openDb(paths::utxosDb);
@@ -143,7 +146,7 @@ void addBlock(const Block& block)
     auto blockFile = openFileTruncWrite(blockFilePath);
 
     // Serialize block
-    const auto blockBytes = serialiseBlock(block);
+    auto blockBytes = serialiseBlock(block);
 
     // Write block data
     blockFile.write(blockBytes.cdata(), blockBytes.ssize());
@@ -168,23 +171,31 @@ void addBlock(const Block& block)
         }
     }
 
-    // Update blockchain tip
-    setBlockchainTip(blockHash);
-
     // Add block to heights db
     auto heightsDb = openDb(paths::blockHeightsDb);
 
-    putHeightHash(*heightsDb, getBlockIndex(*openDb(paths::blockIndexesDb), getTipHash()).height, blockHash);
+    putHeightHash(*heightsDb, getBlockIndex(*openDb(paths::blockIndexesDb), blockHash).height, blockHash);
+
+    // Write a block Index
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
+
+    BlockIndexValue blockIndex;
+    blockIndex.chainWork = addBlockWork(getTipChainWork(), blockWork);
+    blockIndex.height = blockHeight;
+    putBlockIndex(*blockIndexesDb, blockHash, blockIndex);
+
+    // Update blockchain tip
+    setBlockchainTip(blockHash);
 }
 
 void undoBlock()
 {
-    const auto tip = getTipHash();
-    const fs::path blockFilePath = getBlockFilePath(tip);
-    const fs::path undoFilePath = getUndoFilePath(tip);
+    const auto blockHash = getTipHash();
+    const fs::path blockFilePath = getBlockFilePath(blockHash);
+    const fs::path undoFilePath = getUndoFilePath(blockHash);
 
     // Read block
-    auto block = getBlock(tip);
+    auto block = getBlock(blockHash);
 
     // Open UTXO database
     const auto utxoDb = openDb(paths::utxosDb);
@@ -211,8 +222,12 @@ void undoBlock()
     fs::remove(undoFilePath);
 
     // Delete block from height db
-    const auto heightsDb = openDb(paths::blockHeightsDb);
-    deleteHeightHash(*heightsDb, getBlockIndex(*openDb(paths::blockIndexesDb), getTipHash()).height);
+    auto heightsDb = openDb(paths::blockHeightsDb);
+    deleteHeightHash(*heightsDb, getBlockIndex(*openDb(paths::blockIndexesDb), blockHash).height);
+
+    // Delete block from block indexes db
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
+    deleteBlockIndex(*blockIndexesDb, blockHash);
 }
 
 bool blockExists(const Array256_t& blockHash)

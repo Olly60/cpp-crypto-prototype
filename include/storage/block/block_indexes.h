@@ -7,7 +7,7 @@ struct BlockIndexValue {
     Array256_t chainWork{};
 };
 
-void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const std::pair<uint64_t, Array256_t>& value);
+void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValue& value);
 
 
 void deleteBlockIndex(rocksdb::DB& db, const Array256_t& hash);

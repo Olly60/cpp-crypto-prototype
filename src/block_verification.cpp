@@ -186,7 +186,7 @@ bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader,
         }
 
         // Hash meets difficulty requirement
-        if (blockHash > header.difficulty) return false;
+        if (!isLessLE(blockHash, header.difficulty)) return false;
 
         return true;
     }
@@ -233,10 +233,10 @@ namespace
 // FULL BLOCK VALIDATION
 // ============================================================================
 
-bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const uint64_t prevTimestamp)
+bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const uint64_t prevTimestamp2)
 {
     // Verify block header
-    if (!verifyBlockHeader(block.header, prevHeader, prevTimestamp))
+    if (!verifyBlockHeader(block.header, prevHeader, prevTimestamp2))
     {
         return false;
     }
@@ -307,5 +307,3 @@ bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const uint64
 
     return true;
 }
-
-// TODO: add function to verify temp chain
