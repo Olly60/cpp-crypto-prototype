@@ -37,3 +37,20 @@ int main()
     }
     cout << "Public Key: " << hexPublicKey << endl << "Private Key: " << hexPrivateKey << endl;
 }
+
+// ============================================
+// Main
+// ============================================
+
+int main()
+{
+    asio::io_context ioContext;
+    asio::ip::tcp::acceptor acceptor(ioContext,
+                                     asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
+
+    co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
+
+    ioContext.run();
+
+    storePeers(peers);
+}
