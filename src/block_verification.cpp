@@ -144,7 +144,7 @@ bool verifyTx(const Tx& tx)
 // BLOCK HEADER VALIDATION
 // ============================================================================
 
-bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader, const BlockHeader& prevHeader2)
+bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader, const uint64_t prevTimestamp2)
     {
 
         Array256_t blockHash = getBlockHeaderHash(header);
@@ -176,11 +176,11 @@ bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader,
         if (header.difficulty > minDifficulty) return false;
 
         // Difficulty target
-        if (prevHeader.timestamp - prevHeader2.timestamp < BLOCK_INTERVAL)
+        if (prevHeader.timestamp - prevTimestamp2 < BLOCK_INTERVAL)
         {
             if (header.difficulty != increaseDifficulty(prevHeader.difficulty)) {return false;}
 
-        } else if (prevHeader.timestamp - prevHeader2.timestamp >= 10 * 60)
+        } else if (prevHeader.timestamp - prevTimestamp2 >= 10 * 60)
         {
             if (header.difficulty != decreaseDifficulty(prevHeader.difficulty)) {return false;}
         }
@@ -233,10 +233,10 @@ namespace
 // FULL BLOCK VALIDATION
 // ============================================================================
 
-bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const BlockHeader& prevHeader2)
+bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const uint64_t prevTimestamp)
 {
     // Verify block header
-    if (!verifyBlockHeader(block.header, prevHeader, prevHeader2))
+    if (!verifyBlockHeader(block.header, prevHeader, prevTimestamp))
     {
         return false;
     }

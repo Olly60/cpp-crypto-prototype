@@ -3,6 +3,6 @@
 
 bool verifyTx(const Tx& tx);
 
-bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const BlockHeader& prevHeader2);
+bool verifyBlock(const Block& block, const BlockHeader& prevHeader, uint64_t prevTimestamp);
 
-bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader, const BlockHeader& prevHeader2);
+bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader, uint64_t prevTimestamp2);
