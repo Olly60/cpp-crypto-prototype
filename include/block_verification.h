@@ -3,6 +3,6 @@
 
 bool verifyTx(const Tx& tx);
 
-bool verifyBlock(const Block& block, const BlockHeader& prevHeader);
+bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const BlockHeader& prevHeader2);
 
-bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader);
+bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader, const BlockHeader& prevHeader2);

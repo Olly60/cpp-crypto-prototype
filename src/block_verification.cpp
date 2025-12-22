@@ -37,9 +37,12 @@ namespace
     // Maximum time drift allowed (10 minutes in seconds)
     constexpr uint64_t MAX_TIME_DRIFT = 60 * 10;
 
+    // Block interval (10 minutes)
+    constexpr uint64_t BLOCK_INTERVAL = 60 * 10;
+
     uint64_t getBlockReward(const BlockHeader& blockHeader)
     {
-
+        //TODO: make function
     }
 }
 
@@ -141,7 +144,7 @@ bool verifyTx(const Tx& tx)
 // BLOCK HEADER VALIDATION
 // ============================================================================
 
-    bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader)
+bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader, const BlockHeader& prevHeader2)
     {
 
         Array256_t blockHash = getBlockHeaderHash(header);
@@ -167,23 +170,26 @@ bool verifyTx(const Tx& tx)
             return false; // Timestamp too far in future
         }
 
-
-        // TODO: Verify difficulty target
-
         // Difficulty too small
         Array256_t minDifficulty;
         minDifficulty.fill(0xFF);
         if (header.difficulty > minDifficulty) return false;
 
-        if ()
+        // Difficulty target
+        if (prevHeader.timestamp - prevHeader2.timestamp < BLOCK_INTERVAL)
+        {
+            if (header.difficulty != increaseDifficulty(prevHeader.difficulty)) {return false;}
 
+        } else if (prevHeader.timestamp - prevHeader2.timestamp >= 10 * 60)
+        {
+            if (header.difficulty != decreaseDifficulty(prevHeader.difficulty)) {return false;}
+        }
 
-        // Verify proof-of-work (hash meets difficulty requirement)
+        // Hash meets difficulty requirement
         if (blockHash > header.difficulty) return false;
 
         return true;
     }
-
 
 // ============================================================================
 // COINBASE VALIDATION
@@ -227,10 +233,10 @@ namespace
 // FULL BLOCK VALIDATION
 // ============================================================================
 
-bool verifyBlock(const Block& block, const BlockHeader& prevHeader)
+bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const BlockHeader& prevHeader2)
 {
     // Verify block header
-    if (!verifyBlockHeader(block.header, prevHeader))
+    if (!verifyBlockHeader(block.header, prevHeader, prevHeader2))
     {
         return false;
     }

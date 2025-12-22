@@ -365,28 +365,32 @@ Array256_t getBlockWork(BlockHeader& header)
 }
 
 // Decrease difficulty (easier -> shift left)
-void decreaseDifficulty(std::array<uint8_t, 32>& arr)
+Array256_t decreaseDifficulty(const Array256_t& arr)
 {
+    Array256_t newDifficulty = arr;
     uint8_t carry = 0;
-    for (auto& u8: arr) {
+    for (auto& u8: newDifficulty) {
         uint8_t newCarry = u8 >> 7;
         u8 = (u8 << 1) | carry;
         carry = newCarry;
     }
     // Set end bit to 1
-    arr.back() |= 1;
+    newDifficulty.back() |= 1;
+    return newDifficulty;
 }
 
 // Increase difficulty (harder -> shift right)
-void increaseDifficulty(std::array<uint8_t, 32>& arr)
+Array256_t increaseDifficulty(const Array256_t& arr)
 {
+    Array256_t newDifficulty = arr;
     uint8_t carry = 0;
-    for (size_t i = arr.size(); i-- > 0;) {
-        uint8_t newCarry = arr[i] & 1;
-        arr[i] = (arr[i] >> 1) | (carry << 7);
+    for (size_t i = newDifficulty.size(); i-- > 0;) {
+        uint8_t newCarry = newDifficulty[i] & 1;
+        newDifficulty[i] = (newDifficulty[i] >> 1) | (carry << 7);
         carry = newCarry;
     }
     // Set end bit to 1 (minimum difficulty)
-    arr.back() |= 1;
+    newDifficulty.back() |= 1;
+    return newDifficulty;
 }
 
