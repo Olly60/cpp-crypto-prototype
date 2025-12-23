@@ -1,7 +1,7 @@
 #include <sodium.h>
 #include "crypto_utils.h"
 #include <stdexcept>
-#include "block_verification.h"
+#include "new_tip_verify.h"
 #include <unordered_set>
 #include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
@@ -76,7 +76,7 @@ namespace
     }
 }
 
-bool verifyTx(const Tx& tx)
+bool verifyNewTx(const Tx& tx)
 {
     // Verify signatures
     if (!verifyTxSignature(tx))
@@ -141,169 +141,79 @@ bool verifyTx(const Tx& tx)
 }
 
 // ============================================================================
-// BLOCK HEADER VALIDATION
-// ============================================================================
-
-bool verifyBlockHeader(const BlockHeader& header, const BlockHeader& prevHeader, const uint64_t prevTimestamp2)
-    {
-
-        Array256_t blockHash = getBlockHeaderHash(header);
-
-        // Check version
-        if (header.version != 1)
-        {
-            return false;
-        }
-
-        // Check previous header matches merkle root
-        if (header.prevBlockHash != getBlockHeaderHash(prevHeader)) {return false; }
-
-        // Verify timestamp is not earlier than previous block
-        if (header.timestamp <= prevHeader.timestamp)
-        {
-            return false; // Timestamp not increasing
-        }
-
-        // Verify timestamp is not too far in the future
-        if (header.timestamp > getCurrentTimestamp() + MAX_TIME_DRIFT)
-        {
-            return false; // Timestamp too far in future
-        }
-
-        // Difficulty too small
-        Array256_t minDifficulty;
-        minDifficulty.fill(0xFF);
-        if (header.difficulty > minDifficulty) return false;
-
-        // Difficulty target
-        if (prevHeader.timestamp - prevTimestamp2 < BLOCK_INTERVAL)
-        {
-            if (header.difficulty != increaseDifficulty(prevHeader.difficulty)) {return false;}
-
-        } else if (prevHeader.timestamp - prevTimestamp2 >= 10 * 60)
-        {
-            if (header.difficulty != decreaseDifficulty(prevHeader.difficulty)) {return false;}
-        }
-
-        // Hash meets difficulty requirement
-        if (!isLessLE(blockHash, header.difficulty)) return false;
-
-        return true;
-    }
-
-// ============================================================================
-// COINBASE VALIDATION
-// ============================================================================
-
-namespace
-{
-    bool verifyCoinbase(const Tx& coinbaseTx, const uint64_t expectedReward)
-    {
-        // Coinbase must have no inputs
-        if (!coinbaseTx.txInputs.empty())
-        {
-            return false;
-        }
-
-        // Coinbase must have at least one output
-        if (coinbaseTx.txOutputs.empty())
-        {
-            return false;
-        }
-
-        // Calculate total coinbase amount
-        uint64_t coinbaseAmount = 0;
-        for (const TxOutput& output : coinbaseTx.txOutputs)
-        {
-            coinbaseAmount += output.amount;
-
-        }
-
-        // Coinbase amount must equal block reward + fees
-        if (coinbaseAmount != expectedReward)
-        {
-            return false; // Coinbase amount incorrect
-        }
-
-        return true;
-    }
-}
-
-// ============================================================================
 // FULL BLOCK VALIDATION
 // ============================================================================
 
-bool verifyBlock(const Block& block, const BlockHeader& prevHeader, const uint64_t prevTimestamp2)
+bool verifyNewTipBlock(const Block& block)
 {
     // Verify block header
-    if (!verifyBlockHeader(block.header, prevHeader, prevTimestamp2))
+    const auto prevHeader = getBlockHeader(getTipHash());
+    const auto prevTimestamp2 = getBlockHeader(prevHeader.prevBlockHash).timestamp;
+    const Array256_t blockHash = getBlockHeaderHash(block.header);
+
+    // Version check
+    if (block.header.version != 1) return false;
+
+    // Previous block hash check
+    if (block.header.prevBlockHash != getBlockHeaderHash(prevHeader)) return false;
+
+    // Timestamp validations
+    if (block.header.timestamp <= prevHeader.timestamp) return false;
+    if (block.header.timestamp > getCurrentTimestamp() + MAX_TIME_DRIFT) return false;
+
+    // Difficulty validation
+    const uint64_t timeDelta = prevHeader.timestamp - prevTimestamp2;
+    if (timeDelta < BLOCK_INTERVAL)
     {
-        return false;
+        if (block.header.difficulty != increaseDifficulty(prevHeader.difficulty)) return false;
+    }
+    else
+    {
+        if (block.header.difficulty != decreaseDifficulty(prevHeader.difficulty)) return false;
     }
 
-    // Check block has at least coinbase transaction
-    if (block.txs.empty())
-    {
-        return false;
-    }
+    // Hash meets difficulty and merkle root validation
+    if (!isLessLE(blockHash, block.header.difficulty)) return false;
+    if (block.header.merkleRoot != getMerkleRoot(block.txs)) return false;
 
-    // Verify merkle root matches transactions
-    if (block.header.merkleRoot != getMerkleRoot(block.txs))
-    {
-        return false;
-    }
+    // Verify transactions
+    if (block.txs.empty()) return false;
 
-    // Open UTXO database once for all transactions
-    const auto utxoDb = openDb(paths::utxosDb);
-
-    // Track UTXOs used in this block to prevent double-spending
+    auto utxoDb = openDb(paths::utxosDb);
     UtxoSet blockUtxos;
-
-    // Calculate total fees from all transactions
     uint64_t totalFees = 0;
 
-    // Verify all non-coinbase transactions
-    for (size_t i = 1; i < block.txs.size(); i++)
+    // Verify non-coinbase transactions
+    for (uint64_t i = 1; i < block.txs.size(); i++)
     {
         const Tx& tx = block.txs[i];
 
-        // Verify transaction is valid
-        if (!verifyTx(tx))
-        {
-            return false;
-        }
+        if (!verifyNewTx(tx)) return false;
 
         uint64_t inputAmount = 0;
-        uint64_t outputAmount = 0;
-
-        // Check inputs and track UTXOs
         for (const TxInput& input : tx.txInputs)
         {
-            // Check UTXO hasn't been used in this block already
-            if (!blockUtxos.insert(std::make_pair(input.UTXOTxHash, input.UTXOOutputIndex)).second)
-            {
-                return false; // Double-spend within block
-            }
-
-            // Accumulate input amount
+            if (!blockUtxos.insert({input.UTXOTxHash, input.UTXOOutputIndex}).second) return false;
             inputAmount += getUtxo(*utxoDb, input).amount;
         }
 
-        // Calculate output amount
-        for (const TxOutput& output : tx.txOutputs)
-        {
-            outputAmount += output.amount;
-        }
-
-        // Calculate and accumulate fee
         totalFees += calculateTxFee(inputAmount);
     }
 
-    // Verify coinbase transaction (first transaction)
-    if (const uint64_t coinbaseReward = getBlockReward(block.header) + totalFees; !verifyCoinbase(block.txs[0], coinbaseReward))
+    // Verify coinbase transaction
+    const Tx& coinbaseTx = block.txs[0];
+    const uint64_t coinbaseReward = getBlockReward(block.header) + totalFees;
+
+    if (!coinbaseTx.txInputs.empty()) return false;
+    if (coinbaseTx.txOutputs.empty()) return false;
+
+    uint64_t coinbaseAmount = 0;
+    for (const TxOutput& output : coinbaseTx.txOutputs)
     {
-        return false;
+        coinbaseAmount += output.amount;
     }
 
-    return true;
+    if (coinbaseAmount != coinbaseReward) return false;
+
+    return true; // Block valid
 }

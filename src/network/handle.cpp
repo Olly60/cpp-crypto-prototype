@@ -7,7 +7,7 @@
 #include "network/handle.h"
 #include <ranges>
 
-#include "block_verification.h"
+#include "new_tip_verify.h"
 #include "network/network_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/block_indexes.h"
@@ -295,7 +295,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 
         // Verify
         Tx tx = parseTx(txBytes);
-        if (!verifyTx(tx)) { co_return; };
+        if (!verifyNewTx(tx)) { co_return; };
 
         // Add to mempool
         mempool.insert({getTxHash(tx), tx});
