@@ -50,6 +50,26 @@ namespace
 // Single-UTXO operations (non-throwing where possible)
 // -------------------------------------------------
 
+std::unique_ptr<rocksdb::DB> openUtxoDb()
+{
+    rocksdb::Options options;
+    options.create_if_missing = true;
+
+    rocksdb::DB* raw = nullptr;
+    rocksdb::Status status = rocksdb::DB::Open(
+        options,
+        "block_heights",
+        &raw
+    );
+
+    if (!status.ok() || !raw)
+    {
+        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
+    }
+
+    return std::unique_ptr<rocksdb::DB>(raw);
+}
+
 bool utxoExists(
     rocksdb::DB& db,
     const TxInput& input)

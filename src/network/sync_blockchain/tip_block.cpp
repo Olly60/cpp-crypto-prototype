@@ -1,19 +1,17 @@
 #include <filesystem>
 #include "crypto_utils.h"
-#include "storage/file_utils.h"
-#include "../include/tip_block.h"
-#include <sodium/crypto_sign.h>
-#include "storage/utxo_storage.h"
-#include "storage/block/block_heights.h"
-#include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
 
-const fs::path TIP = "blockchain_tip";
+namespace paths
+{
+    const fs::path blockchainTip = "tmp_blockchain_tip";
+}
+
 void setBlockchainTip(const Array256_t& newTip)
 {
+    fs::create_directories(paths::blockchainTip.parent_path());
 
     // Open file
-    auto file = openFileTruncWrite(TIP);
+    auto file = openFileTruncWrite(paths::blockchainTip);
 
     // Tip buffer
     BytesBuffer tipBuffer;
@@ -25,19 +23,19 @@ void setBlockchainTip(const Array256_t& newTip)
 
 Array256_t getTipHash()
 {
-    auto hash = readWholeFile(TIP);
+    auto hash = readWholeFile(paths::blockchainTip);
     return hash.readArray256();
 }
 
 uint64_t getTipHeight()
 {
-    auto blockIndexesDb = openBlockIndexesDb();
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
     return getBlockIndex(*blockIndexesDb, getTipHash()).height;
 }
 
 Array256_t getTipChainWork()
 {
-    auto blockIndexesDb = openBlockIndexesDb();
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
     return getBlockIndex(*blockIndexesDb, getTipHash()).chainWork;
 
 }
@@ -77,7 +75,7 @@ namespace
     bool verifyTxSignature(const Tx& tx)
     {
         // Open UTXO DB once
-        auto utxoDb = openUtxoDb();
+        auto utxoDb = openDb(paths::utxosDb);
 
         for (const auto& txInput : tx.txInputs)
         {
@@ -117,7 +115,7 @@ bool verifyNewMempoolTx(const Tx& tx)
     }
 
     // Open UTXO database
-    const auto utxoDb = openUtxoDb();
+    const auto utxoDb = openDb(paths::utxosDb);
 
     // Track seen UTXOs to prevent double-spending within transaction
     std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> seenUtxos;
@@ -179,8 +177,8 @@ bool verifyNewTipBlock(const Block& block)
         // ---------------------------
         // Verify block header
         // ---------------------------
-        const auto prevHeader = parseBlock(readBlockFileHeaderBytes(getTipHash()));
-        const auto prevTimestamp2 = parseBlockHeader(readBlockFileHeaderBytes(prevHeader.prevBlockHash)).timestamp;
+        const auto prevHeader = getBlockHeader(getTipHash());
+        const auto prevPrevHeader = getBlockHeader(prevHeader.prevBlockHash);
         const Array256_t blockHash = getBlockHeaderHash(block.header);
 
         // Version check
@@ -194,7 +192,7 @@ bool verifyNewTipBlock(const Block& block)
         if (block.header.timestamp > getCurrentTimestamp() + 600) return false; // 10 min max drift
 
         // Difficulty adjustment (simplified two-block check; could use window for stability)
-        const uint64_t timeDelta = prevHeader.timestamp - prevTimestamp2;
+        const uint64_t timeDelta = prevHeader.timestamp - prevPrevHeader.timestamp;
         if (timeDelta < 600)
         {
             if (block.header.difficulty != increaseDifficulty(prevHeader.difficulty)) return false;
@@ -213,7 +211,7 @@ bool verifyNewTipBlock(const Block& block)
         // ---------------------------
         // Verify transactions
         // ---------------------------
-        auto utxoDb = openUtxoDb();
+        auto utxoDb = openDb(paths::utxosDb);
         std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> blockSpentUtxos;
         uint64_t totalFees = 0;
 
@@ -283,21 +281,18 @@ bool verifyNewTipBlock(const Block& block)
 //----------------------------------------
 namespace
 {
-    const fs::path UNDO_PATH = "undo";
-    const fs::path BLOCKS_PATH = "blocks";
-
     fs::path getBlockFilePath(const Array256_t& blockHash)
     {
         BytesBuffer hashBuf;
         hashBuf.writeArray256(blockHash);
-        return BLOCKS_PATH / (bytesToHex(hashBuf) + ".block");
+        return paths::blocks / (bytesToHex(hashBuf) + ".block");
     }
 
     fs::path getUndoFilePath(const Array256_t& blockHash)
     {
         BytesBuffer hashBuf;
         hashBuf.writeArray256(blockHash);
-        return UNDO_PATH / (bytesToHex(hashBuf) + ".undo");
+        return paths::undo / (bytesToHex(hashBuf) + ".undo");
     }
 }
 
@@ -307,10 +302,10 @@ namespace
 void addNewTipBlock(const Block& block)
 {
     Array256_t blockHash = getBlockHeaderHash(block.header);
-    fs::path blockFilePath = BLOCKS_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
-    fs::path undoFilePath = UNDO_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
+    auto blockFilePath = getBlockFilePath(blockHash);
+    auto undoFilePath = getUndoFilePath(blockHash);
 
-    auto utxoDb = openUtxoDb();
+    auto utxoDb = openDb(paths::utxosDb);
 
     // Open undo file
     auto undoFile = openFileTruncWrite(undoFilePath);
@@ -362,13 +357,13 @@ void addNewTipBlock(const Block& block)
     applyUtxoBatch(*utxoDb, spends, adds);
 
     // Update block height and chain work
-    uint64_t blockHeight = getBlockIndex(*openDb(BLOCKS_PATH), getTipHash()).height + 1;
+    uint64_t blockHeight = getBlockIndex(*openDb(paths::blockIndexesDb), getTipHash()).height + 1;
     auto blockWork = getBlockWork(block.header.difficulty);
 
-    auto heightsDb = openHeightsDb();
+    auto heightsDb = openDb(paths::blockHeightsDb);
     putHeightHash(*heightsDb, blockHeight, blockHash);
 
-    auto blockIndexesDb = openBlockIndexesDb();
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
     BlockIndexValue blockIndex;
     blockIndex.chainWork = addBlockWork(getTipChainWork(), blockWork);
     blockIndex.height = blockHeight;
@@ -379,18 +374,12 @@ void addNewTipBlock(const Block& block)
 
 void undoNewTipBlock()
 {
-    // Block file path
     Array256_t blockHash = getTipHash();
-    auto blockFilePath = BLOCKS_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());;
+    auto blockFilePath = getBlockFilePath(blockHash);
+    auto undoFilePath = getUndoFilePath(blockHash);
 
-    // Undo file path
-    BytesBuffer undoBuf;
-    undoBuf.writeArray256(blockHash);
-    auto undoFilePath = UNDO_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
-
-
-    Block block = parseBlock(readWholeFile(blockFilePath));
-    auto utxoDb = openUtxoDb();
+    Block block = getBlock(blockHash);
+    auto utxoDb = openDb(paths::utxosDb);
 
     // Collect UTXOs created by this block for deletion
     std::vector<TxInput> spends;
@@ -438,11 +427,11 @@ void undoNewTipBlock()
     fs::remove(undoFilePath);
 
     // Remove block from heights DB
-    auto heightsDb = openHeightsDb();
-    deleteHeightHash(*heightsDb, getBlockIndex(*heightsDb, blockHash).height);
+    auto heightsDb = openDb(paths::blockHeightsDb);
+    deleteHeightHash(*heightsDb, getBlockIndex(*openDb(paths::blockIndexesDb), blockHash).height);
 
     // Remove block from indexes DB
-    auto blockIndexesDb = openBlockIndexesDb();
+    auto blockIndexesDb = openDb(paths::blockIndexesDb);
     deleteBlockIndex(*blockIndexesDb, blockHash);
 }
 

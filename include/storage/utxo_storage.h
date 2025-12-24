@@ -3,6 +3,8 @@
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
 
+std::unique_ptr<rocksdb::DB> openUtxoDb();
+
 bool utxoExists(
     rocksdb::DB& db,
     const TxInput& input);

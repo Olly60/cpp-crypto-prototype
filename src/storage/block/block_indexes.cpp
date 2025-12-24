@@ -38,6 +38,28 @@ namespace
     }
 }
 
+const fs::path BLOCK_INDEXES = "block_indexes";
+std::unique_ptr<rocksdb::DB> openBlockIndexesDb()
+{
+
+    rocksdb::Options options;
+    options.create_if_missing = true;
+
+    rocksdb::DB* raw = nullptr;
+    rocksdb::Status status = rocksdb::DB::Open(
+        options,
+        "block_indexes",
+        &raw
+    );
+
+    if (!status.ok() || !raw)
+    {
+        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
+    }
+
+    return std::unique_ptr<rocksdb::DB>(raw);
+}
+
 // Put block index
 void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValue& value)
 {

@@ -1,11 +1,12 @@
 #include "storage/peers.h"
 #include "storage/file_utils.h"
 
+const fs::path PEERS = "peers";
+
 void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash>& peers)
 {
-    fs::create_directories(paths::peers.parent_path());
 
-    std::ofstream peersFile(paths::peers, std::ios::trunc | std::ios::binary);
+    std::ofstream peersFile(PEERS, std::ios::trunc | std::ios::binary);
     if (!peersFile)
     {
         throw std::runtime_error("Failed to open peers file for writing");
@@ -39,13 +40,13 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
 
 std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 {
-    if (!fs::exists(paths::peers))
+    if (!fs::exists(PEERS))
     {
         return {};
     }
 
     std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
-    auto peersFileBytes = readWholeFile(paths::peers);
+    auto peersFileBytes = readWholeFile(PEERS);
 
     // Read peer count
     uint64_t peersCount = peersFileBytes.readU64();

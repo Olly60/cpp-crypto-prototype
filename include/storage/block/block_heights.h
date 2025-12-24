@@ -1,6 +1,9 @@
 #pragma once
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
+
+std::unique_ptr<rocksdb::DB> openHeightsDb();
+
 // Put block hash by height
 void putHeightHash(rocksdb::DB& db, uint64_t height, const Array256_t& hash);
 

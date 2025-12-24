@@ -8,6 +8,8 @@ struct BlockIndexValue {
     BlockIndexValue() = default;
 };
 
+std::unique_ptr<rocksdb::DB> openBlockIndexesDb();
+
 void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValue& value);
 
 

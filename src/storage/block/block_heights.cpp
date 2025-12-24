@@ -30,6 +30,27 @@ namespace
     }
 }
 
+const fs::path BLOCK_HEIGHTS = "block_heights";
+std::unique_ptr<rocksdb::DB> openHeightsDb()
+{
+    rocksdb::Options options;
+    options.create_if_missing = true;
+
+    rocksdb::DB* raw = nullptr;
+    rocksdb::Status status = rocksdb::DB::Open(
+        options,
+        BLOCK_HEIGHTS,
+        &raw
+    );
+
+    if (!status.ok() || !raw)
+    {
+        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
+    }
+
+    return std::unique_ptr<rocksdb::DB>(raw);
+}
+
 // Put block hash by height
 void putHeightHash(rocksdb::DB& db, const uint64_t height, const Array256_t& hash)
 {

@@ -1,5 +1,7 @@
 #include "storage/file_utils.h"
 
+namespace fs = std::filesystem;
+
 // ============================================================================
 // FILE I/O UTILITIES
 // ============================================================================
@@ -40,25 +42,39 @@ BytesBuffer readWholeFile(const fs::path& filePath)
     return buffer;
 }
 
-
-std::unique_ptr<rocksdb::DB> openDb(const fs::path& path)
+BytesBuffer readBlockFileBytes(const Array256_t& blockHash)
 {
-    fs::create_directories(path);
-
-    rocksdb::Options options;
-    options.create_if_missing = true;
-
-    rocksdb::DB* raw = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(
-        options,
-        path.string(),
-        &raw
-    );
-
-    if (!status.ok() || !raw)
-    {
-        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
-    }
-
-    return std::unique_ptr<rocksdb::DB>(raw);
+    return readWholeFile(std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size()););
 }
+
+BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash)
+{
+    const fs::path path = std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
+    if (!fs::exists(path))
+        throw std::runtime_error("File does not exist: " + path.string());
+
+    std::ifstream file(path, std::ios::binary);
+    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+    constexpr uint64_t headerSize = calculateBlockHeaderSize();
+    BytesBuffer header(headerSize);
+
+    file.read(header.cdata(), headerSize);
+    return header;
+}
+
+bool blockExists(const Array256_t& blockHash)
+{
+    return fs::exists(std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size()));
+}
+
+BlockHeader getBlockHeader(const Array256_t& blockHash)
+{
+    return parseBlockHeader(readBlockFileHeaderBytes(blockHash));
+}
+
+Block getBlock(const Array256_t& blockHash)
+{
+    return parseBlock(readBlockFileBytes(blockHash));
+}
+
