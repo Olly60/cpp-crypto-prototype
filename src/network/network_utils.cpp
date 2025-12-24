@@ -9,7 +9,7 @@
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "storage/peers.h"
-#include "storage/block/tip_block.h"
+#include "../../include/tip_block.h"
 
 constexpr uint64_t handshakeSize()
 {

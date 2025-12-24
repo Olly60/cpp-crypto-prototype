@@ -1,7 +1,7 @@
 #include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_utils.h"
-#include "storage/block/tip_block.h"
+#include "../../../include/tip_block.h"
 
 namespace
 {
@@ -32,7 +32,7 @@ namespace
     }
 }
 
-bool verifyNewTx(const Tx& tx)
+bool verifyNewMempoolTx(const Tx& tx)
 {
     // Verify signatures
     if (!verifyTxSignature(tx))
@@ -156,7 +156,7 @@ bool verifyTmpBlockchain(Array256_t block)
     {
         const Tx& tx = block.txs[i];
 
-        if (!verifyNewTx(tx)) return false;
+        if (!verifyNewMempoolTx(tx)) return false;
 
         uint64_t inputAmount = 0;
         for (const TxInput& input : tx.txInputs)

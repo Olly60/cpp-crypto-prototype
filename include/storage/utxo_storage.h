@@ -3,10 +3,19 @@
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
 
-void putUtxo(rocksdb::DB& db, const TxInput& txInput, const TxOutput& utxo);
+bool utxoExists(
+    rocksdb::DB& db,
+    const TxInput& input);
 
-void deleteUtxo(rocksdb::DB& db, const TxInput& txInput);
+bool tryGetUtxo(rocksdb::DB& db,
+    TxOutput& out,
+    const TxInput& input);
 
-TxOutput getUtxo(rocksdb::DB& db, const TxInput& txInput);
+// -------------------------------------------------
+// Atomic block-level UTXO updates
+// -------------------------------------------------
 
-bool utxoInDb(rocksdb::DB& db, const TxInput& txInput);
+void applyUtxoBatch(
+    rocksdb::DB& db,
+    const std::vector<TxInput>& spends,
+    const std::vector<std::pair<TxInput, TxOutput>>& adds);

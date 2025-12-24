@@ -1,8 +1,17 @@
 #pragma once
 #include "crypto_utils.h"
-void addBlock(const Block& block);
+#include <filesystem>
+#include "parse_serialise.h"
 
-void undoBlock();
+namespace fs = std::filesystem;
+
+fs::path getBlockFilePath(const Array256_t& blockHash);
+
+fs::path getUndoFilePath(const Array256_t& blockHash);
+
+void addNewTipBlock(const Block& block);
+
+void undoNewTipBlock();
 
 bool blockExists(const Array256_t& blockHash);
 

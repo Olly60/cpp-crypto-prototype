@@ -1,6 +1,7 @@
 #pragma once
-#include "bytes_buffer.h"
-
+#include <cstring>
+#include <span>
+#include "crypto_utils.h"
 struct BytesBuffer
 {
 private:

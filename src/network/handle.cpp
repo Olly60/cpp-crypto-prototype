@@ -3,15 +3,14 @@
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
 #include "network/network_main.h"
-#include "storage/block/tip_block.h"
+#include "tip_block.h"
 #include "network/handle.h"
 #include <ranges>
-
-#include "verify.h"
 #include "network/network_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
+#include "parse_serialise.h"
 
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
 {
@@ -268,9 +267,9 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         }
 
         // Add block if valid
-        if (!verifyNewBlockTip(block))
+        if (!verifyNewTipBlock(block))
         {
-            addBlock(block);
+            addNewTipBlock(block);
         }
     }
     catch (const std::exception&)
@@ -295,7 +294,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 
         // Verify
         Tx tx = parseTx(txBytes);
-        if (!verifyNewTx(tx)) { co_return; };
+        if (!verifyNewMempoolTx(tx)) { co_return; };
 
         // Add to mempool
         mempool.insert({getTxHash(tx), tx});

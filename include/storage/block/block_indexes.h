@@ -5,6 +5,7 @@
 struct BlockIndexValue {
     uint64_t height{};
     Array256_t chainWork{};
+    BlockIndexValue() = default;
 };
 
 void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValue& value);

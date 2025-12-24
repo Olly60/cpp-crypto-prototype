@@ -134,7 +134,7 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
 // SIGNING
 // ============================================================================
 
-Array256_t computeTxInputHash(const Tx& tx)
+Array256_t computeTxHash(const Tx& tx)
 {
     BytesBuffer buf;
     buf.reserve(tx.txInputs.size() * 40 + tx.txOutputs.size() * 40 + 16);
@@ -171,7 +171,7 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 
     for (size_t i = 0; i < signedTx.txInputs.size(); i++)
     {
-        Array256_t hash = computeTxInputHash(signedTx); // Sign hash for this input
+        Array256_t hash = computeTxHash(signedTx); // Sign hash for this input
 
         Array512_t sig;
         crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), privKeySeed.data());

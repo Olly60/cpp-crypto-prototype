@@ -10,4 +10,6 @@ uint64_t getTipHeight();
 
 Array256_t getTipChainWork();
 
-bool verifyNewBlockTip(const Block& block);
+bool verifyNewMempoolTx(const Tx& tx);
+
+bool verifyNewTipBlock(const Block& block);

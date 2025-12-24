@@ -1,12 +1,12 @@
-#include "storage/block/genesis_block.h"
+#pragma once
 #include "crypto_utils.h"
 
-Block getGenesisBlock()
+// Genesis block
+inline Block getGenesisBlock()
 {
     // Genesis transaction
     TxOutput genesisOutput{
-        0, // amount
-        {} // recipient (empty for genesis)
+        5000000000, // amount
     };
 
     Tx genesisTx{
@@ -27,7 +27,9 @@ Block getGenesisBlock()
     return genesisBlock;
 }
 
-Array256_t getGenesisBlockHash()
+inline Array256_t getGenesisBlockHash()
 {
     return getBlockHeaderHash(getGenesisBlock().header);
 }
+
+
