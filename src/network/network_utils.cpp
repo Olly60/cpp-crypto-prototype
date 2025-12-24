@@ -61,6 +61,11 @@ bool isValidHandshake(const Handshake& hs)
         hs.nonce != LOCAL_NONCE;
 }
 
+bool blockExists(const Array256_t& blockHash)
+{
+    return std::filesystem::exists(std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size()));
+}
+
 // ============================================
 // Add peer to peer map in memory
 // ============================================

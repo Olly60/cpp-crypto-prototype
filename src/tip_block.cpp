@@ -6,9 +6,8 @@
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
 
-const fs::path TIP = "blockchain_tip";
+const std::filesystem::path TIP = "blockchain_tip";
 
 Array256_t getTipHash()
 {
@@ -263,21 +262,37 @@ bool verifyNewTipBlock(const Block& block)
 
 namespace
 {
-    const fs::path UNDO_PATH = "undo";
-    const fs::path BLOCKS_PATH = "blocks";
+    const std::filesystem::path UNDO_PATH = "undo";
+    const std::filesystem::path BLOCKS_PATH = "blocks";
 
-    fs::path getBlockFilePath(const Array256_t& blockHash)
+    std::filesystem::path getBlockFilePath(const Array256_t& blockHash)
     {
         BytesBuffer hashBuf;
         hashBuf.writeArray256(blockHash);
         return BLOCKS_PATH / (bytesToHex(hashBuf) + ".block");
     }
 
-    fs::path getUndoFilePath(const Array256_t& blockHash)
+    std::filesystem::path getUndoFilePath(const Array256_t& blockHash)
     {
         BytesBuffer hashBuf;
         hashBuf.writeArray256(blockHash);
         return UNDO_PATH / (bytesToHex(hashBuf) + ".undo");
+    }
+
+    std::ofstream openFileTruncWrite(const std::filesystem::path& path)
+    {
+        std::filesystem::create_directories(path.parent_path());
+
+        std::ofstream file(path, std::ios::trunc | std::ios::binary);
+        if (!file)
+        {
+            throw std::runtime_error("Failed to open file for append: " + path.string());
+        }
+
+        // Enable exceptions for future I/O
+        file.exceptions(std::ios::failbit | std::ios::badbit);
+
+        return file;
     }
 }
 
@@ -287,8 +302,8 @@ namespace
 void addNewTipBlock(const Block& block)
 {
     Array256_t blockHash = getBlockHeaderHash(block.header);
-    fs::path blockFilePath = getBlockFilePath(blockHash);
-    fs::path undoFilePath = getUndoFilePath(blockHash);
+    std::filesystem::path blockFilePath = getBlockFilePath(blockHash);
+    std::filesystem::path undoFilePath = getUndoFilePath(blockHash);
 
     auto utxoDb = openUtxoDb();
 
@@ -415,8 +430,8 @@ void undoNewTipBlock()
     applyUtxoBatch(*utxoDb, spends, restores);
 
     // Remove block and undo files
-    fs::remove(blockFilePath);
-    fs::remove(undoFilePath);
+    std::filesystem::remove(blockFilePath);
+    std::filesystem::remove(undoFilePath);
 
     // Remove block from heights DB
     auto heightsDb = openHeightsDb();

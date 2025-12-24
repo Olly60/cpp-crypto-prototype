@@ -1,7 +1,7 @@
 #include "storage/peers.h"
 #include "storage/file_utils.h"
 
-const fs::path PEERS = "peers";
+const std::filesystem::path PEERS = "peers";
 
 void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash>& peers)
 {
@@ -35,12 +35,12 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
         peersFileBytes.writeU64(peerStatus.lastSeen);
     }
 
-    peersFile.write(peersFileBytes.cdata(), peersFileBytes.ssize());
+    peersFile.write(peersFileBytes.cdata(), peersFileBytes.size());
 }
 
 std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 {
-    if (!fs::exists(PEERS))
+    if (!std::filesystem::exists(PEERS))
     {
         return {};
     }

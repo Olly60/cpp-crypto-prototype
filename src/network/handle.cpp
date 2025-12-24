@@ -9,7 +9,6 @@
 #include "network/network_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
 #include "parse_serialise.h"
 
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
@@ -21,7 +20,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Check header is in storage
-        auto blockIndexesDb = openDb(paths::blockIndexesDb);
+        auto blockIndexesDb = openBlockIndexesDb();
         if (!blockExists(blockHash))
         {
             uint8_t haveHeader = 0;
@@ -167,7 +166,7 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(commonAncestor), asio::use_awaitable);
 
         // Find header amount from common ancestor to tip
-        auto blockIndexesDb = openDb(paths::blockIndexesDb);
+        auto blockIndexesDb = openBlockIndexesDb();
         uint64_t ancestorHeight = getBlockIndex(*blockIndexesDb, commonAncestor).height;
 
         // Amount of headers peer is missing
@@ -257,7 +256,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         BytesBuffer blockBytes(blockSize);
         co_await asio::async_read(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
 
-        Block block = parseBlock(blockBytes);
+        auto block = parseBlock(blockBytes);
 
         // New block doesnt match current tip -> take peers chain if better
         if (block.header.prevBlockHash != getTipHash())
@@ -267,7 +266,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         }
 
         // Add block if valid
-        if (!verifyNewTipBlock(block))
+        if (verifyNewTipBlock(block))
         {
             addNewTipBlock(block);
         }

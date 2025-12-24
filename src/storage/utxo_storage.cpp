@@ -15,7 +15,7 @@ namespace
         BytesBuffer buf;
         buf.writeArray256(txHash);
         buf.writeU64(index);
-        return buf.toString();
+        return std::string(buf.cdata(), buf.size());
     }
 
     // -------------------------------
@@ -26,7 +26,7 @@ namespace
         BytesBuffer buf;
         buf.writeU64(utxo.amount);
         buf.writeArray256(utxo.recipient);
-        return buf.toString();
+        return std::string(buf.cdata(), buf.size());
     }
 
     TxOutput parseUtxoValue(const std::string& value)

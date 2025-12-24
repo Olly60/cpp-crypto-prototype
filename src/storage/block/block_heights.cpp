@@ -12,14 +12,14 @@ namespace
     {
         BytesBuffer heightBuffer;
         heightBuffer.writeU64(height);
-        return heightBuffer.toString();
+        return std::string(heightBuffer.cdata(), heightBuffer.size());
     }
 
     std::string makeHashValue(const Array256_t& hash)
     {
         BytesBuffer valueBuf;
         valueBuf.writeArray256(hash);
-        return valueBuf.toString();
+        return std::string(valueBuf.cdata(), valueBuf.size());
     }
 
     Array256_t parseHashValue(const std::string& value)
@@ -30,7 +30,7 @@ namespace
     }
 }
 
-const fs::path BLOCK_HEIGHTS = "block_heights";
+const std::filesystem::path BLOCK_HEIGHTS = "block_heights";
 std::unique_ptr<rocksdb::DB> openHeightsDb()
 {
     rocksdb::Options options;

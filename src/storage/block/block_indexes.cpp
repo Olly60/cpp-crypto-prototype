@@ -13,7 +13,7 @@ namespace
     {
         BytesBuffer buf;
         buf.writeArray256(hash);
-        return buf.toString();
+        return std::string(buf.cdata(), buf.size());
 
     }
 
@@ -23,7 +23,7 @@ namespace
         BytesBuffer buf;
         buf.writeU64(index.height);
         buf.writeArray256(index.chainWork);
-        return buf.toString();
+        return std::string(buf.cdata(), buf.size());
     }
 
     // Deserialize BlockIndexValue
@@ -38,7 +38,7 @@ namespace
     }
 }
 
-const fs::path BLOCK_INDEXES = "block_indexes";
+const std::filesystem::path BLOCK_INDEXES = "block_indexes";
 std::unique_ptr<rocksdb::DB> openBlockIndexesDb()
 {
 
