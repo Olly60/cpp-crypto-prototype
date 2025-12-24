@@ -132,11 +132,8 @@ bool verifyNewMempoolTx(const Tx& tx)
     for (const TxInput& input : tx.txInputs)
     {
         // Check UTXO exists in database
-        TxOutput utxo;
-        if (!tryGetUtxo(*utxoDb, utxo, input))
-        {
-            return false; // UTXO not found
-        }
+        auto utxo = tryGetUtxo(*utxoDb, input);
+        if (!utxo) return false; // UTXO not found
 
         // Check for duplicate inputs within this transaction
         if (!seenUtxos.insert(input).second)
@@ -145,7 +142,7 @@ bool verifyNewMempoolTx(const Tx& tx)
         }
 
         // Accumulate input amount
-        totalInputAmount += utxo.amount;
+        totalInputAmount += utxo->amount;
     }
 
     // Verify outputs
@@ -179,6 +176,7 @@ bool verifyNewMempoolTx(const Tx& tx)
 
 bool verifyBlockHeader(const BlockHeader& header)
 {
+    // Context specific
     auto prevHeader = *getBlockHeader(getTipHash());
     auto prevTimestamp2 = getBlockHeader(prevHeader.prevBlockHash)->timestamp;
     Array256_t blockHash = getBlockHeaderHash(header);
