@@ -3,7 +3,7 @@
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
 #include "network/network_main.h"
-#include "tip_block.h"
+#include "blockchain.h"
 #include "network/handle.h"
 #include <ranges>
 #include "network/network_utils.h"
@@ -20,8 +20,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Check header is in storage
-        auto blockIndexesDb = openBlockIndexesDb();
-        if (!blockExists(blockHash))
+        if (!std::filesystem::exists(getBlockFilePath(blockHash)))
         {
             uint8_t haveHeader = 0;
             co_await asio::async_write(socket, asio::buffer(&haveHeader, 1), asio::use_awaitable);
@@ -33,7 +32,7 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(&haveHeader, 1), asio::use_awaitable);
 
         // Get header from storage
-        auto headerBytes = readBlockFileHeaderBytes(blockHash);
+        auto headerBytes = readFile(getBlockFilePath(blockHash), calculateBlockHeaderSize());
 
         // Send header
         co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
@@ -53,7 +52,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Check block is in storage
-        if (!blockExists(blockHash))
+        if (!std::filesystem::exists(getBlockFilePath(blockHash)))
         {
             // Write I dont have it
             uint8_t haveBlock = 0;
@@ -66,7 +65,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
         co_await asio::async_write(socket, asio::buffer(&haveBlock, 1), asio::use_awaitable);
 
         // Get block from storage
-        auto blockBytes = readBlockFileBytes(blockHash);
+        auto blockBytes = readFile(getBlockFilePath(blockHash));
 
         // Write size
         BytesBuffer blockSize;
@@ -155,7 +154,7 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
         Array256_t commonAncestor;
         for (const auto& hash : blockHashes)
         {
-            if (blockExists(hash))
+            if (!std::filesystem::exists(getBlockFilePath(hash)))
             {
                 commonAncestor = hash;
                 break;
@@ -176,8 +175,9 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
         co_await writeU64Tcp(socket, peerMissingAmount);
 
         // Write headers (peer tip -> next from common ancestor)
-        for (BlockHeader i = getBlockHeader(getTipHash()); getBlockHeaderHash(i) != commonAncestor; i =
-             getBlockHeader(i.prevBlockHash))
+        for (auto i = parseBlockHeader(readFile(getBlockFilePath(getTipHash())), calculateBlockHeaderSize()); getBlockHeaderHash(i) != commonAncestor; i =
+
+            parseBlockHeader(readFile(getBlockFilePath(i.prevBlockHash), calculateBlockHeaderSize()))
         {
             auto headerBytes = serialiseBlockHeader(i);
             co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()),

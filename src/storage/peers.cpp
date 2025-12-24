@@ -46,7 +46,7 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
     }
 
     std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
-    auto peersFileBytes = readWholeFile(PEERS);
+    auto peersFileBytes = readFile(PEERS);
 
     // Read peer count
     uint64_t peersCount = peersFileBytes.readU64();

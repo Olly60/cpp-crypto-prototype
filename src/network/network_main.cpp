@@ -3,7 +3,7 @@
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
 #include "network/network_main.h"
-#include "../../include/tip_block.h"
+#include "../../include/blockchain.h"
 #include "network/handle.h"
 #include "storage/peers.h"
 // TODO: add limits and safety to network

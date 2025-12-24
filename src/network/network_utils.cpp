@@ -1,7 +1,3 @@
-// ============================================
-// Serialization Helpers
-// ============================================
-
 #include <asio/awaitable.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio.hpp>
@@ -9,8 +5,11 @@
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "storage/peers.h"
-#include "../../include/tip_block.h"
+#include "../../include/blockchain.h"
 
+// ============================================
+// Handshake Helpers
+// ============================================
 constexpr uint64_t handshakeSize()
 {
     return sizeof(decltype(Handshake::nonce)) + sizeof(decltype(Handshake::blockchainTip)) + sizeof(decltype(
@@ -59,11 +58,6 @@ bool isValidHandshake(const Handshake& hs)
         hs.version == ProtocolVersion &&
         hs.genesisBlockHash == GenesisBlockHash &&
         hs.nonce != LOCAL_NONCE;
-}
-
-bool blockExists(const Array256_t& blockHash)
-{
-    return std::filesystem::exists(std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size()));
 }
 
 // ============================================

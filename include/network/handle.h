@@ -1,4 +1,5 @@
 #pragma once
+#include <asio.hpp>
 
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket);
 

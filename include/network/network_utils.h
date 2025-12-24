@@ -11,8 +11,6 @@ Handshake parseHandshake(BytesBuffer& buffer);
 
 bool isValidHandshake(const Handshake& hs);
 
-bool blockExists(const Array256_t& blockHash);
-
 // ============================================
 // Add peer to peer map in memory
 // ============================================

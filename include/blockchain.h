@@ -2,6 +2,10 @@
 #include <filesystem>
 #include "crypto_utils.h"
 
+std::filesystem::path getBlockFilePath(const Array256_t& blockHash);
+
+std::filesystem::path getUndoFilePath(const Array256_t& blockHash);
+
 Array256_t getTipHash();
 
 uint64_t getTipHeight();
