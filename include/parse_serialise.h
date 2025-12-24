@@ -63,6 +63,7 @@ public:
     void resetRead() { read_offset_ = 0; }
     void prepareRead(size_t newSize) { data_.resize(newSize); }
     void reserve(size_t newCap) { data_.reserve(newCap); }
+    void resize(size_t newSize) { data_.resize(newSize); }
 
     [[nodiscard]] std::string toHex() const { return bytesToHex(*this); }
 

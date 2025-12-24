@@ -4,42 +4,67 @@
 // FILE I/O UTILITIES
 // ============================================================================
 
-BytesBuffer readFile(const std::filesystem::path& filePath)
+std::optional<BytesBuffer> readFile(const std::filesystem::path& path)
 {
-    std::ifstream file(filePath, std::ios::binary);
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file)
-        throw std::runtime_error("Failed to open file: " + filePath.string());
+        return std::nullopt;
 
-    auto size = std::filesystem::file_size(filePath);
-    BytesBuffer buffer(size);
+    const std::streamsize size = file.tellg();
+    if (size < 0)
+        throw std::runtime_error("Failed to stat file: " + path.string());
+
+    BytesBuffer buffer(static_cast<size_t>(size));
 
     if (size > 0)
     {
-        file.read(buffer.cdata(), buffer.size());
-        if (!file)
-            throw std::runtime_error("Failed to read file: " + filePath.string());
+        file.seekg(0);
+        file.read(buffer.cdata(), size);
+
+        if (file.gcount() != size)
+            throw std::runtime_error("Short read: " + path.string());
     }
 
     return buffer;
 }
 
-BytesBuffer readFile(const std::filesystem::path& filePath, size_t amount)
+std::optional<BytesBuffer> readFile(const std::filesystem::path& path, size_t amount)
 {
-    std::ifstream file(filePath, std::ios::binary);
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file)
-        throw std::runtime_error("Failed to open file: " + filePath.string());
+        return std::nullopt;
 
-    auto size = std::filesystem::file_size(filePath);
-    if (amount > size) amount = size;
+    const std::streamsize size = file.tellg();
+    if (size < 0)
+        throw std::runtime_error("Failed to stat file: " + path.string());
+
     BytesBuffer buffer(amount);
 
     if (size > 0)
     {
         file.read(buffer.cdata(), amount);
-        if (!file) throw std::runtime_error("Failed to read file: " + filePath.string());
+
+        if (file.gcount() != amount)
+            throw std::runtime_error("Short read: " + path.string());
     }
 
     return buffer;
+}
+
+std::ofstream openFileTruncWrite(const std::filesystem::path& path)
+{
+    std::filesystem::create_directories(path.parent_path());
+
+    std::ofstream file(path, std::ios::trunc | std::ios::binary);
+    if (!file)
+    {
+        throw std::runtime_error("Failed to open file for append: " + path.string());
+    }
+
+    // Enable exceptions for future I/O
+    file.exceptions(std::ios::failbit | std::ios::badbit);
+
+    return file;
 }
 
 
