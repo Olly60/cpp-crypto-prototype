@@ -10,6 +10,7 @@
 #include "storage/file_utils.h"
 #include "storage/block/block_indexes.h"
 #include "parse_serialise.h"
+#include "storage/block/block_utils.h"
 
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
 {
@@ -19,9 +20,11 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         Array256_t blockHash;
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
-        // Check header is in storage
-        if (!std::filesystem::exists(getBlockFilePath(blockHash)))
+        // Check block is in storage
+        auto headerBytes = getBlockHeaderBytes(blockHash);
+        if (!headerBytes)
         {
+            // Write I dont have it
             uint8_t haveHeader = 0;
             co_await asio::async_write(socket, asio::buffer(&haveHeader, 1), asio::use_awaitable);
             co_return;
@@ -31,11 +34,8 @@ asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
         uint8_t haveHeader = 1;
         co_await asio::async_write(socket, asio::buffer(&haveHeader, 1), asio::use_awaitable);
 
-        // Get header from storage
-        auto headerBytes = readFile(getBlockFilePath(blockHash), calculateBlockHeaderSize());
-
         // Send header
-        co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer(headerBytes->data(), headerBytes->size()), asio::use_awaitable);
     }
     catch (const std::exception&)
     {
@@ -52,7 +52,8 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
         co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
 
         // Check block is in storage
-        if (!std::filesystem::exists(getBlockFilePath(blockHash)))
+        auto blockBytes = getBlockBytes(blockHash);
+        if (!blockBytes)
         {
             // Write I dont have it
             uint8_t haveBlock = 0;
@@ -64,16 +65,13 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
         uint8_t haveBlock = 1;
         co_await asio::async_write(socket, asio::buffer(&haveBlock, 1), asio::use_awaitable);
 
-        // Get block from storage
-        auto blockBytes = readFile(getBlockFilePath(blockHash));
-
         // Write size
         BytesBuffer blockSize;
-        blockSize.writeU64(blockBytes.size());
+        blockSize.writeU64(blockBytes->size());
         co_await asio::async_write(socket, asio::buffer(blockSize.data(), blockSize.size()), asio::use_awaitable);
 
         // Write block
-        co_await asio::async_write(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
+        co_await asio::async_write(socket, asio::buffer(blockBytes->data(), blockBytes->size()), asio::use_awaitable);
     }
     catch (const std::exception&)
     {
@@ -175,9 +173,7 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
         co_await writeU64Tcp(socket, peerMissingAmount);
 
         // Write headers (peer tip -> next from common ancestor)
-        for (auto i = parseBlockHeader(readFile(getBlockFilePath(getTipHash())), calculateBlockHeaderSize()); getBlockHeaderHash(i) != commonAncestor; i =
-
-            parseBlockHeader(readFile(getBlockFilePath(i.prevBlockHash), calculateBlockHeaderSize()))
+        for (auto i = getBlockHeader(getTipHash()); getBlockHeaderHash(*i) != commonAncestor; i = getBlockHeader(i->prevBlockHash))
         {
             auto headerBytes = serialiseBlockHeader(i);
             co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()),
@@ -285,7 +281,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
         const uint64_t txSize = co_await readU64Tcp(socket);
 
         // Limit transaction size
-        if (txSize > MAX_TX_SIZE) { co_return; }
+        if (txSize > MAX_TX_SIZE) co_return;
 
         // Read transaction
         BytesBuffer txBytes(txSize);
@@ -293,7 +289,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 
         // Verify
         Tx tx = parseTx(txBytes);
-        if (!verifyNewMempoolTx(tx)) { co_return; };
+        if (!verifyNewMempoolTx(tx)) co_return;
 
         // Add to mempool
         mempool.insert({getTxHash(tx), tx});

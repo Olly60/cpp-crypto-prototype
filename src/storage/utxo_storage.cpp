@@ -70,8 +70,7 @@ std::unique_ptr<rocksdb::DB> openUtxoDb()
     return std::unique_ptr<rocksdb::DB>(raw);
 }
 
-bool utxoExists(
-    rocksdb::DB& db,
+std::optional<TxOutput> tryGetUtxo(rocksdb::DB& db,
     const TxInput& input)
 {
     std::string value;
@@ -81,25 +80,9 @@ bool utxoExists(
         &value
     );
 
-    return status.ok();
-}
+    if (!status.ok()) return std::nullopt;
 
-bool tryGetUtxo(rocksdb::DB& db,
-    TxOutput& out,
-    const TxInput& input)
-{
-    std::string value;
-    auto status = db.Get(
-        rocksdb::ReadOptions(),
-        slice(makeUtxoKey(input.UTXOTxHash, input.UTXOOutputIndex)),
-        &value
-    );
-
-    if (!status.ok())
-        return false;
-
-    out = parseUtxoValue(value);
-    return true;
+    return parseUtxoValue(value);
 }
 
 // -------------------------------------------------

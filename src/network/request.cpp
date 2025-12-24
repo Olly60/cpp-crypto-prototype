@@ -186,7 +186,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
         std::vector<BlockHeader>::difference_type drop = 0;
 
         while (drop < static_cast<std::vector<BlockHeader>::difference_type>(headers.size()) &&
-               blockExists(getBlockHeaderHash(headers[drop])))
+               std::filesystem::exists(getBlockFilePath(getBlockHeaderHash(headers[drop]))))
         {
             ++drop;
         }

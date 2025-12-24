@@ -6,6 +6,7 @@
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
+#include "storage/block/block_utils.h"
 
 const std::filesystem::path TIP = "blockchain_tip";
 const std::filesystem::path BLOCKS_PATH = "blocks";
@@ -28,7 +29,7 @@ std::filesystem::path getUndoFilePath(const Array256_t& blockHash)
 Array256_t getTipHash()
 {
     auto hash = readFile(TIP);
-    return hash.readArray256();
+    return hash->readArray256();
 }
 
 uint64_t getTipHeight()
@@ -176,38 +177,45 @@ bool verifyNewMempoolTx(const Tx& tx)
     return true;
 }
 
+bool verifyBlockHeader(const BlockHeader& header)
+{
+    auto prevHeader = *getBlockHeader(getTipHash());
+    auto prevTimestamp2 = getBlockHeader(prevHeader.prevBlockHash)->timestamp;
+    Array256_t blockHash = getBlockHeaderHash(header);
+
+    // Version check
+    if (header.version != 1) return false;
+
+    // Previous block hash check
+    if (header.prevBlockHash != getBlockHeaderHash(prevHeader)) return false;
+
+    // Timestamp validation
+    if (header.timestamp <= prevHeader.timestamp) return false;
+    if (header.timestamp > getCurrentTimestamp() + 600) return false; // 10 min max drift
+
+    // Difficulty adjustment (simplified two-block check; could use window for stability)
+    const uint64_t timeDelta = prevHeader.timestamp - prevTimestamp2;
+    if (timeDelta < 600)
+    {
+        if (header.difficulty != increaseDifficulty(prevHeader.difficulty)) return false;
+    }
+    else
+    {
+        if (header.difficulty != decreaseDifficulty(prevHeader.difficulty)) return false;
+    }
+
+    // Hash meets difficulty
+    if (!isLessLE(blockHash, header.difficulty) | blockHash == header.difficulty) return false;
+
+    return true;
+}
+
 bool verifyNewTipBlock(const Block& block)
     {
         // ---------------------------
         // Verify block header
         // ---------------------------
-        const auto prevHeader = parseBlockHeader(readFile(getBlockFilePath(getTipHash()), calculateBlockHeaderSize()));
-        const auto prevTimestamp2 = parseBlockHeader(readFile(getBlockFilePath(prevHeader.prevBlockHash), calculateBlockHeaderSize())).timestamp;
-        const Array256_t blockHash = sha256Of(serialiseBlockHeader(block.header));
-
-        // Version check
-        if (block.header.version != 1) return false;
-
-        // Previous block hash check
-        if (block.header.prevBlockHash != getBlockHeaderHash(prevHeader)) return false;
-
-        // Timestamp validation
-        if (block.header.timestamp <= prevHeader.timestamp) return false;
-        if (block.header.timestamp > getCurrentTimestamp() + 600) return false; // 10 min max drift
-
-        // Difficulty adjustment (simplified two-block check; could use window for stability)
-        const uint64_t timeDelta = prevHeader.timestamp - prevTimestamp2;
-        if (timeDelta < 600)
-        {
-            if (block.header.difficulty != increaseDifficulty(prevHeader.difficulty)) return false;
-        }
-        else
-        {
-            if (block.header.difficulty != decreaseDifficulty(prevHeader.difficulty)) return false;
-        }
-
-        // Hash meets difficulty
-        if (!isLessLE(blockHash, block.header.difficulty)) return false;
+        if (!verifyBlockHeader(block.header)) return false;
 
         // Merkle root validation
         if (block.header.merkleRoot != getMerkleRoot(block.txs)) return false;
@@ -221,36 +229,17 @@ bool verifyNewTipBlock(const Block& block)
 
         for (size_t i = 1; i < block.txs.size(); ++i) // skip coinbase
         {
-            const Tx& tx = block.txs[i];
 
-            // Verify transaction signatures
-            if (!verifyTxSignature(tx)) return false;
+            verifyTxSignature(block.txs[i]);
 
             uint64_t totalInputAmount = 0;
-            uint64_t totalOutputAmount = 0;
-
-            // Verify inputs
-            for (const TxInput& input : tx.txInputs)
+            for (const TxInput& input : block.txs[i].txInputs)
             {
-                TxOutput utxo;
-                if (!tryGetUtxo(*utxoDb, utxo, input)) return false;
-
-                // Prevent double-spend within the block
-                if (!blockSpentUtxos.insert(input).second) return false;
-
-                totalInputAmount += utxo.amount;
+                blockSpentUtxos.insert(input);
+                totalInputAmount += tryGetUtxo(*utxoDb, input)->amount;
             }
 
-            // Verify outputs
-            for (const TxOutput& output : tx.txOutputs)
-            {
-                if (output.amount == 0) return false; // zero output not allowed
-                totalOutputAmount += output.amount;
-            }
-
-            // Transaction fee (integer-safe)
             uint64_t txFee = std::max(totalInputAmount / 100, static_cast<uint64_t>(1));
-            if (totalOutputAmount > totalInputAmount - txFee) return false;
 
             totalFees += txFee;
         }
@@ -275,26 +264,6 @@ bool verifyNewTipBlock(const Block& block)
 
         return true; // block is valid
     }
-
-namespace
-{
-
-    std::ofstream openFileTruncWrite(const std::filesystem::path& path)
-    {
-        std::filesystem::create_directories(path.parent_path());
-
-        std::ofstream file(path, std::ios::trunc | std::ios::binary);
-        if (!file)
-        {
-            throw std::runtime_error("Failed to open file for append: " + path.string());
-        }
-
-        // Enable exceptions for future I/O
-        file.exceptions(std::ios::failbit | std::ios::badbit);
-
-        return file;
-    }
-}
 
 //----------------------------------------
 // Add and undo blocks
@@ -328,8 +297,7 @@ void addNewTipBlock(const Block& block)
             undoData.writeU64(input.UTXOTxHash.size());
             undoData.writeU64(input.UTXOOutputIndex);
 
-            TxOutput output;
-            tryGetUtxo(*utxoDb, output, input);
+            TxOutput output = *tryGetUtxo(*utxoDb, input);
 
             undoData.writeU64(output.amount);
             undoData.writeU64(output.recipient.size());
@@ -384,10 +352,7 @@ void undoNewTipBlock()
     auto blockFilePath = getBlockFilePath(blockHash);
 
     // Undo file path
-    BytesBuffer undoBuf;
-    undoBuf.writeArray256(blockHash);
     auto undoFilePath = getUndoFilePath(blockHash);
-
 
     Block block = parseBlock(readFile(blockFilePath));
     auto utxoDb = openUtxoDb();
@@ -405,22 +370,22 @@ void undoNewTipBlock()
     std::vector<std::pair<TxInput, TxOutput>> restores;
     {
         auto undoDataBytes = readFile(undoFilePath);
-        uint64_t txCount = undoDataBytes.readU64();
+        uint64_t txCount = undoDataBytes->readU64();
 
         for (uint64_t i = 0; i < txCount; i++)
         {
-            undoDataBytes.readU64(); // version
-            uint64_t inputCount = undoDataBytes.readU64();
+            undoDataBytes->readU64(); // version
+            uint64_t inputCount = undoDataBytes->readU64();
 
             for (uint64_t j = 0; j < inputCount; j++)
             {
                 TxInput input;
-                input.UTXOTxHash = undoDataBytes.readArray256();
-                input.UTXOOutputIndex = undoDataBytes.readU64();
+                input.UTXOTxHash = undoDataBytes->readArray256();
+                input.UTXOOutputIndex = undoDataBytes->readU64();
 
                 TxOutput utxo;
-                utxo.amount = undoDataBytes.readU64();
-                utxo.recipient = undoDataBytes.readArray256();
+                utxo.amount = undoDataBytes->readU64();
+                utxo.recipient = undoDataBytes->readArray256();
 
                 restores.emplace_back(input, utxo);
             }

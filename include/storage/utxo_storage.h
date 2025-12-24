@@ -5,12 +5,7 @@
 
 std::unique_ptr<rocksdb::DB> openUtxoDb();
 
-bool utxoExists(
-    rocksdb::DB& db,
-    const TxInput& input);
-
-bool tryGetUtxo(rocksdb::DB& db,
-    TxOutput& out,
+std::optional<TxOutput> tryGetUtxo(rocksdb::DB& db,
     const TxInput& input);
 
 // -------------------------------------------------
