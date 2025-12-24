@@ -4,7 +4,6 @@
 #include <sodium.h>
 #include <chrono>
 #include "storage/file_utils.h"
-#include "bytes_buffer.h"
 #include "parse_serialise.h"
 
 // ============================================================================
@@ -229,7 +228,6 @@ Array256_t addBlockWork(const Array256_t& a, const Array256_t& b)
     return result;
 }
 
-// Returns true if a > b
 bool isLessLE(const Array256_t& a, const Array256_t& b)
 {
     for (int i = 31; i >= 0; --i)

@@ -3,7 +3,7 @@
 #include "storage/file_utils.h"
 #include "storage/block/tip_block.h"
 
-#include "new_tip_verify.h"
+#include "verify.h"
 #include "storage/block/block_indexes.h"
 
 void setBlockchainTip(const Array256_t& newTip)

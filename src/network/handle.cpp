@@ -7,7 +7,7 @@
 #include "network/handle.h"
 #include <ranges>
 
-#include "new_tip_verify.h"
+#include "verify.h"
 #include "network/network_utils.h"
 #include "storage/file_utils.h"
 #include "storage/block/block_indexes.h"

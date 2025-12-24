@@ -1,7 +1,7 @@
 #include <sodium.h>
 #include "crypto_utils.h"
 #include <stdexcept>
-#include "new_tip_verify.h"
+#include "verify.h"
 #include <unordered_set>
 #include "storage/file_utils.h"
 #include "storage/utxo_storage.h"
@@ -33,12 +33,6 @@ namespace
     {
         return std::max(inputAmount / 100, static_cast<uint64_t>(1));
     }
-
-    // Maximum time drift allowed (10 minutes in seconds)
-    constexpr uint64_t MAX_TIME_DRIFT = 60 * 10;
-
-    // Block interval (10 minutes)
-    constexpr uint64_t BLOCK_INTERVAL = 60 * 10;
 
     uint64_t getBlockReward(const BlockHeader& blockHeader)
     {
@@ -159,11 +153,11 @@ bool verifyNewTipBlock(const Block& block)
 
     // Timestamp validations
     if (block.header.timestamp <= prevHeader.timestamp) return false;
-    if (block.header.timestamp > getCurrentTimestamp() + MAX_TIME_DRIFT) return false;
+    if (block.header.timestamp > getCurrentTimestamp() + (60 * 10)) return false;
 
     // Difficulty validation
     const uint64_t timeDelta = prevHeader.timestamp - prevTimestamp2;
-    if (timeDelta < BLOCK_INTERVAL)
+    if (timeDelta < 60 * 10)
     {
         if (block.header.difficulty != increaseDifficulty(prevHeader.difficulty)) return false;
     }
