@@ -16,3 +16,13 @@ BytesBuffer readWholeFile(const fs::path& filePath);
 
 std::ofstream openFileTruncWrite(const fs::path& path);
 
+BytesBuffer readBlockFileBytes(const Array256_t& blockHash);
+
+BytesBuffer readBlockFileHeaderBytes(const Array256_t& blockHash);
+
+bool blockExists(const Array256_t& blockHash);
+
+BlockHeader getBlockHeader(const Array256_t& blockHash);
+
+Block getBlock(const Array256_t& blockHash);
+

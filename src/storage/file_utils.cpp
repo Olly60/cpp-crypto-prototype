@@ -34,7 +34,7 @@ BytesBuffer readWholeFile(const fs::path& filePath)
 
     if (size > 0)
     {
-        file.read(buffer.cdata(), buffer.ssize());
+        file.read(buffer.cdata(), buffer.size());
         if (!file)
             throw std::runtime_error("Failed to read file: " + filePath.string());
     }

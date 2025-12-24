@@ -9,19 +9,6 @@
 #include "storage/block/block_utils.h"
 
 const fs::path TIP = "blockchain_tip";
-void setBlockchainTip(const Array256_t& newTip)
-{
-
-    // Open file
-    auto file = openFileTruncWrite(TIP);
-
-    // Tip buffer
-    BytesBuffer tipBuffer;
-    tipBuffer.writeArray256(newTip);
-
-    // Write new tip hash
-    file.write(tipBuffer.cdata(), tipBuffer.ssize());
-}
 
 Array256_t getTipHash()
 {
@@ -179,8 +166,8 @@ bool verifyNewTipBlock(const Block& block)
         // ---------------------------
         // Verify block header
         // ---------------------------
-        const auto prevHeader = parseBlock(readBlockFileHeaderBytes(getTipHash()));
-        const auto prevTimestamp2 = parseBlockHeader(readBlockFileHeaderBytes(prevHeader.prevBlockHash)).timestamp;
+        const auto prevHeader = getBlockHeader(getTipHash());
+        const auto prevTimestamp2 = getBlockHeader(prevHeader.prevBlockHash).timestamp;
         const Array256_t blockHash = getBlockHeaderHash(block.header);
 
         // Version check
@@ -274,13 +261,6 @@ bool verifyNewTipBlock(const Block& block)
         return true; // block is valid
     }
 
-//----------------------------------------
-// Helper functions for undo files
-//----------------------------------------
-
-//----------------------------------------
-// Block file paths
-//----------------------------------------
 namespace
 {
     const fs::path UNDO_PATH = "undo";
@@ -307,8 +287,8 @@ namespace
 void addNewTipBlock(const Block& block)
 {
     Array256_t blockHash = getBlockHeaderHash(block.header);
-    fs::path blockFilePath = BLOCKS_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
-    fs::path undoFilePath = UNDO_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
+    fs::path blockFilePath = getBlockFilePath(blockHash);
+    fs::path undoFilePath = getUndoFilePath(blockHash);
 
     auto utxoDb = openUtxoDb();
 
@@ -351,12 +331,12 @@ void addNewTipBlock(const Block& block)
     }
 
     // Write undo file
-    undoFile.write(undoData.cdata(), undoData.ssize());
+    undoFile.write(undoData.cdata(), undoData.size());
 
     // Write block file
     auto blockFile = openFileTruncWrite(blockFilePath);
     auto blockBytes = serialiseBlock(block);
-    blockFile.write(blockBytes.cdata(), blockBytes.ssize());
+    blockFile.write(blockBytes.cdata(), blockBytes.size());
 
     // Apply UTXO batch
     applyUtxoBatch(*utxoDb, spends, adds);
@@ -374,19 +354,23 @@ void addNewTipBlock(const Block& block)
     blockIndex.height = blockHeight;
     putBlockIndex(*blockIndexesDb, blockHash, blockIndex);
 
-    setBlockchainTip(blockHash);
+    // Open tip file
+    auto file = openFileTruncWrite(TIP);
+
+    // Write new tip hash
+    file.write(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
 }
 
 void undoNewTipBlock()
 {
     // Block file path
     Array256_t blockHash = getTipHash();
-    auto blockFilePath = BLOCKS_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());;
+    auto blockFilePath = getBlockFilePath(blockHash);
 
     // Undo file path
     BytesBuffer undoBuf;
     undoBuf.writeArray256(blockHash);
-    auto undoFilePath = UNDO_PATH / std::string(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
+    auto undoFilePath = getUndoFilePath(blockHash);
 
 
     Block block = parseBlock(readWholeFile(blockFilePath));
@@ -430,9 +414,6 @@ void undoNewTipBlock()
     // Apply batch UTXO changes
     applyUtxoBatch(*utxoDb, spends, restores);
 
-    // Update blockchain tip
-    setBlockchainTip(block.header.prevBlockHash);
-
     // Remove block and undo files
     fs::remove(blockFilePath);
     fs::remove(undoFilePath);
@@ -444,6 +425,12 @@ void undoNewTipBlock()
     // Remove block from indexes DB
     auto blockIndexesDb = openBlockIndexesDb();
     deleteBlockIndex(*blockIndexesDb, blockHash);
+
+    // Open tip file
+    auto file = openFileTruncWrite(TIP);
+
+    // Write new tip hash
+    file.write(reinterpret_cast<const char*>(block.header.prevBlockHash.data()), block.header.prevBlockHash.size());
 }
 
 

@@ -2,6 +2,7 @@
 #include <cstring>
 #include <span>
 #include "crypto_utils.h"
+
 struct BytesBuffer
 {
 private:
@@ -55,7 +56,6 @@ public:
     [[nodiscard]] const uint8_t* data() const { return data_.data(); }
     [[nodiscard]] uint8_t* data() { return data_.data(); }
     [[nodiscard]] uint64_t size() const { return static_cast<uint64_t>(data_.size()); }
-    [[nodiscard]] std::streamsize ssize() const {return static_cast<std::streamsize>(data_.size());}
     [[nodiscard]] const char* cdata() const { return reinterpret_cast<const char*>(data_.data()); }
     [[nodiscard]] char* cdata() { return reinterpret_cast<char*>(data_.data()); }
 
@@ -65,7 +65,6 @@ public:
     void reserve(size_t newCap) { data_.reserve(newCap); }
 
     [[nodiscard]] std::string toHex() const { return bytesToHex(*this); }
-    [[nodiscard]] std::string toString() const { return std::string(reinterpret_cast<const char*>(data()), size()); }
 
     // ------------------------------------------------------------
     // Fixed-width integers (explicit)
