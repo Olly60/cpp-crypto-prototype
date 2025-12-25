@@ -80,3 +80,5 @@ inline uint64_t generateLocalNonce()
 const uint64_t LOCAL_NONCE = generateLocalNonce();
 
 constexpr uint64_t RELAY = 0;
+
+void startNetwork();

@@ -164,7 +164,7 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
 
         // Find header amount from common ancestor to tip
         auto blockIndexesDb = openBlockIndexesDb();
-        uint64_t ancestorHeight = getBlockIndex(*blockIndexesDb, commonAncestor).height;
+        uint64_t ancestorHeight = tryGetBlockIndex(*blockIndexesDb, commonAncestor)->height;
 
         // Amount of headers peer is missing
         auto peerMissingAmount = getTipHeight() - ancestorHeight;
@@ -184,7 +184,6 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
     {
     }
 }
-
 
 asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 {
@@ -252,7 +251,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         BytesBuffer blockBytes(blockSize);
         co_await asio::async_read(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
 
-        auto block = parseBlock(blockBytes);
+        Block block = parseBlock(blockBytes);
 
         // New block doesnt match current tip -> take peers chain if better
         if (block.header.prevBlockHash != getTipHash())

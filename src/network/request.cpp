@@ -152,7 +152,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
         // Exponential hash collection (Ancestor -> Tip)
         for (uint64_t i = 1; i < tipHeight; i++) {
-            blockHashes.push_back(getHeightHash(*blockIndexesDb, i));
+            blockHashes.push_back(*tryGetHeightHash(*blockIndexesDb, i));
         }
 
         // Add tip block hash at the end
@@ -201,13 +201,8 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
     }
     catch (const std::exception&)
     {
-        co_return {};
+        co_return std::vector<BlockHeader>{};
     }
-}
-
-asio::awaitable<std::vector<Block>> requestBlocks(asio::ip::tcp::socket& socket, const std::vector<const Array256_t>& blockHashes)
-{
-    //TODO: make function
 }
 
 asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket)
@@ -273,6 +268,6 @@ asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket)
     }
     catch (const std::exception&)
     {
-        co_return {};
+        co_return std::vector<Tx>{};
     }
 }

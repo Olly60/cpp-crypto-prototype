@@ -4,6 +4,8 @@
 #include <rocksdb/options.h>
 #include <array>
 #include <string>
+
+#include "tip.h"
 #include "storage/file_utils.h"
 
 namespace
@@ -31,6 +33,7 @@ namespace
 }
 
 const std::filesystem::path BLOCK_HEIGHTS = "block_heights";
+
 std::unique_ptr<rocksdb::DB> openHeightsDb()
 {
     rocksdb::Options options;
@@ -51,39 +54,86 @@ std::unique_ptr<rocksdb::DB> openHeightsDb()
     return std::unique_ptr<rocksdb::DB>(raw);
 }
 
-// Put block hash by height
-void putHeightHash(rocksdb::DB& db, const uint64_t height, const Array256_t& hash)
+std::optional<Array256_t>
+tryGetHeightHash(rocksdb::DB& db, uint64_t height)
 {
-    if (!db.Put(rocksdb::WriteOptions(),
-                rocksdb::Slice(makeHeightKey(height)),
-                rocksdb::Slice(makeHashValue(hash)))
-           .ok())
-    {
-        throw std::runtime_error("Failed to put height hash");
-    }
-}
-
-
-// Delete block by height
-void deleteHeightHash(rocksdb::DB& db, const uint64_t height)
-{
-    if (!db.Delete(rocksdb::WriteOptions(), rocksdb::Slice(makeHeightKey(height))).ok())
-    {
-        throw std::runtime_error("Failed to delete height hash");
-    }
-}
-
-
-// Get block hash by height
-Array256_t getHeightHash(rocksdb::DB& db, const uint64_t height)
-{
+    const std::string key = makeHeightKey(height);
     std::string value;
-    if (!db.Get(rocksdb::ReadOptions(),
-                rocksdb::Slice(makeHeightKey(height)),
-                &value)
-           .ok())
-    {
-        throw std::runtime_error("UTXO not found");
-    }
+
+    auto status = db.Get(
+        rocksdb::ReadOptions(),
+        key,
+        &value
+    );
+
+    if (status.IsNotFound())
+        return std::nullopt;
+
+    if (!status.ok())
+        throw std::runtime_error(
+            "Height-hash read failed: " + status.ToString()
+        );
+
     return parseHashValue(value);
 }
+
+
+
+void putHeightHashBatch(
+    rocksdb::DB& db,
+    const std::vector<Array256_t>& hashes)
+{
+    rocksdb::WriteBatch batch;
+
+    // Cache tip and pre-build all keys and values to ensure lifetime
+    const uint64_t tip = getTipHeight();
+    std::vector<std::string> keys;
+    std::vector<std::string> values;
+    keys.reserve(hashes.size());
+    values.reserve(hashes.size());
+
+    for (size_t i = 0; i < hashes.size(); ++i)
+    {
+        keys.push_back(makeHeightKey(tip + i + 1));
+        values.push_back(makeHashValue(hashes[i]));
+    }
+
+    for (size_t i = 0; i < keys.size(); ++i)
+        batch.Put(keys[i], values[i]);
+
+    rocksdb::WriteOptions wo;
+    wo.sync = false;
+
+    auto status = db.Write(wo, &batch);
+    if (!status.ok())
+        throw std::runtime_error("Height-hash batch write failed: " + status.ToString());
+}
+
+
+void deleteHeightHashBatch(rocksdb::DB& db, uint64_t amount)
+{
+    const uint64_t tip = getTipHeight();
+    if (amount > tip + 1)
+        throw std::runtime_error("Count exceeds chain height");
+
+    rocksdb::WriteBatch batch;
+
+    // Pre-build keys to ensure lifetime
+    std::vector<std::string> keys;
+    keys.reserve(amount);
+    for (uint64_t i = 0; i < amount; ++i)
+        keys.push_back(makeHeightKey(tip - i));
+
+    for (const auto& key : keys)
+        batch.Delete(key);
+
+    rocksdb::WriteOptions wo;
+    wo.sync = false;
+
+    auto status = db.Write(wo, &batch);
+    if (!status.ok())
+        throw std::runtime_error("Height-hash batch delete failed: " + status.ToString());
+}
+
+
+

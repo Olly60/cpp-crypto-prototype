@@ -61,35 +61,96 @@ std::unique_ptr<rocksdb::DB> openBlockIndexesDb()
 }
 
 // Put block index
-void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValue& value)
+void putBlockIndexBatch(
+    rocksdb::DB& db,
+    const std::vector<Array256_t>& hashes,
+    const std::vector<BlockIndexValue>& values)
 {
-    const rocksdb::Status s = db.Put(rocksdb::WriteOptions(),
-                               rocksdb::Slice(makeHashKey(hash)),
-                               rocksdb::Slice(makeIndexValue(value)));
-    if (!s.ok()) {
-        throw std::runtime_error("Failed to put block index: " + s.ToString());
+    if (hashes.size() != values.size())
+        throw std::runtime_error("hash/value size mismatch");
+
+    rocksdb::WriteBatch batch;
+
+    // Keys and values must outlive db.Write()
+    std::vector<std::string> keys;
+    std::vector<std::string> vals;
+    keys.reserve(hashes.size());
+    vals.reserve(values.size());
+
+    for (size_t i = 0; i < hashes.size(); ++i)
+    {
+        keys.push_back(makeHashKey(hashes[i]));
+        vals.push_back(makeIndexValue(values[i]));
     }
+
+    for (size_t i = 0; i < keys.size(); ++i)
+        batch.Put(keys[i], vals[i]);
+
+    rocksdb::WriteOptions wo;
+    wo.sync = false;
+
+    const auto s = db.Write(wo, &batch);
+    if (!s.ok())
+        throw std::runtime_error(
+            "Batch put block index failed: " + s.ToString()
+        );
 }
+
 
 // Delete block index
-void deleteBlockIndex(rocksdb::DB& db, const Array256_t& hash)
+void batchDeleteBlockIndex(
+    rocksdb::DB& db,
+    const std::vector<Array256_t>& hashes)
 {
-    if (const rocksdb::Status s = db.Delete(rocksdb::WriteOptions(), rocksdb::Slice(makeHashKey(hash))); !s.ok()) {
-        throw std::runtime_error("Failed to delete block index: " + s.ToString());
-    }
+    rocksdb::WriteBatch batch;
+
+    // Keys must outlive db.Write()
+    std::vector<std::string> keys;
+    keys.reserve(hashes.size());
+
+    for (const auto& hash : hashes)
+        keys.push_back(makeHashKey(hash));
+
+    for (const auto& key : keys)
+        batch.Delete(key);
+
+    rocksdb::WriteOptions wo;
+    wo.sync = false;
+
+    const auto s = db.Write(wo, &batch);
+    if (!s.ok())
+        throw std::runtime_error(
+            "Batch delete block index failed: " + s.ToString()
+        );
 }
 
+
+
 // Get block index
-BlockIndexValue getBlockIndex(rocksdb::DB& db, const Array256_t& hash)
+std::optional<BlockIndexValue>
+tryGetBlockIndex(rocksdb::DB& db, const Array256_t& hash)
 {
+    const std::string key = makeHashKey(hash);
     std::string value;
-    const rocksdb::Status s = db.Get(rocksdb::ReadOptions(),
-                               rocksdb::Slice(makeHashKey(hash)),
-                               &value);
-    if (!s.ok()) {
-        throw std::runtime_error("Block index not found: " + s.ToString());
-    }
+
+    auto s = db.Get(
+        rocksdb::ReadOptions(),
+        key,
+        &value
+    );
+
+    if (s.IsNotFound())
+        return std::nullopt;
+
+    if (!s.ok())
+        throw std::runtime_error(
+            "Block index read failed: " + s.ToString()
+        );
+
     return parseIndexValue(value);
 }
+
+
+
 
 

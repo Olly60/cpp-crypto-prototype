@@ -122,7 +122,7 @@ void addNewTipBlock(const Block& block)
     uint64_t blockHeight = getBlockIndex(*heightsDb, getTipHash()).height + 1;
     auto blockWork = getBlockWork(block.header.difficulty);
 
-    putHeightHash(*heightsDb, blockHeight, blockHash);
+    putHeightHashBatch(*heightsDb, {blockHash});
 
     auto blockIndexesDb = openBlockIndexesDb();
     BlockIndexValue blockIndex;
@@ -193,7 +193,7 @@ void undoNewTipBlock()
 
     // Remove block from heights DB
     auto heightsDb = openHeightsDb();
-    deleteHeightHash(*heightsDb, getBlockIndex(*heightsDb, blockHash).height);
+    deleteHeightHashBatch(*heightsDb, 1);
 
     // Remove block from indexes DB
     auto blockIndexesDb = openBlockIndexesDb();

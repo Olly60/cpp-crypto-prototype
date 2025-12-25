@@ -4,11 +4,12 @@
 
 std::unique_ptr<rocksdb::DB> openHeightsDb();
 
-// Put block hash by height
-void putHeightHash(rocksdb::DB& db, uint64_t height, const Array256_t& hash);
+std::optional<Array256_t> tryGetHeightHash(rocksdb::DB& db,
+    uint64_t height);
 
-// Delete block by height
-void deleteHeightHash(rocksdb::DB& db, uint64_t height);
+void putHeightHashBatch(
+    rocksdb::DB& db,
+    const std::vector<Array256_t>& hashes);
 
-// Get block hash by height
-Array256_t getHeightHash(rocksdb::DB& db, uint64_t height);
+void deleteHeightHashBatch(  rocksdb::DB& db,
+    uint64_t amount);

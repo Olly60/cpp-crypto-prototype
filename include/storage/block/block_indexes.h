@@ -10,10 +10,16 @@ struct BlockIndexValue {
 
 std::unique_ptr<rocksdb::DB> openBlockIndexesDb();
 
-void putBlockIndex(rocksdb::DB& db, const Array256_t& hash, const BlockIndexValue& value);
+void putBlockIndexBatch(
+    rocksdb::DB& db,
+    const std::vector<Array256_t>& hashes,
+    const std::vector<BlockIndexValue>& values);
 
+// Delete block index
+void batchDeleteBlockIndex(
+    rocksdb::DB& db,
+    const std::vector<Array256_t>& hashes);
 
-void deleteBlockIndex(rocksdb::DB& db, const Array256_t& hash);
-
-
-BlockIndexValue getBlockIndex(rocksdb::DB& db, const Array256_t& hash);
+// Get block index
+std::optional<BlockIndexValue>
+tryGetBlockIndex(rocksdb::DB& db, const Array256_t& hash);

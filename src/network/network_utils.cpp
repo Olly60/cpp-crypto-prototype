@@ -88,6 +88,7 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
     try
     {
         //TODO: make function
+        
 
         // if work they claim > then verify else ignore
         //

@@ -70,20 +70,28 @@ std::unique_ptr<rocksdb::DB> openUtxoDb()
     return std::unique_ptr<rocksdb::DB>(raw);
 }
 
-std::optional<TxOutput> tryGetUtxo(rocksdb::DB& db,
-    const TxInput& input)
+std::optional<TxOutput>
+tryGetUtxo(rocksdb::DB& db, const TxInput& input)
 {
+    const std::string key = makeUtxoKey(input.UTXOTxHash, input.UTXOOutputIndex);
     std::string value;
+
     auto status = db.Get(
         rocksdb::ReadOptions(),
-        slice(makeUtxoKey(input.UTXOTxHash, input.UTXOOutputIndex)),
+        key,
         &value
     );
 
-    if (!status.ok()) return std::nullopt;
+    if (status.IsNotFound())
+        return std::nullopt;
+
+    if (!status.ok())
+        throw std::runtime_error("UTXO read failed: " + status.ToString());
 
     return parseUtxoValue(value);
 }
+
+
 
 // -------------------------------------------------
 // Atomic block-level UTXO updates
@@ -96,27 +104,36 @@ void applyUtxoBatch(
 {
     rocksdb::WriteBatch batch;
 
-    // Spend inputs
-    for (const TxInput& in : spends)
-    {
-        batch.Delete(
-            makeUtxoKey(in.UTXOTxHash, in.UTXOOutputIndex)
-        );
-    }
+    // Pre-build keys and values to ensure lifetime
+    std::vector<std::string> spendKeys;
+    spendKeys.reserve(spends.size());
+    for (const auto& in : spends)
+        spendKeys.push_back(makeUtxoKey(in.UTXOTxHash, in.UTXOOutputIndex));
 
-    // Add outputs
+    std::vector<std::string> addKeys;
+    std::vector<std::string> addValues;
+    addKeys.reserve(adds.size());
+    addValues.reserve(adds.size());
+
     for (const auto& [in, out] : adds)
     {
-        batch.Put(
-            makeUtxoKey(in.UTXOTxHash, in.UTXOOutputIndex),
-            makeUtxoValue(out)
-        );
+        addKeys.push_back(makeUtxoKey(in.UTXOTxHash, in.UTXOOutputIndex));
+        addValues.push_back(makeUtxoValue(out));
     }
+
+    // Apply deletes
+    for (const auto& key : spendKeys)
+        batch.Delete(key);
+
+    // Apply adds
+    for (size_t i = 0; i < addKeys.size(); ++i)
+        batch.Put(addKeys[i], addValues[i]);
 
     rocksdb::WriteOptions wo;
     wo.sync = false;
 
     auto status = db.Write(wo, &batch);
     if (!status.ok())
-        throw std::runtime_error("UTXO batch write failed");
+        throw std::runtime_error("UTXO batch write failed: " + status.ToString());
 }
+

@@ -3,7 +3,14 @@
 #include <string>
 #include <array>
 #include <fstream>
+#include <asio/co_spawn.hpp>
+#include <asio/detached.hpp>
+#include <asio/ip/tcp.hpp>
+
 #include "crypto_utils.h"
+#include "genesis_block.h"
+#include "network/network_main.h"
+#include "storage/peers.h"
 
 // ============================================================================
 // FILE INCOMPLETE
@@ -44,10 +51,6 @@ int main()
 
 int main()
 {
-    asio::io_context ioContext;
-    asio::ip::tcp::acceptor acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), 50000));
-    co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
-    ioContext.run();
-
-    storePeers(peers);
+    initGenesisBlock();
+    startNetwork();
 }
