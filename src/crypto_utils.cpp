@@ -134,36 +134,39 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
 // SIGNING
 // ============================================================================
 
-Array256_t computeTxHash(const Tx& tx)
+Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex)
 {
     BytesBuffer buf;
     buf.reserve(tx.txInputs.size() * 40 + tx.txOutputs.size() * 40 + 16);
 
-    // Version
     buf.writeU64(tx.version);
 
-    // Input amount
+    // Inputs
     buf.writeU64(tx.txInputs.size());
+    for (size_t i = 0; i < tx.txInputs.size(); ++i)
+    {
+        const auto& input = tx.txInputs[i];
+        buf.writeArray256(input.UTXOTxHash);
+        buf.writeU64(input.UTXOOutputIndex);
 
-        // Inputs
-    for (const auto& [UTXOTxHash, UTXOOutputIndex, Signature] : tx.txInputs) {
-        buf.writeArray256(UTXOTxHash);
-        buf.writeU64(UTXOOutputIndex);
+        // Add the input index only for the input being signed
+        if (i == inputIndex)
+            buf.writeU64(i);
     }
 
-        // Output amount
-        buf.writeU64(tx.txOutputs.size());
-
-        // Outputs
-        for (const auto & [amount, recipient] : tx.txOutputs)
-        {
-            buf.writeU64(amount);
-            buf.writeArray256(recipient);
-        }
-
-        // Final message hash
-        return sha256Of(buf);
+    // Outputs
+    buf.writeU64(tx.txOutputs.size());
+    for (const auto& [amount, recipient] : tx.txOutputs)
+    {
+        buf.writeU64(amount);
+        buf.writeArray256(recipient);
     }
+
+    return sha256Of(buf);
+}
+
+
+
 
 Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 {
@@ -171,16 +174,17 @@ Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
 
     for (size_t i = 0; i < signedTx.txInputs.size(); i++)
     {
-        Array256_t hash = computeTxHash(signedTx); // Sign hash for this input
+        Array256_t hash = computeTxSignHash(signedTx, i); // input-specific hash
 
         Array512_t sig;
         crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), privKeySeed.data());
 
-        signedTx.txInputs[i].signature = sig; // each input gets its own signature
+        signedTx.txInputs[i].signature = sig; // assign signature
     }
 
     return signedTx;
 }
+
 
 // ============================================================================
 // BLOCK WORK

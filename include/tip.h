@@ -19,3 +19,7 @@ bool verifyNewTipBlock(const Block& block);
 void addNewTipBlock(const Block& block);
 
 void undoNewTipBlock(const Block& block);
+
+Block getTipBlock();
+
+BlockHeader getTipHeader();

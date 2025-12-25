@@ -49,12 +49,12 @@ struct VerifyTxContext
 
 struct VerifyBlockContext
 {
-    VerifyBlockHeaderContext& headerOptions;
-    VerifyTxContext& txOptions;
+    VerifyBlockHeaderContext headerCtx{};
+    VerifyTxContext txCtx{};
 };
 
-bool verifyTx(const Tx& tx, VerifyTxContext& ctx);
+bool verifyTx(const Tx& tx, VerifyTxContext ctx);
 
 bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx);
 
-bool verifyBlock(const Block& block, const VerifyBlockOptions& options);
+bool verifyBlock(const Block& block, VerifyBlockContext options);

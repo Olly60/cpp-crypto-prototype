@@ -11,23 +11,23 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx = {})
     uint64_t totalInputAmount = 0;
     uint64_t totalOutputAmount = 0;
 
-    for (const auto& txInput : tx.txInputs)
+    for (uint64_t i = 0; i < tx.txInputs.size(); ++i)
     {
-        auto utxo = tryGetUtxo(*utxoDb, txInput);
+        auto utxo = tryGetUtxo(*utxoDb, tx.txInputs[i]);
 
         if (ctx.includeUtxos)
         {
-            if (!utxo || !ctx.includeUtxos->contains(txInput)) return false;
+            if (!utxo || !ctx.includeUtxos->contains(tx.txInputs[i])) return false;
         } else
         {
             if (!utxo) return false;
         }
 
 
-        Array256_t hash = computeTxHash(tx);
+        Array256_t hash = computeTxHash(tx, i);
 
         if (crypto_sign_verify_detached(
-                txInput.signature.data(),
+                tx.txInputs[i].signature.data(),
                 hash.data(),
                 hash.size(),
                 utxo->recipient.data()) != 0)
@@ -39,7 +39,7 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx = {})
         // Double spend
         if (ctx.seenUtxos)
         {
-            if (!ctx.seenUtxos->insert(txInput).second)
+            if (!ctx.seenUtxos->insert(tx.txInputs[i]).second)
                 return false;
         }
 
@@ -53,11 +53,9 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx = {})
     }
 
     uint64_t txFee = std::max(totalInputAmount / 100, uint64_t(1));
-    if (totalOutputAmount > totalInputAmount - txFee)
-        return false;
+    if (totalOutputAmount > totalInputAmount - txFee) return false;
 
-    if (ctx.totalFees)
-        *ctx.totalFees += txFee;
+    if (ctx.totalFees) *ctx.totalFees += txFee;
 
     return true;
 }
@@ -108,26 +106,38 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
     return true;
 }
 
+uint64_t getBlockSubsidy(uint64_t height)
+{
+    uint64_t halvings = height / 210000;
+    if (halvings >= 64) return 0;
 
-bool verifyBlock(const Block& block, const VerifyBlockOptions& options)
+    return 5000000000ULL >> halvings;
+}
+
+bool verifyBlock(const Block& block, VerifyBlockContext ctx = {})
 {
     // ---------------------------
     // Verify block header
     // ---------------------------
-    if (!verifyBlockHeader(block.header, options)) return false;
+    if (!verifyBlockHeader(block.header, ctx.headerCtx))
+        return false;
 
-    // Merkle root validation
-    if (block.header.merkleRoot != getMerkleRoot(block.txs)) return false;
+    // Merkle root check
+    if (block.header.merkleRoot != getMerkleRoot(block.txs))
+        return false;
 
     // ---------------------------
     // Verify transactions
     // ---------------------------
-
     uint64_t totalFees = 0;
+
+    // Ensure tx verification can accumulate fees
+    ctx.txCtx.totalFees = &totalFees;
 
     for (size_t i = 1; i < block.txs.size(); ++i) // skip coinbase
     {
-        verifyTx(block.txs[i], options.txOptions);
+        if (!verifyTx(block.txs[i], ctx.txCtx))
+            return false;
     }
 
     // ---------------------------
@@ -135,15 +145,22 @@ bool verifyBlock(const Block& block, const VerifyBlockOptions& options)
     // ---------------------------
     const Tx& coinbaseTx = block.txs[0];
 
-    if (!coinbaseTx.txInputs.empty()) return false;
-    if (coinbaseTx.txOutputs.empty()) return false;
+    if (!coinbaseTx.txInputs.empty())
+        return false;
 
-    uint64_t expectedReward = 5000000000 / ((getTipHeight() + 1) % 210000) + totalFees;
+    if (coinbaseTx.txOutputs.empty())
+        return false;
+
+    uint64_t expectedReward =
+        getBlockSubsidy(getTipHeight() + 1) + totalFees;
 
     uint64_t coinbaseAmount = 0;
-    for (const TxOutput& output : coinbaseTx.txOutputs) coinbaseAmount += output.amount;
+    for (const TxOutput& output : coinbaseTx.txOutputs)
+        coinbaseAmount += output.amount;
 
-    if (coinbaseAmount != expectedReward) return false;
+    if (coinbaseAmount != expectedReward)
+        return false;
 
-    return true; // block is valid
+    return true;
 }
+

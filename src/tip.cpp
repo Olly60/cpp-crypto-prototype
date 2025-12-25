@@ -57,18 +57,6 @@ BlockHeader getTipHeader()
     return *getBlockHeader(getTipHash());
 }
 
-bool verifyNewMempoolTx(const Tx& tx)
-{
-    verifyTx(tx);
-}
-
-bool verifyNewTipBlock(const Block& block)
-{
-
-    getTipHeader();
-    getBlockHeader(getTipHeader().prevBlockHash)->timestamp;
-}
-
 //----------------------------------------
 // Add and undo blocks
 //----------------------------------------
