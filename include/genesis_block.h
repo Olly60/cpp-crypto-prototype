@@ -1,35 +1,11 @@
 #pragma once
 #include "crypto_utils.h"
 
-// Genesis block
-inline Block getGenesisBlock()
-{
-    // Genesis transaction
-    TxOutput genesisOutput{
-        5000000000, // amount
-    };
+Block getGenesisBlock();
 
-    Tx genesisTx{
-        1, // version
-        {}, // no inputs
-        {genesisOutput}
-    };
+Array256_t getGenesisBlockHash();
 
-    // Genesis block
-    BlockHeader header;
-    header.merkleRoot = getTxHash(genesisTx);
+void initGenesisBlock();
 
-    Block genesisBlock{
-        header,
-        {genesisTx}
-    };
-
-    return genesisBlock;
-}
-
-inline Array256_t getGenesisBlockHash()
-{
-    return getBlockHeaderHash(getGenesisBlock().header);
-}
 
 

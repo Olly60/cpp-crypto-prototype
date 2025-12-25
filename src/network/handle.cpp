@@ -3,7 +3,7 @@
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
 #include "network/network_main.h"
-#include "blockchain.h"
+#include "tip.h"
 #include "network/handle.h"
 #include <ranges>
 #include "network/network_utils.h"

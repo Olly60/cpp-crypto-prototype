@@ -5,7 +5,7 @@
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "storage/peers.h"
-#include "../../include/blockchain.h"
+#include "../../include/tip.h"
 
 // ============================================
 // Handshake Helpers
