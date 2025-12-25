@@ -45,11 +45,8 @@ int main()
 int main()
 {
     asio::io_context ioContext;
-    asio::ip::tcp::acceptor acceptor(ioContext,
-                                     asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 12345));
-
+    asio::ip::tcp::acceptor acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), 50000));
     co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
-
     ioContext.run();
 
     storePeers(peers);
