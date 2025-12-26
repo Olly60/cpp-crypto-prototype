@@ -48,7 +48,7 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
 
         addPeerToMemory(socket, theirHandshake);
     }
-    catch (const std::exception&)
+    catch (...)
     {
     }
 }
@@ -60,8 +60,26 @@ asio::awaitable<void> requestPing(asio::ip::tcp::socket& socket)
         // Send message type
         auto msgType = static_cast<uint8_t>(ProtocolMessage::Ping);
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+
+        // Read pong
+        uint8_t pong;
+        co_await asio::async_read(socket, asio::buffer(&pong, 1), asio::use_awaitable);
+
+        PeerAddress peerAdr;
+        peerAdr.address = socket.remote_endpoint().address().to_string();
+        peerAdr.port = socket.remote_endpoint().port();
+
+        // Update last seen if valid
+        if (pong == 0x01)
+        {
+            peers[peerAdr].lastSeen = getCurrentTimestamp();
+        } else if (pong == 0x00) // Else remove from peers
+        {
+            peers.erase(peerAdr);
+        }
+
     }
-    catch (const std::exception&)
+    catch (...)
     {
     }
 }
@@ -94,7 +112,7 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
 
         co_return parseBlockHeader(headerBytes);
     }
-    catch (const std::exception&)
+    catch (...)
     {
         co_return std::nullopt; // treat any failure as "unavailable"
     }
@@ -196,7 +214,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
         co_return headers;
     }
-    catch (const std::exception&)
+    catch (...)
     {
         co_return std::vector<BlockHeader>{};
     }
@@ -263,7 +281,7 @@ asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket)
         co_return txs;
 
     }
-    catch (const std::exception&)
+    catch (...)
     {
         co_return std::vector<Tx>{};
     }

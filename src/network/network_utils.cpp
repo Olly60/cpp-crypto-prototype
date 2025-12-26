@@ -90,8 +90,6 @@ void addPeerToMemory(const asio::ip::tcp::socket& socket, const Handshake& hs)
 
 asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
 {
-    try
-    {
         auto headers = co_await requestHeaders(socket);
 
         // Headers empty
@@ -219,10 +217,7 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         }
 
     }
-    catch (const std::exception&)
-    {
-    }
-}
+
 
 // ============================================
 // Read/Write uint64_t helpers
@@ -246,10 +241,22 @@ asio::awaitable<uint64_t> readU64Tcp(asio::ip::tcp::socket& socket)
 // Broadcast
 // ============================================
 
-asio::awaitable<void> BroadcastNewTx(asio::ip::tcp::socket& socket, const Tx& tx)
+asio::awaitable<void> BroadcastNewTx(asio::io_context asioCtx,const Tx& tx)
 {
-    try
-    {
+        //TODO: finish making
+        for (const auto& [addr, port] : peers)
+        {
+            asio::ip::tcp::socket socket(co_await asio::this_coro::executor);
+
+            try {
+                asio::ip::tcp::endpoint ep(
+                    asio::ip::make_address(addr.ip), addr.port);
+
+                co_await socket.async_connect(ep, asio::use_awaitable);
+
+                co_await asio::async_write(socket, asio::buffer(message), asio::use_awaitable);
+            } catch (const std::exception&) { }
+        }
         // Send message type
         auto msgType = static_cast<uint8_t>(ProtocolMessage::BroadcastNewTx);
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -263,17 +270,11 @@ asio::awaitable<void> BroadcastNewTx(asio::ip::tcp::socket& socket, const Tx& tx
 
         // Send transaction
         co_await asio::async_write(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
-
-    }
-    catch (const std::exception&)
-    {
-    }
 }
 
-asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket, const Block& block)
+asio::awaitable<void> BroadcastNewBlock(const Block& block)
 {
-    try
-    {
+        //TODO: finish making
         // Send message type
         auto msgType = ProtocolMessage::BroadcastNewBlock;
         co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -284,9 +285,4 @@ asio::awaitable<void> BroadcastNewBlock(asio::ip::tcp::socket& socket, const Blo
 
         // Send block
         co_await asio::async_write(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
-
-    }
-    catch (const std::exception&)
-    {
-    }
 }
