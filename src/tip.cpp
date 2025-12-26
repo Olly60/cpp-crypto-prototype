@@ -10,24 +10,6 @@
 #include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
 
-const std::filesystem::path TIP = "blockchain_tip";
-const std::filesystem::path BLOCKS_PATH = "blocks";
-const std::filesystem::path UNDO_PATH = "undo";
-
-std::filesystem::path getBlockFilePath(const Array256_t& blockHash)
-{
-    BytesBuffer hashBuf;
-    hashBuf.writeArray256(blockHash);
-    return BLOCKS_PATH / (bytesToHex(hashBuf) + ".block");
-}
-
-std::filesystem::path getUndoFilePath(const Array256_t& blockHash)
-{
-    BytesBuffer hashBuf;
-    hashBuf.writeArray256(blockHash);
-    return UNDO_PATH / (bytesToHex(hashBuf) + ".undo");
-}
-
 Array256_t getTipHash()
 {
     auto hash = readFile(TIP);
@@ -37,13 +19,13 @@ Array256_t getTipHash()
 uint64_t getTipHeight()
 {
     auto blockIndexesDb = openBlockIndexesDb();
-    return getBlockIndex(*blockIndexesDb, getTipHash()).height;
+    return tryGetBlockIndex(*blockIndexesDb, getTipHash())->height;
 }
 
 Array256_t getTipChainWork()
 {
     auto blockIndexesDb = openBlockIndexesDb();
-    return getBlockIndex(*blockIndexesDb, getTipHash()).chainWork;
+    return tryGetBlockIndex(*blockIndexesDb, getTipHash())->chainWork;
 
 }
 
@@ -119,7 +101,7 @@ void addNewTipBlock(const Block& block)
     // Update block height and chain work
     auto heightsDb = openHeightsDb();
 
-    uint64_t blockHeight = getBlockIndex(*heightsDb, getTipHash()).height + 1;
+    uint64_t blockHeight = getTipHeight() + 1;
     auto blockWork = getBlockWork(block.header.difficulty);
 
     putHeightHashBatch(*heightsDb, {blockHash});
@@ -128,7 +110,7 @@ void addNewTipBlock(const Block& block)
     BlockIndexValue blockIndex;
     blockIndex.chainWork = addBlockWorkLe(getTipChainWork(), blockWork);
     blockIndex.height = blockHeight;
-    putBlockIndex(*blockIndexesDb, blockHash, blockIndex);
+    putBlockIndexBatch(*blockIndexesDb, {blockHash}, {blockIndex});
 
     // Open tip file
     auto file = openFileTruncWrite(TIP);
@@ -197,7 +179,7 @@ void undoNewTipBlock()
 
     // Remove block from indexes DB
     auto blockIndexesDb = openBlockIndexesDb();
-    deleteBlockIndex(*blockIndexesDb, blockHash);
+    batchDeleteBlockIndex(*blockIndexesDb, {blockHash});
 
     // Open tip file
     auto file = openFileTruncWrite(TIP);

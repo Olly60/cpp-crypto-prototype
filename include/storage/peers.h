@@ -1,7 +1,10 @@
 #pragma once
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <unordered_map>
+
+const std::filesystem::path PEERS = "peers";
 
 struct PeerAddress
 {

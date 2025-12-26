@@ -1,8 +1,6 @@
 #include "storage/peers.h"
 #include "storage/storage_utils.h"
 
-const std::filesystem::path PEERS = "peers";
-
 void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash>& peers)
 {
 
@@ -35,7 +33,7 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
         peersFileBytes.writeU64(peerStatus.lastSeen);
     }
 
-    peersFile.write(peersFileBytes.cdata(), peersFileBytes.size());
+    writeAll(peersFile, peersFileBytes);
 }
 
 std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
@@ -47,9 +45,10 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
 
     std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
     auto peersFileBytes = readFile(PEERS);
+    if (!peersFileBytes) return peers;
 
     // Read peer count
-    uint64_t peersCount = peersFileBytes.readU64();
+    uint64_t peersCount = peersFileBytes->readU16();
 
     // Read each peer
     for (uint64_t i = 0; i < peersCount; i++)
@@ -58,16 +57,16 @@ std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
         PeerStatus peerStatus;
 
         // Read address string
-        peerAddr.address = peersFileBytes.readString();
+        peerAddr.address = peersFileBytes->readString();
 
         // Read port
-        peerAddr.port = peersFileBytes.readU16();
+        peerAddr.port = peersFileBytes->readU16();
 
         // Read services
-        peerStatus.services = peersFileBytes.readU64();
+        peerStatus.services = peersFileBytes->readU64();
 
         // Read last seen
-        peerStatus.lastSeen = peersFileBytes.readU64();
+        peerStatus.lastSeen = peersFileBytes->readU64();
 
         peers.insert({peerAddr, peerStatus});
     }

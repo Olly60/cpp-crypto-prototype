@@ -8,6 +8,7 @@
 #include "tip.h"
 #include "network/request.h"
 #include "verify.h"
+#include "storage/storage_utils.h"
 #include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
 
@@ -99,15 +100,16 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
         if (!commonAncestorHeader) co_return; // common ancestor doesnt exist
 
-        // Compare block work
-
         // Get that new chain block work
         auto blockIndexesDb = openBlockIndexesDb();
         auto peerChainwork = tryGetBlockIndex(*blockIndexesDb, commonAncestorHeader->difficulty)->chainWork;
 
+        std::vector<Array256_t> blockHashes;
+        blockHashes.reserve(headers.size());
         for (const auto& header : headers)
         {
             peerChainwork = addBlockWorkLe(peerChainwork, getBlockWork(header.difficulty));
+            blockHashes.push_back(getBlockHeaderHash(header));
         }
 
         // Chainwork is lower
@@ -136,6 +138,35 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
             if (!verifyBlockHeader(headers[i])) co_return;
         }
 
+        std::filesystem::path tmpBlocksPath = "tmp_blockchain";
+        auto getTmpBlockPath = [&tmpBlocksPath](const Array256_t& hash) -> std::filesystem::path
+        {
+            BytesBuffer hashBuf;
+            hashBuf.writeArray256(hash);
+            return tmpBlocksPath / (bytesToHex(hashBuf) + ".block");
+        };
+
+        // Store blocks
+
+        for (auto& hash : blockHashes)
+        {
+            // Read block
+            auto block = co_await requestBlock(socket, hash);
+            if (!block) co_return; // Peer doesnt have block
+
+            // Write block file
+            auto tmpBlockFile = openFileTruncWrite(getTmpBlockPath(hash));
+            auto serialisedBlock = serialiseBlock(*block);
+            tmpBlockFile.write(serialisedBlock.cdata(), serialisedBlock.size());
+
+        }
+
+        // Verify blocks
+        for (auto& hash : blockHashes)
+        {
+            readFile(getTmpBlockPath(hash));
+
+        }
 
 
         

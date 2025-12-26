@@ -5,7 +5,7 @@
 #include "storage/utxo_storage.h"
 #include "storage/block/block_utils.h"
 
-bool verifyTx(const Tx& tx, VerifyTxContext ctx = {})
+bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 {
     auto utxoDb = openUtxoDb();
     uint64_t totalInputAmount = 0;
@@ -18,6 +18,8 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx = {})
         if (ctx.includeUtxos)
         {
             if (!utxo || !ctx.includeUtxos->contains(tx.txInputs[i])) return false;
+
+            ctx.includeUtxos->erase(tx.txInputs[i]);
         } else
         {
             if (!utxo) return false;
@@ -60,7 +62,7 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx = {})
     return true;
 }
 
-bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx = {})
+bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
 {
     // Resolve defaults
     const BlockHeader& prevHeader =
@@ -111,7 +113,7 @@ uint64_t getBlockSubsidy(uint64_t height)
     return 5000000000ULL >> halvings;
 }
 
-bool verifyBlock(const Block& block, VerifyBlockContext ctx = {})
+bool verifyBlock(const Block& block, VerifyBlockContext ctx)
 {
     // ---------------------------
     // Verify block header

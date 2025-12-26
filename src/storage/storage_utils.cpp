@@ -67,4 +67,15 @@ std::ofstream openFileTruncWrite(const std::filesystem::path& path)
     return file;
 }
 
+void writeAll(std::ostream& os, const BytesBuffer& buf)
+{
+    os.write(
+        reinterpret_cast<const char*>(buf.data()),
+        static_cast<std::streamsize>(buf.size())
+    );
+
+    if (!os) {
+        throw std::runtime_error("write failed");
+    }
+}
 

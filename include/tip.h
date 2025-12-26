@@ -1,6 +1,9 @@
 #pragma once
 #include <filesystem>
 #include "crypto_utils.h"
+const std::filesystem::path TIP = "blockchain_tip";
+const std::filesystem::path BLOCKS_PATH = "blocks";
+const std::filesystem::path UNDO_PATH = "undo";
 
 std::filesystem::path getBlockFilePath(const Array256_t& blockHash);
 
