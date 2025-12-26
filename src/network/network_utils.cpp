@@ -149,26 +149,20 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         return tmpBlocksPath / (bytesToHex(hashBuf) + ".block");
     };
 
-    // If local blockchain is just genesis then verify and add and don't have a tmp chain
+    // If local blockchain is from the tip then don't add another tmp blockchain
     auto commonAncestorHash = getBlockHeaderHash(*commonAncestorHeader);
     auto tipHash = getTipHash();
-    if (commonAncestorHash == getGenesisBlockHash() && tipHash == getGenesisBlockHash())
-    {
-        for (auto& hash : blockHashes)
-        {
-            // Read block
+    if (commonAncestorHash == tipHash) {
+        for (auto& hash : blockHashes) {
             auto block = co_await requestBlock(socket, hash);
-            if (!block) co_return; // Peer doesnt have block
+            if (!block) co_return; // peer doesn’t have block
 
-            if (verifyBlock(*block))
-            {
-                addNewTipBlock(*block);
-            }
-            else
-            {
+            if (!verifyBlock(*block)) {
                 co_return;
             }
+            addNewTipBlock(*block);
         }
+        co_return; // Done syncing these blocks
     }
 
     // Store blocks
