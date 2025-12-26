@@ -129,7 +129,7 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
         if (headers.size() > 1) { if (!verifyBlockHeader(headers[1])) co_return;}
 
-        // Verify all other header if size > 2
+        // Verify all other headers if size > 2
         for (size_t i = 2; i < headers.size(); ++i)
         {
             VerifyBlockHeaderContext headerCtx;
@@ -147,7 +147,6 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         };
 
         // Store blocks
-
         for (auto& hash : blockHashes)
         {
             // Read block
@@ -162,10 +161,27 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         }
 
         // Verify blocks
-        for (auto& hash : blockHashes)
-        {
-            readFile(getTmpBlockPath(hash));
+        // Verify first block
+        VerifyBlock b0Ctx;
+        h0Ctx.prevHeader = &*commonAncestorHeader;
+        uint64_t b0CtxTimestamp = getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp;
+        h0Ctx.prevPrevTimestamp = &b0CtxTimestamp;
+        if (!verifyBlockHeader(headers[0])) co_return;
 
+        // Verify 2nd block if size > 1
+        VerifyBlockHeaderContext b1Ctx;
+        h1Ctx.prevHeader = &headers[0];
+        uint64_t b1CtxTimestamp = getBlockHeader(headers[0].prevBlockHash)->timestamp;
+        h1Ctx.prevPrevTimestamp = &b1CtxTimestamp;
+        if (headers.size() > 1) { if (!verifyBlockHeader(headers[1])) co_return;}
+
+        // Verify all other blocks if size > 2
+        for (size_t i = 2; i < headers.size(); ++i)
+        {
+            VerifyBlockHeaderContext blockCtx;
+            blockCtx.prevHeader = &headers[i - 1];
+            blockCtx.prevPrevTimestamp = &headers[i - 1].timestamp;
+            if (!verifyBlockHeader(headers[i])) co_return;
         }
 
 
