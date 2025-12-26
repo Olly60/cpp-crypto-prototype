@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <sodium.h>
 #include <chrono>
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 #include "parse_serialise.h"
 
 // ============================================================================
@@ -211,26 +211,27 @@ Array256_t getBlockWork(const Array256_t& difficulty)
 
     // Shift work left by shiftAmount
     for (uint64_t i = 0; i < shiftAmount; ++i)
-        blockWork = increaseDifficulty(blockWork);
+        blockWork = increaseDifficultyLE(blockWork);
 
     return blockWork;
 }
 
-Array256_t addBlockWork(const Array256_t& a, const Array256_t& b)
+Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
 {
     Array256_t result{};
-    uint16_t carry = 0;  // allow overflow beyond 8 bits
+    uint16_t carry = 0;
 
-    // Iterate from least significant byte to most significant
-    for (int i = 31; i >= 0; --i)
+    // Iterate from least significant byte (index 0) to most significant (index 31)
+    for (int i = 0; i < 32; ++i)
     {
         uint16_t sum = uint16_t{a[i]} + uint16_t{b[i]} + carry;
-        result[i] = uint8_t{static_cast<unsigned char>(sum & 0xFF)};  // keep lowest 8 bits
+        result[i] = uint8_t(sum & 0xFF);  // keep lowest 8 bits
         carry = sum >> 8;                 // upper bits become carry
     }
 
     return result;
 }
+
 
 bool isLessLE(const Array256_t& a, const Array256_t& b)
 {
@@ -243,32 +244,35 @@ bool isLessLE(const Array256_t& a, const Array256_t& b)
 }
 
 // Decrease difficulty (easier -> shift left)
-Array256_t decreaseDifficulty(const Array256_t& arr)
+Array256_t decreaseDifficultyLE(const Array256_t& arr)
 {
     Array256_t newDifficulty = arr;
     uint8_t carry = 0;
-    for (auto& u8: newDifficulty) {
-        uint8_t newCarry = u8 >> 7;
-        u8 = (u8 << 1) | carry;
+    // Iterate from least significant byte to most significant
+    for (size_t i = 0; i < newDifficulty.size(); ++i) {
+        uint8_t newCarry = newDifficulty[i] >> 7;
+        newDifficulty[i] = (newDifficulty[i] << 1) | carry;
         carry = newCarry;
     }
-    // Set end bit to 1
-    newDifficulty.back() |= 1;
+    // Set least significant bit to 1 (index 0 in little-endian)
+    newDifficulty[0] |= 1;
     return newDifficulty;
 }
 
 // Increase difficulty (harder -> shift right)
-Array256_t increaseDifficulty(const Array256_t& arr)
+Array256_t increaseDifficultyLE(const Array256_t& arr)
 {
     Array256_t newDifficulty = arr;
     uint8_t carry = 0;
+    // Iterate from most significant byte to least significant
     for (size_t i = newDifficulty.size(); i-- > 0;) {
         uint8_t newCarry = newDifficulty[i] & 1;
         newDifficulty[i] = (newDifficulty[i] >> 1) | (carry << 7);
         carry = newCarry;
     }
-    // Set end bit to 1 (minimum difficulty)
-    newDifficulty.back() |= 1;
+    // Set least significant bit to 1 (index 0 in little-endian)
+    newDifficulty[0] |= 1;
     return newDifficulty;
 }
+
 

@@ -6,7 +6,7 @@
 #include <string>
 
 #include "tip.h"
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 
 namespace
 {

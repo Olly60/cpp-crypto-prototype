@@ -6,7 +6,7 @@
 #include "../../include/tip.h"
 #include "network/request.h"
 #include "network/network_utils.h"
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
@@ -167,10 +167,6 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
             co_await asio::async_write(socket, asio::buffer(hash), asio::use_awaitable);
         }
 
-        // Read common ancestor hash
-        Array256_t commonAncestorHash;
-        co_await asio::async_read(socket, asio::buffer(commonAncestorHash), asio::use_awaitable);
-
         // Read header amount
         uint64_t headerAmount = co_await readU64Tcp(socket);
 
@@ -184,6 +180,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
         // Drop leading headers we already have (chronological order: oldest -> newest)
         std::vector<BlockHeader>::difference_type drop = 0;
+        Array256_t commonAncestor;
 
         while (drop < static_cast<std::vector<BlockHeader>::difference_type>(headers.size()) &&
                std::filesystem::exists(getBlockFilePath(getBlockHeaderHash(headers[drop]))))

@@ -5,7 +5,7 @@
 
 #include "crypto_utils.h"
 #include "tip.h"
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"

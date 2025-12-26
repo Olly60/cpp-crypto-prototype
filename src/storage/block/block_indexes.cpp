@@ -3,7 +3,7 @@
 #include <rocksdb/options.h>
 #include <array>
 #include <string>
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 #include "storage/block/block_indexes.h"
 
 namespace

@@ -60,16 +60,13 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx = {})
     return true;
 }
 
-bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
+bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx = {})
 {
     // Resolve defaults
     const BlockHeader& prevHeader =
         ctx.prevHeader ? *ctx.prevHeader : getTipHeader();
 
-    const BlockHeader& prevPrevHeader =
-        ctx.prevPrevHeader
-            ? *ctx.prevPrevHeader
-            : *getBlockHeader(prevHeader.prevBlockHash);
+    const uint64_t& prevPrevTimestamp = ctx.prevPrevTimestamp ? *ctx.prevPrevTimestamp : getBlockHeader(prevHeader.prevBlockHash)->timestamp;
 
     Array256_t blockHash = getBlockHeaderHash(header);
 
@@ -89,12 +86,12 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
         return false;
 
     // Difficulty adjustment (target-based)
-    uint64_t timeDelta = prevHeader.timestamp - prevPrevHeader.timestamp;
+    uint64_t timeDelta = prevHeader.timestamp - prevPrevTimestamp;
 
     Array256_t expectedDifficulty =
         (timeDelta < 600)
-            ? increaseDifficulty(prevHeader.difficulty)
-            : decreaseDifficulty(prevHeader.difficulty);
+            ? increaseDifficultyLE(prevHeader.difficulty)
+            : decreaseDifficultyLE(prevHeader.difficulty);
 
     if (header.difficulty != expectedDifficulty)
         return false;

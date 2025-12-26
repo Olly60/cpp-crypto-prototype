@@ -36,7 +36,7 @@ struct TxInputKeyEq
 struct VerifyBlockHeaderContext
 {
     const BlockHeader* prevHeader = nullptr;
-    const BlockHeader* prevPrevHeader = nullptr;
+    const uint64_t* prevPrevTimestamp = nullptr;
 };
 
 
@@ -53,8 +53,8 @@ struct VerifyBlockContext
     VerifyTxContext txCtx{};
 };
 
-bool verifyTx(const Tx& tx, VerifyTxContext ctx);
+bool verifyTx(const Tx& tx, VerifyTxContext ctx = {});
 
-bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx);
+bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx = {});
 
-bool verifyBlock(const Block& block, VerifyBlockContext options);
+bool verifyBlock(const Block& block, VerifyBlockContext options = {});

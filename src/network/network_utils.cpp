@@ -5,7 +5,11 @@
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "storage/peers.h"
-#include "../../include/tip.h"
+#include "tip.h"
+#include "network/request.h"
+#include "verify.h"
+#include "storage/block/block_indexes.h"
+#include "storage/block/block_utils.h"
 
 // ============================================
 // Handshake Helpers
@@ -87,7 +91,53 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
 {
     try
     {
-        //TODO: make function
+        auto headers = co_await requestHeaders(socket);
+
+        // Headers empty
+        if (headers.empty()) co_return;
+
+        auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
+        if (!commonAncestorHeader) co_return; // common ancestor doesnt exist
+
+        // Compare block work
+
+        // Get that new chain block work
+        auto blockIndexesDb = openBlockIndexesDb();
+        auto peerChainwork = tryGetBlockIndex(*blockIndexesDb, commonAncestorHeader->difficulty)->chainWork;
+
+        for (const auto& header : headers)
+        {
+            peerChainwork = addBlockWorkLe(peerChainwork, getBlockWork(header.difficulty));
+        }
+
+        // Chainwork is lower
+        if (!isLessLE(getTipChainWork(), peerChainwork)) co_return;
+
+        // Verify first header
+        VerifyBlockHeaderContext h0Ctx;
+        h0Ctx.prevHeader = &*commonAncestorHeader;
+        uint64_t h0CtxTimestamp = getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp;
+        h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
+        if (!verifyBlockHeader(headers[0])) co_return;
+
+        // Verify 2nd header if size > 1
+        VerifyBlockHeaderContext h1Ctx;
+        h1Ctx.prevHeader = &headers[0];
+        uint64_t h1CtxTimestamp = getBlockHeader(headers[0].prevBlockHash)->timestamp;
+        h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
+        if (headers.size() > 1) { if (!verifyBlockHeader(headers[1])) co_return;}
+
+        // Verify all other header if size > 2
+        for (size_t i = 2; i < headers.size(); ++i)
+        {
+            VerifyBlockHeaderContext headerCtx;
+            headerCtx.prevHeader = &headers[i - 1];
+            headerCtx.prevPrevTimestamp = &headers[i - 1].timestamp;
+            if (!verifyBlockHeader(headers[i])) co_return;
+        }
+
+
+
         
 
         // if work they claim > then verify else ignore

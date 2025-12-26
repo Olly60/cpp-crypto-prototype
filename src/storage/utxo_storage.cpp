@@ -1,5 +1,5 @@
 #include "crypto_utils.h"
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 #include "storage/utxo_storage.h"
 
 #include <rocksdb/db.h>

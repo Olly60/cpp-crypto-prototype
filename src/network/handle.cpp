@@ -7,7 +7,7 @@
 #include "network/handle.h"
 #include <ranges>
 #include "network/network_utils.h"
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 #include "storage/block/block_indexes.h"
 #include "parse_serialise.h"
 #include "storage/block/block_utils.h"
@@ -159,15 +159,12 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
             }
         }
 
-        // Write common ancestor hash
-        co_await asio::async_write(socket, asio::buffer(commonAncestor), asio::use_awaitable);
-
         // Find header amount from common ancestor to tip
         auto blockIndexesDb = openBlockIndexesDb();
         uint64_t ancestorHeight = tryGetBlockIndex(*blockIndexesDb, commonAncestor)->height;
 
         // Amount of headers peer is missing
-        auto peerMissingAmount = getTipHeight() - ancestorHeight;
+        uint64_t peerMissingAmount = getTipHeight() - ancestorHeight;
 
         // Write header amount
         co_await writeU64Tcp(socket, peerMissingAmount);
@@ -264,6 +261,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         if (verifyNewTipBlock(block))
         {
             addNewTipBlock(block);
+            BroadcastNewBlock(block);
         }
     }
     catch (const std::exception&)

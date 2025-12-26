@@ -1,6 +1,6 @@
 #include <filesystem>
 #include "crypto_utils.h"
-#include "storage/file_utils.h"
+#include "storage/storage_utils.h"
 #include "../include/tip.h"
 #include <sodium/crypto_sign.h>
 
@@ -126,7 +126,7 @@ void addNewTipBlock(const Block& block)
 
     auto blockIndexesDb = openBlockIndexesDb();
     BlockIndexValue blockIndex;
-    blockIndex.chainWork = addBlockWork(getTipChainWork(), blockWork);
+    blockIndex.chainWork = addBlockWorkLe(getTipChainWork(), blockWork);
     blockIndex.height = blockHeight;
     putBlockIndex(*blockIndexesDb, blockHash, blockIndex);
 
