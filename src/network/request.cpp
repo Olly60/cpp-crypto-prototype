@@ -11,6 +11,10 @@
 #include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
 
+asio::awaitable<std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash>> requestPeers(asio::ip::tcp::socket& socket)
+{
+    //TODO: make function
+}
 
 asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
 {

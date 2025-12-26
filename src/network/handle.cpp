@@ -12,6 +12,11 @@
 #include "verify.h"
 #include "storage/block/block_utils.h"
 
+asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
+{
+    //TODO: make function
+}
+
 asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
 {
     // Read block hash
