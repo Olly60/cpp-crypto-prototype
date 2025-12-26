@@ -161,27 +161,47 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         }
 
         // Verify blocks
+
+        // Transactions context
+        std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> seenUtxosInDb;
+        std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> includeUtxos;
+        VerifyTxContext txCtx;
+        txCtx.seenUtxos = &seenUtxosInDb;
+        txCtx.includeUtxos = &includeUtxos;
+
         // Verify first block
-        VerifyBlock b0Ctx;
-        h0Ctx.prevHeader = &*commonAncestorHeader;
+        VerifyBlockContext b0Ctx;
+        // Header
+        b0Ctx.headerCtx.prevHeader = &*commonAncestorHeader;
         uint64_t b0CtxTimestamp = getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp;
-        h0Ctx.prevPrevTimestamp = &b0CtxTimestamp;
+        b0Ctx.headerCtx.prevPrevTimestamp = &b0CtxTimestamp;
+        // Transactions
+        b0Ctx.txCtx = txCtx;
+
         if (!verifyBlockHeader(headers[0])) co_return;
 
         // Verify 2nd block if size > 1
-        VerifyBlockHeaderContext b1Ctx;
-        h1Ctx.prevHeader = &headers[0];
+        VerifyBlockContext b1Ctx;
+        // Header
+        b1Ctx.headerCtx.prevHeader = &headers[0];
         uint64_t b1CtxTimestamp = getBlockHeader(headers[0].prevBlockHash)->timestamp;
-        h1Ctx.prevPrevTimestamp = &b1CtxTimestamp;
+        b1Ctx.headerCtx.prevPrevTimestamp = &b1CtxTimestamp;
+        // Transactions
+        b1Ctx.txCtx = txCtx;
+
         if (headers.size() > 1) { if (!verifyBlockHeader(headers[1])) co_return;}
 
         // Verify all other blocks if size > 2
+
         for (size_t i = 2; i < headers.size(); ++i)
         {
-            VerifyBlockHeaderContext blockCtx;
-            blockCtx.prevHeader = &headers[i - 1];
-            blockCtx.prevPrevTimestamp = &headers[i - 1].timestamp;
-            if (!verifyBlockHeader(headers[i])) co_return;
+            VerifyBlockContext blockCtx;
+            // Header
+            blockCtx.headerCtx.prevHeader = &headers[i - 1];
+            blockCtx.headerCtx.prevPrevTimestamp = &headers[i - 1].timestamp;
+            // Transactions
+            blockCtx.txCtx = txCtx;
+            if (!verifyBlock) co_return;
         }
 
 

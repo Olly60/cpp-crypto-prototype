@@ -11,28 +11,36 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
     uint64_t totalInputAmount = 0;
     uint64_t totalOutputAmount = 0;
 
+    // 1. Create a local fallback
+    std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> localSeenUtxo;
+
+    // 2. Determine which one to use once
+    auto* activeSeenUtxos = ctx.seenUtxos ? ctx.seenUtxos : &localSeenUtxo;
+
     for (uint64_t i = 0; i < tx.txInputs.size(); ++i)
     {
-        auto utxo = tryGetUtxo(*utxoDb, tx.txInputs[i]);
+        auto utxoInDb = tryGetUtxo(*utxoDb, tx.txInputs[i]);
 
-        if (ctx.includeUtxos)
+        if (ctx.includeUtxos) // if included is defined then check it for the utxo as well
         {
-            if (!utxo || !ctx.includeUtxos->contains(tx.txInputs[i])) return false;
-
-            ctx.includeUtxos->erase(tx.txInputs[i]);
-        } else
+            // Utxo not in database or not in the included list
+            if (!utxoInDb || ctx.includeUtxos->erase(tx.txInputs[i]) == 0) return false;
+        }
+        else
         {
-            if (!utxo) return false;
+            // Utxo not in database
+            if (!utxoInDb) return false;
         }
 
 
-        Array256_t hash = computeTxHash(tx, i);
+        Array256_t hash = computeTxInputSignHash(tx, i);
 
+        // Verify signature
         if (crypto_sign_verify_detached(
-                tx.txInputs[i].signature.data(),
-                hash.data(),
-                hash.size(),
-                utxo->recipient.data()) != 0)
+            tx.txInputs[i].signature.data(),
+            hash.data(),
+            hash.size(),
+            utxoInDb->recipient.data()) != 0)
         {
             return false;
         }
@@ -41,11 +49,12 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
         // Double spend
         if (ctx.seenUtxos)
         {
-            if (!ctx.seenUtxos->insert(tx.txInputs[i]).second)
+            if (!activeSeenUtxos->insert(tx.txInputs[i]).second) // Check its not in seen (double spend)
                 return false;
-        }
 
-        totalInputAmount += utxo->amount;
+
+            totalInputAmount += utxoInDb->amount;
+        }
     }
 
     for (const auto& output : tx.txOutputs)
@@ -54,6 +63,7 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
         totalOutputAmount += output.amount;
     }
 
+    // validate amount is enough to cover fee
     uint64_t txFee = std::max(totalInputAmount / 100, uint64_t(1));
     if (totalOutputAmount > totalInputAmount - txFee) return false;
 
@@ -65,10 +75,12 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
 {
     // Resolve defaults
-    const BlockHeader& prevHeader =
+    const BlockHeader prevHeader =
         ctx.prevHeader ? *ctx.prevHeader : getTipHeader();
 
-    const uint64_t& prevPrevTimestamp = ctx.prevPrevTimestamp ? *ctx.prevPrevTimestamp : getBlockHeader(prevHeader.prevBlockHash)->timestamp;
+    const uint64_t prevPrevTimestamp = ctx.prevPrevTimestamp
+                                           ? *ctx.prevPrevTimestamp
+                                           : getBlockHeader(prevHeader.prevBlockHash)->timestamp;
 
     Array256_t blockHash = getBlockHeaderHash(header);
 
@@ -162,4 +174,3 @@ bool verifyBlock(const Block& block, VerifyBlockContext ctx)
 
     return true;
 }
-
