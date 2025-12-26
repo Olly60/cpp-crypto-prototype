@@ -51,31 +51,26 @@ std::optional<BytesBuffer> readFile(const std::filesystem::path& path, size_t am
     return buffer;
 }
 
-std::ofstream openFileTruncWrite(const std::filesystem::path& path)
+void writeFileTrunc(const std::filesystem::path& path, const BytesBuffer& buf)
 {
+    // Ensure parent directories exist
     std::filesystem::create_directories(path.parent_path());
 
-    std::ofstream file(path, std::ios::trunc | std::ios::binary);
-    if (!file)
-    {
-        throw std::runtime_error("Failed to open file for append: " + path.string());
+    // Open file in binary truncate mode
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) {
+        throw std::runtime_error("Failed to open file: " + path.string());
     }
 
-    // Enable exceptions for future I/O
+    // Enable exceptions for I/O errors
     file.exceptions(std::ios::failbit | std::ios::badbit);
 
-    return file;
+    // Write the buffer
+    file.write(reinterpret_cast<const char*>(buf.data()),
+               static_cast<std::streamsize>(buf.size()));
+
+    // Optional: flush to OS
+    file.flush();
 }
 
-void writeAll(std::ostream& os, const BytesBuffer& buf)
-{
-    os.write(
-        reinterpret_cast<const char*>(buf.data()),
-        static_cast<std::streamsize>(buf.size())
-    );
-
-    if (!os) {
-        throw std::runtime_error("write failed");
-    }
-}
 

@@ -120,22 +120,25 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
         h0Ctx.prevHeader = &*commonAncestorHeader;
         uint64_t h0CtxTimestamp = getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp;
         h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
-        if (!verifyBlockHeader(headers[0])) co_return;
+        if (!verifyBlockHeader(headers[0], h0Ctx)) co_return;
 
         // Verify 2nd header if size > 1
         VerifyBlockHeaderContext h1Ctx;
         h1Ctx.prevHeader = &headers[0];
         uint64_t h1CtxTimestamp = getBlockHeader(headers[0].prevBlockHash)->timestamp;
         h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
-        if (headers.size() > 1) { if (!verifyBlockHeader(headers[1])) co_return;}
+        if (headers.size() > 1) { if (!verifyBlockHeader(headers[1], h1Ctx)) co_return;}
 
         // Verify all other headers if size > 2
-        for (size_t i = 2; i < headers.size(); ++i)
+        if (headers.size() > 2)
         {
-            VerifyBlockHeaderContext headerCtx;
-            headerCtx.prevHeader = &headers[i - 1];
-            headerCtx.prevPrevTimestamp = &headers[i - 1].timestamp;
-            if (!verifyBlockHeader(headers[i])) co_return;
+            for (size_t i = 2; i < headers.size(); ++i)
+            {
+                VerifyBlockHeaderContext headerCtx;
+                headerCtx.prevHeader = &headers[i - 1];
+                headerCtx.prevPrevTimestamp = &headers[i - 2].timestamp;
+                if (!verifyBlockHeader(headers[i], headerCtx)) co_return;
+            }
         }
 
         std::filesystem::path tmpBlocksPath = "tmp_blockchain";
@@ -154,13 +157,15 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
             if (!block) co_return; // Peer doesnt have block
 
             // Write block file
-            auto tmpBlockFile = openFileTruncWrite(getTmpBlockPath(hash));
-            auto serialisedBlock = serialiseBlock(*block);
-            tmpBlockFile.write(serialisedBlock.cdata(), serialisedBlock.size());
-
+            writeFileTrunc(getTmpBlockPath(hash), serialiseBlock(*block));
         }
 
         // Verify blocks
+        auto readTmpBlockFile = [&getTmpBlockPath](const Array256_t& hash) -> Block
+        {
+            auto blockBytes = readFile(getTmpBlockPath(hash));
+            return parseBlock(blockBytes);
+        };
 
         // Transactions context
         std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> seenUtxosInDb;
@@ -171,52 +176,48 @@ asio::awaitable<void> syncIfBetter(asio::ip::tcp::socket& socket)
 
         // Verify first block
         VerifyBlockContext b0Ctx;
-        // Header
-        b0Ctx.headerCtx.prevHeader = &*commonAncestorHeader;
-        uint64_t b0CtxTimestamp = getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp;
-        b0Ctx.headerCtx.prevPrevTimestamp = &b0CtxTimestamp;
-        // Transactions
+        b0Ctx.headerCtx = h0Ctx;
         b0Ctx.txCtx = txCtx;
 
-        if (!verifyBlockHeader(headers[0])) co_return;
+        if (!verifyBlock(readTmpBlockFile(blockHashes[0]), b0Ctx)) co_return;
 
         // Verify 2nd block if size > 1
         VerifyBlockContext b1Ctx;
-        // Header
-        b1Ctx.headerCtx.prevHeader = &headers[0];
-        uint64_t b1CtxTimestamp = getBlockHeader(headers[0].prevBlockHash)->timestamp;
-        b1Ctx.headerCtx.prevPrevTimestamp = &b1CtxTimestamp;
-        // Transactions
+        b1Ctx.headerCtx = h1Ctx;
         b1Ctx.txCtx = txCtx;
 
-        if (headers.size() > 1) { if (!verifyBlockHeader(headers[1])) co_return;}
+        if (headers.size() > 1) { if (!verifyBlock(readTmpBlockFile(blockHashes[1]), b1Ctx)) co_return;}
 
         // Verify all other blocks if size > 2
-
-        for (size_t i = 2; i < headers.size(); ++i)
+        if (headers.size() > 2)
         {
-            VerifyBlockContext blockCtx;
-            // Header
-            blockCtx.headerCtx.prevHeader = &headers[i - 1];
-            blockCtx.headerCtx.prevPrevTimestamp = &headers[i - 1].timestamp;
-            // Transactions
-            blockCtx.txCtx = txCtx;
-            if (!verifyBlock) co_return;
+            for (size_t i = 2; i < headers.size(); ++i)
+            {
+                VerifyBlockContext blockCtx;
+                // Header
+                blockCtx.headerCtx.prevHeader = &headers[i - 1];
+                blockCtx.headerCtx.prevPrevTimestamp = &headers[i - 2].timestamp;
+                // Transactions
+                blockCtx.txCtx = txCtx;
+                if (!verifyBlock(readTmpBlockFile(blockHashes[i]), blockCtx)) co_return;
+            }
         }
 
+        // Verification complete now add to local chain
+        // Undo chain up to common ancestor
+        auto commonAncestorHash = getBlockHeaderHash(*commonAncestorHeader);
+        auto tipHash = getTipHash();
+        while (tipHash != commonAncestorHash)
+        {
+            undoNewTipBlock();
+        }
 
-        
+        // Add new blocks from peer
+        for (auto& hash : blockHashes)
+        {
+            addNewTipBlock(readTmpBlockFile(hash));
+        }
 
-        // if work they claim > then verify else ignore
-        //
-        //    // TODO: Compare block chain work
-        //    requestBlock()
-        //    co_await asio::async_read(socket, asio::use_awaitable);
-        //
-        //    // if their work > our work
-        //    // TODO: Remove blocks up to matching one
-        //
-        //    // TODO: Add new block
     }
     catch (const std::exception&)
     {

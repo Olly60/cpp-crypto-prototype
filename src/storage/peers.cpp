@@ -33,7 +33,7 @@ void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHas
         peersFileBytes.writeU64(peerStatus.lastSeen);
     }
 
-    writeAll(peersFile, peersFileBytes);
+    writeFile(peersFile, peersFileBytes);
 }
 
 std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()

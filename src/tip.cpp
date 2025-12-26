@@ -50,8 +50,6 @@ void addNewTipBlock(const Block& block)
 
     auto utxoDb = openUtxoDb();
 
-    // Open undo file
-    auto undoFile = openFileTruncWrite(undoFilePath);
     BytesBuffer undoData;
 
     // Prepare UTXO batch
@@ -88,12 +86,11 @@ void addNewTipBlock(const Block& block)
     }
 
     // Write undo file
-    undoFile.write(undoData.cdata(), undoData.size());
+    writeFileTrunc(undoFilePath, undoData);
 
     // Write block file
-    auto blockFile = openFileTruncWrite(blockFilePath);
     auto blockBytes = serialiseBlock(block);
-    blockFile.write(blockBytes.cdata(), blockBytes.size());
+    writeFileTrunc(blockFilePath, blockBytes);
 
     // Apply UTXO batch
     applyUtxoBatch(*utxoDb, spends, adds);
@@ -112,11 +109,10 @@ void addNewTipBlock(const Block& block)
     blockIndex.height = blockHeight;
     putBlockIndexBatch(*blockIndexesDb, {blockHash}, {blockIndex});
 
-    // Open tip file
-    auto file = openFileTruncWrite(TIP);
-
     // Write new tip hash
-    file.write(reinterpret_cast<const char*>(blockHash.data()), blockHash.size());
+    BytesBuffer hashBuf;
+    hashBuf.writeArray256(blockHash);
+    writeFileTrunc(TIP, hashBuf);
 }
 
 void undoNewTipBlock()
@@ -181,11 +177,10 @@ void undoNewTipBlock()
     auto blockIndexesDb = openBlockIndexesDb();
     batchDeleteBlockIndex(*blockIndexesDb, {blockHash});
 
-    // Open tip file
-    auto file = openFileTruncWrite(TIP);
-
     // Write new tip hash
-    file.write(reinterpret_cast<const char*>(block.header.prevBlockHash.data()), block.header.prevBlockHash.size());
+    BytesBuffer hashBuf;
+    hashBuf.writeArray256(blockHash);
+    writeFileTrunc(TIP, hashBuf);
 }
 
 
