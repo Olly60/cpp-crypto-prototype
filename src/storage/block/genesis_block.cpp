@@ -50,8 +50,9 @@ void initGenesisBlock()
     auto genesisBlockHash = getGenesisBlockHash();
 
     // Setup tip file
-    auto tipFile = openFileTruncWrite("blockchain_tip");
-    tipFile.write(reinterpret_cast<const char*>(genesisBlockHash.data()), genesisBlockHash.size());
+    BytesBuffer hashBuf;
+    hashBuf.writeArray256(genesisBlockHash);
+    writeFileTrunc(TIP, hashBuf);
 
     // Setup height
     auto heightsDb = openHeightsDb();
@@ -63,12 +64,10 @@ void initGenesisBlock()
     BlockIndexValue blockIndex;
     blockIndex.chainWork = getBlockWork(genesisBlock.header.difficulty);
     blockIndex.height = 0;
-    putBlockIndex(*blockIndexesDb, genesisBlockHash, blockIndex);
+    putBlockIndexBatch(*blockIndexesDb, {genesisBlockHash}, {blockIndex});
 
     // Write block file
-    auto blockFile = openFileTruncWrite(getBlockFilePath(genesisBlockHash));
-    auto blockBytes = serialiseBlock(genesisBlock);
-    blockFile.write(blockBytes.cdata(), blockBytes.size());
+    writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
 
     // Genesis utxo
     auto utxoDb = openUtxoDb();
