@@ -3,7 +3,7 @@
 #include "tip.h"
 #include "storage/storage_utils.h"
 
-std::optional<Block> getBlock(const Array256_t& blockHash)
+std::optional<ChainBlock> getBlock(const Array256_t& blockHash)
 {
     auto block = parseBlock(readFile(getBlockFilePath(blockHash)));
     if (!block) return std::nullopt;

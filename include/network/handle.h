@@ -13,7 +13,7 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket);
 
 asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket);
 
-asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
+asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket);
 
 // ============================================
 // Handle new data

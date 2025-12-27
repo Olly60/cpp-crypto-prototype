@@ -125,7 +125,7 @@ uint64_t getBlockSubsidy(uint64_t height)
     return 5000000000ULL >> halvings;
 }
 
-bool verifyBlock(const Block& block, VerifyBlockContext ctx)
+bool verifyBlock(const ChainBlock& block, VerifyBlockContext ctx)
 {
     // ---------------------------
     // Verify block header

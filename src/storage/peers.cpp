@@ -11,31 +11,31 @@ void storePeers()
     knownPeersFileBytes.writeU64(knownPeers.size());
 
     // Write each peer
-    for (const auto& [peerAddr, peerStatus] : knownPeers)
+    for (const auto& peer : knownPeers)
     {
         // Write address type
-        knownPeersFileBytes.writeU8(peerAddr.address.is_v4() ? 0x04 : 0x06);
+        knownPeersFileBytes.writeU8(peer.first.address().is_v4() ? 0x04 : 0x06);
 
         // Address
-        if (peerAddr.address.is_v4())
+        if (peer.first.address().is_v4())
         {
-            knownPeersFileBytes.writeFixedArray(peerAddr.address.to_v4().to_bytes());
-        } else if (peerAddr.address.is_v6()) {
-            knownPeersFileBytes.writeFixedArray(peerAddr.address.to_v6().to_bytes());
+            knownPeersFileBytes.writeFixedArray(peer.first.address().to_v4().to_bytes());
+        } else if (peer.first.address().is_v6()) {
+            knownPeersFileBytes.writeFixedArray(peer.first.address().to_v6().to_bytes());
         }
 
 
         // Port
-        knownPeersFileBytes.writeU16(peerAddr.port);
+        knownPeersFileBytes.writeU16(peer.first.port());
 
         // Services
-        knownPeersFileBytes.writeU64(peerStatus.services);
+        knownPeersFileBytes.writeU64(peer.second.services);
 
         // Relay
-        knownPeersFileBytes.writeU8(peerStatus.relay);
+        knownPeersFileBytes.writeU8(peer.second.relay);
 
         // Last seen
-        knownPeersFileBytes.writeU64(peerStatus.lastSeen);
+        knownPeersFileBytes.writeU64(peer.second.lastSeen);
     }
 
     writeFileTrunc(KNOWN_PEERS, knownPeersFileBytes);
@@ -48,11 +48,19 @@ void storePeers()
     // Write each peer
     for (const auto& peerAddr : unknownPeers)
     {
-        // Address length and string
-        unknownPeersFileBytes.writeString(peerAddr.address.to_string());
+        // Write address type
+        knownPeersFileBytes.writeU8(peerAddr.address().is_v4() ? 0x04 : 0x06);
+
+        // Address
+        if (peerAddr.address().is_v4())
+        {
+            knownPeersFileBytes.writeFixedArray(peerAddr.address().to_v4().to_bytes());
+        } else if (peerAddr.address().is_v6()) {
+            knownPeersFileBytes.writeFixedArray(peerAddr.address().to_v6().to_bytes());
+        }
 
         // Port
-        unknownPeersFileBytes.writeU16(peerAddr.port);
+        unknownPeersFileBytes.writeU16(peerAddr.port());
     }
 
     writeFileTrunc(UNKNOWN_PEERS, unknownPeersFileBytes);
@@ -70,7 +78,7 @@ void loadPeers()
         // Read each peer
         for (uint64_t i = 0; i < peersCount; ++i)
         {
-            PeerAddress peerAddr;
+            asio::ip::tcp::endpoint peerAddr;
             PeerStatus peerStatus;
 
             // Read address type
@@ -80,14 +88,14 @@ void loadPeers()
             if (addressType == 4)
             {
 
-                peerAddr.address = asio::ip::address_v4(knownPeersFileBytes->readFixedArray<4>());
+                peerAddr.address(asio::ip::address_v4(knownPeersFileBytes->readFixedArray<4>()));
             } else if (addressType == 6)
             {
-                peerAddr.address = asio::ip::address_v6(knownPeersFileBytes->readFixedArray<16>());
+                peerAddr.address(asio::ip::address_v6(knownPeersFileBytes->readFixedArray<16>()));
             }
 
             // Read port
-            peerAddr.port = knownPeersFileBytes->readU16();
+            peerAddr.port(knownPeersFileBytes->readU16());
 
             // Read services
             peerStatus.services = knownPeersFileBytes->readU64();
@@ -111,7 +119,7 @@ void loadPeers()
         // Read each peer
         for (uint64_t i = 0; i < peersCount; ++i)
         {
-            PeerAddress peerAddr;
+            asio::ip::tcp::endpoint peerAddr;
 
             // Read address type
             uint8_t addressType = unknownPeersFileBytes->readU8();
@@ -120,14 +128,14 @@ void loadPeers()
             if (addressType == 4)
             {
 
-                peerAddr.address = asio::ip::address_v4(unknownPeersFileBytes->readFixedArray<4>());
+                peerAddr.address(asio::ip::address_v4(unknownPeersFileBytes->readFixedArray<4>()));
             } else if (addressType == 6)
             {
-                peerAddr.address = asio::ip::address_v6(unknownPeersFileBytes->readFixedArray<16>());
+                peerAddr.address(asio::ip::address_v6(unknownPeersFileBytes->readFixedArray<16>()));
             }
 
             // Read port
-            peerAddr.port = unknownPeersFileBytes->readU16();
+            peerAddr.port(unknownPeersFileBytes->readU16());
 
             unknownPeers.insert(peerAddr);
         }

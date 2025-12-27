@@ -1,7 +1,7 @@
 #pragma once
 #include "crypto_utils.h"
 
-Block getGenesisBlock();
+ChainBlock getGenesisBlock();
 
 Array256_t getGenesisBlockHash();
 

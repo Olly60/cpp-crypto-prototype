@@ -3,7 +3,7 @@
 #include "crypto_utils.h"
 #inc
 
-std::optional<Block> getBlock(const Array256_t& blockHash);
+std::optional<ChainBlock> getBlock(const Array256_t& blockHash);
 
 std::optional<BlockHeader> getBlockHeader(const Array256_t& blockHash);
 

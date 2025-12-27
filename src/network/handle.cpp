@@ -16,20 +16,24 @@ asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
 {
     co_await writeU64Tcp(socket, knownPeers.size());
     co_await writeU64Tcp(socket, knownPeers.size());
-    for (const auto& [addr, _] : knownPeers)
+    for (const auto& peer: knownPeers)
     {
-        if (addr.address.is_v4())
+        if (peer.first.address().is_v4())
         {
             uint8_t ipType = 0x04;
             co_await asio::async_write(socket, asio::buffer(&ipType, 1), asio::use_awaitable);
-            co_await asio::async_write(socket, asio::buffer(addr.address.to_v4().to_bytes()), asio::use_awaitable);
-            co_await asio::async_write(socket, asio::buffer(&addr.port, sizeof(addr.port)), asio::use_awaitable);
-        } else if (addr.address.is_v6())
+            co_await asio::async_write(socket, asio::buffer(peer.first.address().to_v4().to_bytes()), asio::use_awaitable);
+            BytesBuffer portBuf;
+            portBuf.writeU16(peer.first.port());
+            co_await asio::async_write(socket, asio::buffer(portBuf.data(), portBuf.size()), asio::use_awaitable);
+        } else if (peer.first.address().is_v6())
         {
             uint8_t ipType = 0x06;
             co_await asio::async_write(socket, asio::buffer(&ipType, 1), asio::use_awaitable);
-            co_await asio::async_write(socket, asio::buffer(addr.address.to_v6().to_bytes()), asio::use_awaitable);
-            co_await asio::async_write(socket, asio::buffer(&addr.port, sizeof(addr.port)), asio::use_awaitable);
+            co_await asio::async_write(socket, asio::buffer(peer.first.address().to_v6().to_bytes()), asio::use_awaitable);
+            BytesBuffer portBuf;
+            portBuf.writeU16(peer.first.port());
+            co_await asio::async_write(socket, asio::buffer(portBuf.data(), portBuf.size()), asio::use_awaitable);
         }
     }
 }
@@ -90,7 +94,7 @@ asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
 asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
 {
     // Read peer handshake
-    BytesBuffer buffer(handshakeSize());
+    BytesBuffer buffer(calculateHandshakeSize());
     co_await asio::async_read(socket, asio::buffer(buffer.data(), buffer.size()), asio::use_awaitable);
 
     auto theirHandshake = parseHandshake(buffer);
@@ -116,7 +120,9 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
     constexpr uint8_t myVerack = 0x01;
     co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
 
-    addPeerToKnown(socket, theirHandshake);
+    knownPeers.insert({
+    socket.remote_endpoint(), {theirHandshake.services, getCurrentTimestamp(), theirHandshake.relay}
+});
 }
 
 asio::awaitable<void> handlePing(asio::ip::tcp::socket& socket)
@@ -229,7 +235,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     BytesBuffer blockBytes(blockSize);
     co_await asio::async_read(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
 
-    Block block = parseBlock(blockBytes);
+    ChainBlock block = parseBlock(blockBytes);
 
     // New block doesnt match current tip -> take peers chain if better
     if (block.header.prevBlockHash != getTipHash())
@@ -242,7 +248,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     if (verifyBlock(block))
     {
         addNewTipBlock(block);
-        BroadcastNewBlock(block);
+        co_await BroadcastNewBlock(block);
     }
 }
 
@@ -264,4 +270,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 
     // Add to mempool
     mempool.insert({getTxHash(tx), tx});
+
+    // Broadcast to other peers
+    co_await BroadcastNewTx(tx);
 }

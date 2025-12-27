@@ -11,7 +11,7 @@
 #include "storage/block/block_indexes.h"
 
 // Genesis block
-Block getGenesisBlock()
+ChainBlock getGenesisBlock()
 {
     // Genesis transaction
     TxOutput genesisOutput{
@@ -28,7 +28,7 @@ Block getGenesisBlock()
     BlockHeader header;
     header.merkleRoot = getTxHash(genesisTx);
 
-    Block genesisBlock{
+    ChainBlock genesisBlock{
         header,
         {genesisTx}
     };

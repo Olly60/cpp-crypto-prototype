@@ -2,6 +2,7 @@
 #include "storage/peers.h"
 #include <random>
 #include <unordered_set>
+#include <asio/awaitable.hpp>
 
 #include "storage/block/genesis_block.h"
 
@@ -58,6 +59,7 @@ struct Array256Hash
 // Global State
 using MempoolMap = std::unordered_map<Array256_t, Tx, Array256Hash>;
 inline MempoolMap mempool;
+inline asio::io_context ioCtx;
 
 enum class Service : uint64_t
 {
@@ -81,4 +83,24 @@ const uint64_t LOCAL_NONCE = generateLocalNonce();
 
 constexpr uint64_t RELAY = 0;
 
-void startNetwork();
+asio::awaitable<void> acceptConnections();
+
+// ============================================
+// Sync blockchain
+// ============================================
+
+asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket);
+
+// ============================================
+// Update chain and connect to network
+// ============================================
+
+asio::awaitable<void> trySyncWithPeers();
+
+// ============================================
+// Broadcast
+// ============================================
+
+asio::awaitable<void> BroadcastNewTx(const Tx& tx);
+
+asio::awaitable<void> BroadcastNewBlock(const ChainBlock& block);

@@ -58,4 +58,4 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx = {});
 
 bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx = {});
 
-bool verifyBlock(const Block& block, VerifyBlockContext options = {});
+bool verifyBlock(const ChainBlock& block, VerifyBlockContext options = {});

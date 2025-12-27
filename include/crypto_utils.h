@@ -20,6 +20,7 @@ using Array512_t = std::array<uint8_t, 64>;
 // ============================================================================
 
 // Convert 32-byte array to hex string
+struct BytesBuffer;
 std::string bytesToHex(const BytesBuffer& bytes);
 
 // ============================================================================
@@ -62,7 +63,7 @@ struct BlockHeader
     }
 };
 
-struct Block
+struct ChainBlock
 {
     BlockHeader header;
     std::vector<Tx> txs{};

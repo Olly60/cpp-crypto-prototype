@@ -131,7 +131,7 @@ BlockHeader parseBlockHeader(BytesBuffer& headerBytes)
 // ----------------------------------------
 // Block
 // ----------------------------------------
-BytesBuffer serialiseBlock(const Block& block)
+BytesBuffer serialiseBlock(const ChainBlock& block)
 {
 
     BytesBuffer blockBytes;
@@ -151,9 +151,9 @@ BytesBuffer serialiseBlock(const Block& block)
     return blockBytes;
 }
 
-Block parseBlock(BytesBuffer& blockBytes)
+ChainBlock parseBlock(BytesBuffer& blockBytes)
 {
-    Block block;
+    ChainBlock block;
 
     // Header
     block.header = parseBlockHeader(blockBytes);

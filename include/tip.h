@@ -15,10 +15,10 @@ uint64_t getTipHeight();
 
 Array256_t getTipChainWork();
 
-void addNewTipBlock(const Block& block);
+void addNewTipBlock(const ChainBlock& block);
 
 void undoNewTipBlock();
 
-Block getTipBlock();
+ChainBlock getTipBlock();
 
 BlockHeader getTipHeader();

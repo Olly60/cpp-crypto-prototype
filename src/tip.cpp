@@ -29,7 +29,7 @@ Array256_t getTipChainWork()
 
 }
 
-Block getTipBlock()
+ChainBlock getTipBlock()
 {
     return *getBlock(getTipHash());
 }
@@ -42,7 +42,7 @@ BlockHeader getTipHeader()
 //----------------------------------------
 // Add and undo blocks
 //----------------------------------------
-void addNewTipBlock(const Block& block)
+void addNewTipBlock(const ChainBlock& block)
 {
     Array256_t blockHash = getBlockHeaderHash(block.header);
     std::filesystem::path blockFilePath = getBlockFilePath(blockHash);
@@ -124,7 +124,7 @@ void undoNewTipBlock()
     // Undo file path
     auto undoFilePath = getUndoFilePath(blockHash);
 
-    Block block = parseBlock(readFile(blockFilePath));
+    ChainBlock block = parseBlock(readFile(blockFilePath));
     auto utxoDb = openUtxoDb();
 
     // Collect UTXOs created by this block for deletion
