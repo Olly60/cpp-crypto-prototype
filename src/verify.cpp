@@ -64,7 +64,7 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
     }
 
     // validate amount is enough to cover fee
-    uint64_t txFee = std::max(totalInputAmount / 100, uint64_t(1));
+    uint64_t txFee = std::max(totalInputAmount / 100, static_cast<uint64_t>(1));
     if (totalOutputAmount > totalInputAmount - txFee) return false;
 
     if (ctx.totalFees) *ctx.totalFees += txFee;

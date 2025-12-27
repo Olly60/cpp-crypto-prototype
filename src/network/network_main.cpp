@@ -25,7 +25,6 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
 
     for (;;) // Loop until peer closes connection
     {
-
         // Read message type
         uint8_t msgType;
         co_await asio::async_read(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
@@ -99,7 +98,7 @@ asio::awaitable<void> acceptConnections()
                      asio::detached);
         }
     }
-    catch (const std::exception& e)
+    catch (...)
     {
         // log or handle acceptor errors
     }
@@ -111,7 +110,6 @@ asio::awaitable<void> acceptConnections()
 
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
-
     auto headers = co_await requestHeaders(socket);
 
     // Headers empty blockchain uptodate
@@ -257,30 +255,33 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     {
         addNewTipBlock(readTmpBlockFile(hash));
     }
+    co_return true;
 }
 
 // ============================================
 // Update chain and connect to network
 // ============================================
-asio::awaitable<void> trySyncWithPeers() {
-
-    for (auto& peer : knownPeers) {
+asio::awaitable<void> trySyncWithPeers()
+{
+    for (auto& peer : knownPeers)
+    {
         asio::ip::tcp::socket socket(ioCtx);
 
-        try {
+        try
+        {
             co_await socket.async_connect(peer.first, asio::use_awaitable);
 
             if (!co_await requestPing(socket)) continue;
             if (!co_await syncIfBetter(socket)) continue;
 
             break; // synced successfully
-        } catch (const std::exception& e)
-            {
-            }
+        }
+        catch (...)
+        {
+        }
     }
 }
 
-}
 // ============================================
 // Broadcast
 // ============================================
@@ -309,7 +310,6 @@ asio::awaitable<void> BroadcastNewTx(const Tx& tx)
 
             // Send transaction
             co_await asio::async_write(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
-
         }
         catch (...)
         {
@@ -319,7 +319,6 @@ asio::awaitable<void> BroadcastNewTx(const Tx& tx)
 
 asio::awaitable<void> BroadcastNewBlock(const ChainBlock& block)
 {
-
     for (const auto& peer : knownPeers)
     {
         if (peer.second.relay == 0) co_return;

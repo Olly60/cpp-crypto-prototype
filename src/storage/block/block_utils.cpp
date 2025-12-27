@@ -12,7 +12,7 @@ std::optional<ChainBlock> getBlock(const Array256_t& blockHash)
 
 std::optional<BlockHeader> getBlockHeader(const Array256_t& blockHash)
 {
-    auto BlockHeader = parseBlockHeader(readFile(getBlockFilePath(blockHash), calculateBlockHeaderSize())):
+    auto BlockHeader = parseBlockHeader(readFile(getBlockFilePath(blockHash), calculateBlockHeaderSize()));
     if (!BlockHeader) return std::nullopt;
     return BlockHeader;
 }

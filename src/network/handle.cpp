@@ -265,12 +265,12 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
     co_await asio::async_read(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
 
     // Verify
-    Tx tx = parseTx(txBytes);
-    if (!verifyTx(tx)) co_return;
+    Tx newTx = parseTx(txBytes);
+    if (!verifyTx(newTx)) co_return;
 
     // Add to mempool
-    mempool.insert({getTxHash(tx), tx});
+    mempool.insert({getTxHash(newTx), newTx});
 
     // Broadcast to other peers
-    co_await BroadcastNewTx(tx);
+    co_await BroadcastNewTx(newTx);
 }

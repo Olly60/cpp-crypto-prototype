@@ -4,15 +4,15 @@
 // FILE I/O UTILITIES
 // ============================================================================
 
-std::optional<BytesBuffer> readFile(const std::filesystem::path& path)
+std::optional<BytesBuffer> readFile(const std::filesystem::path& filePath)
 {
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file)
         return std::nullopt;
 
     const std::streamsize size = file.tellg();
     if (size < 0)
-        throw std::runtime_error("Failed to stat file: " + path.string());
+        throw std::runtime_error("Failed to stat file: " + filePath.string());
 
     BytesBuffer buffer(static_cast<size_t>(size));
 
@@ -22,21 +22,21 @@ std::optional<BytesBuffer> readFile(const std::filesystem::path& path)
         file.read(buffer.cdata(), size);
 
         if (file.gcount() != size)
-            throw std::runtime_error("Short read: " + path.string());
+            throw std::runtime_error("Short read: " + filePath.string());
     }
 
     return buffer;
 }
 
-std::optional<BytesBuffer> readFile(const std::filesystem::path& path, size_t amount)
+std::optional<BytesBuffer> readFile(const std::filesystem::path& filePath, size_t amount)
 {
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file)
         return std::nullopt;
 
     const std::streamsize size = file.tellg();
     if (size < 0)
-        throw std::runtime_error("Failed to stat file: " + path.string());
+        throw std::runtime_error("Failed to stat file: " + filePath.string());
 
     BytesBuffer buffer(amount);
 
@@ -45,7 +45,7 @@ std::optional<BytesBuffer> readFile(const std::filesystem::path& path, size_t am
         file.read(buffer.cdata(), amount);
 
         if (file.gcount() != amount)
-            throw std::runtime_error("Short read: " + path.string());
+            throw std::runtime_error("Short read: " + filePath.string());
     }
 
     return buffer;

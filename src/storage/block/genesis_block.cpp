@@ -57,7 +57,9 @@ void initGenesisBlock()
     // Setup height
     auto heightsDb = openHeightsDb();
     rocksdb::WriteOptions wo;
-    heightsDb->Put(wo , rocksdb::Slice(0), rocksdb::Slice(genesisBlockHash.));
+    std::string key = "0";
+    std::string value(reinterpret_cast<const char*>(genesisBlockHash.data()), genesisBlockHash.size());
+    rocksdb::Status s = heightsDb->Put(wo, rocksdb::Slice(key), rocksdb::Slice(value));
 
     // Setup Index
     auto blockIndexesDb = openBlockIndexesDb();

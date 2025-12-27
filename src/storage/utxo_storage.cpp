@@ -40,10 +40,6 @@ namespace
         return out;
     }
 
-    inline rocksdb::Slice slice(const std::string& s)
-    {
-        return rocksdb::Slice(s.data(), s.size());
-    }
 }
 
 // -------------------------------------------------

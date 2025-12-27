@@ -225,7 +225,7 @@ Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
     for (int i = 0; i < 32; ++i)
     {
         uint16_t sum = uint16_t{a[i]} + uint16_t{b[i]} + carry;
-        result[i] = uint8_t(sum & 0xFF);  // keep lowest 8 bits
+        result[i] = static_cast<uint8_t>(sum & 0xFF);  // keep lowest 8 bits
         carry = sum >> 8;                 // upper bits become carry
     }
 
@@ -249,9 +249,9 @@ Array256_t decreaseDifficultyLE(const Array256_t& arr)
     Array256_t newDifficulty = arr;
     uint8_t carry = 0;
     // Iterate from least significant byte to most significant
-    for (size_t i = 0; i < newDifficulty.size(); ++i) {
-        uint8_t newCarry = newDifficulty[i] >> 7;
-        newDifficulty[i] = (newDifficulty[i] << 1) | carry;
+    for (unsigned char & i : newDifficulty) {
+        uint8_t newCarry = i >> 7;
+        i = (i << 1) | carry;
         carry = newCarry;
     }
     // Set least significant bit to 1 (index 0 in little-endian)

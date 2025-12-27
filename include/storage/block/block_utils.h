@@ -1,7 +1,6 @@
 #pragma once
 #include <optional>
 #include "crypto_utils.h"
-#inc
 
 std::optional<ChainBlock> getBlock(const Array256_t& blockHash);
 
