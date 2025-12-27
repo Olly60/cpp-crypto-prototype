@@ -71,10 +71,10 @@ bool isValidHandshake(const Handshake& hs)
 // Add peer to peer map in memory
 // ============================================
 
-void addPeerToMemory(const asio::ip::tcp::socket& socket, const Handshake& hs)
+void addPeerToKnown(const asio::ip::tcp::socket& socket, const Handshake& hs)
 {
     const PeerAddress addr{
-        socket.remote_endpoint().address().to_string(),
+        socket.remote_endpoint().address(),
         socket.remote_endpoint().port()
     };
 
@@ -83,7 +83,7 @@ void addPeerToMemory(const asio::ip::tcp::socket& socket, const Handshake& hs)
         getCurrentTimestamp()
     };
 
-    peers[addr] = status;
+    knownPeers[addr] = status;
 }
 
 // ============================================
@@ -259,7 +259,7 @@ asio::awaitable<uint64_t> readU64Tcp(asio::ip::tcp::socket& socket)
 asio::awaitable<void> BroadcastNewTx(asio::io_context asioCtx, const Tx& tx)
 {
     //TODO: finish making
-    for (const auto& [addr, port] : peers)
+    for (const auto& [addr, port] : knownPeers)
     {
         asio::ip::tcp::socket socket(co_await asio::this_coro::executor);
 

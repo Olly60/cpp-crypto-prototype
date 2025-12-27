@@ -179,6 +179,21 @@ public:
         return out;
     }
 
+    template <uint64_t N>
+    void writeFixedArray(std::array<uint8_t, N> array)
+    {
+        data_.insert(data_.end(), array.begin(), array.end());
+    }
+
+    template <uint64_t N>
+    std::array<uint8_t, N> readFixedArray()
+    {
+        std::array<uint8_t, N> out;
+        std::memcpy(out.data(), data_.data() + read_offset_, N);
+        read_offset_ += N;
+        return out;
+    }
+
     // BytesBuffer
     void writeBytesBuffer(const BytesBuffer& other)
     {

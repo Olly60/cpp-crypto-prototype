@@ -16,7 +16,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
     try
     {
         const PeerAddress peerAddr{
-            socket.remote_endpoint().address().to_string(),
+            socket.remote_endpoint().address(),
             socket.remote_endpoint().port()
         };
 
@@ -25,20 +25,21 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
         co_await asio::async_read(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
 
         // Handle handshake
-        if (msgType == 1)
+        if (msgType == ProtocolMessage::Handshake)
         {
             co_await handleHandshake(socket);
             co_return;
         }
 
         // Check if peer is authenticated
-        if (!peers.contains(peerAddr))
+        if (!knownPeers.contains(peerAddr))
         {
+            unknownPeers.insert(peerAddr);
             co_return; // Unauthenticated peer
         }
 
         // Update last seen
-        peers[peerAddr].lastSeen = getCurrentTimestamp();
+        knownPeers[peerAddr].lastSeen = getCurrentTimestamp();
 
         // Route message
         switch (msgType)
@@ -63,6 +64,9 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
             break;
         case ProtocolMessage::GetHeaders:
             co_await handleGetHeaders(socket);
+            break;
+        case ProtocolMessage::GetPeers:
+            co_await handleGetPeers(socket);
             break;
         default:
             break; // Unknown message
@@ -103,5 +107,5 @@ asio::ip::tcp::acceptor acceptor(ioContext, asio::ip::tcp::endpoint(asio::ip::tc
 co_spawn(ioContext, acceptConnections(acceptor), asio::detached);
 ioContext.run();
 
-storePeers(peers);
+storePeers();
 }

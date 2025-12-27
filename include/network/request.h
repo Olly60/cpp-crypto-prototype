@@ -1,4 +1,5 @@
 #pragma once
+#include <map>
 
 asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket);
 
@@ -11,8 +12,6 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
 
 asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash);
 
-asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& socket);
+asio::awaitable<std::map<Array256_t, BlockHeader>> requestHeaders(asio::ip::tcp::socket& socket);
 
-asio::awaitable<std::vector<Block>> requestBlocks(asio::ip::tcp::socket& socket, const std::vector<const Array256_t>& blockHashes);
-
-asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket);
+asio::awaitable<void> requestMempool(asio::ip::tcp::socket& socket);

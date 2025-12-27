@@ -15,7 +15,7 @@ bool isValidHandshake(const Handshake& hs);
 // Add peer to peer map in memory
 // ============================================
 
-void addPeerToMemory(const asio::ip::tcp::socket& socket, const Handshake& hs);
+void addPeerToKnown(const asio::ip::tcp::socket& socket, const Handshake& hs);
 // ============================================
 // Sync blockchain
 // ============================================

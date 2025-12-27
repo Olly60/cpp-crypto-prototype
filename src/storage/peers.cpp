@@ -1,75 +1,136 @@
 #include "storage/peers.h"
+
+#include "network/network_main.h"
 #include "storage/storage_utils.h"
 
-void storePeers(const std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash>& peers)
+void storePeers()
 {
-
-    std::ofstream peersFile(PEERS, std::ios::trunc | std::ios::binary);
-    if (!peersFile)
-    {
-        throw std::runtime_error("Failed to open peers file for writing");
-    }
-    peersFile.exceptions(std::ios::failbit | std::ios::badbit);
-
-    BytesBuffer peersFileBytes;
+    BytesBuffer knownPeersFileBytes;
 
     // Write peer count
-    peersFileBytes.writeU64(peers.size());
+    knownPeersFileBytes.writeU64(knownPeers.size());
 
     // Write each peer
-    for (const auto& [peerAddr, peerStatus] : peers)
+    for (const auto& [peerAddr, peerStatus] : knownPeers)
     {
-        // Address length and string
-        peersFileBytes.writeU64(peerAddr.address.size());
-        peersFileBytes.writeString(peerAddr.address);
+        // Write address type
+        knownPeersFileBytes.writeU8(peerAddr.address.is_v4() ? 0x04 : 0x06);
+
+        // Address
+        if (peerAddr.address.is_v4())
+        {
+            knownPeersFileBytes.writeFixedArray(peerAddr.address.to_v4().to_bytes());
+        } else if (peerAddr.address.is_v6()) {
+            knownPeersFileBytes.writeFixedArray(peerAddr.address.to_v6().to_bytes());
+        }
+
 
         // Port
-        peersFileBytes.writeU16(peerAddr.port);
+        knownPeersFileBytes.writeU16(peerAddr.port);
 
         // Services
-        peersFileBytes.writeU64(peerStatus.services);
+        knownPeersFileBytes.writeU64(peerStatus.services);
+
+        // Relay
+        knownPeersFileBytes.writeU8(peerStatus.relay);
 
         // Last seen
-        peersFileBytes.writeU64(peerStatus.lastSeen);
+        knownPeersFileBytes.writeU64(peerStatus.lastSeen);
     }
 
-    writeFile(peersFile, peersFileBytes);
+    writeFileTrunc(KNOWN_PEERS, knownPeersFileBytes);
+
+    BytesBuffer unknownPeersFileBytes;
+
+    // Write Peer count
+    unknownPeersFileBytes.writeU64(unknownPeers.size());
+
+    // Write each peer
+    for (const auto& peerAddr : unknownPeers)
+    {
+        // Address length and string
+        unknownPeersFileBytes.writeString(peerAddr.address.to_string());
+
+        // Port
+        unknownPeersFileBytes.writeU16(peerAddr.port);
+    }
+
+    writeFileTrunc(UNKNOWN_PEERS, unknownPeersFileBytes);
 }
 
-std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> loadPeers()
+void loadPeers()
 {
-    if (!std::filesystem::exists(PEERS))
+    if (std::filesystem::exists(KNOWN_PEERS))
     {
-        return {};
+        auto knownPeersFileBytes = readFile(KNOWN_PEERS);
+
+        // Read peer count
+        uint64_t peersCount = knownPeersFileBytes->readU16();
+
+        // Read each peer
+        for (uint64_t i = 0; i < peersCount; ++i)
+        {
+            PeerAddress peerAddr;
+            PeerStatus peerStatus;
+
+            // Read address type
+            uint8_t addressType = knownPeersFileBytes->readU8();
+
+            // Read address
+            if (addressType == 4)
+            {
+
+                peerAddr.address = asio::ip::address_v4(knownPeersFileBytes->readFixedArray<4>());
+            } else if (addressType == 6)
+            {
+                peerAddr.address = asio::ip::address_v6(knownPeersFileBytes->readFixedArray<16>());
+            }
+
+            // Read port
+            peerAddr.port = knownPeersFileBytes->readU16();
+
+            // Read services
+            peerStatus.services = knownPeersFileBytes->readU64();
+
+            // Read last seen
+            peerStatus.lastSeen = knownPeersFileBytes->readU64();
+
+            // Read relay
+            peerStatus.relay = knownPeersFileBytes->readU8();
+
+            knownPeers.insert({peerAddr, peerStatus});
+        }
     }
-
-    std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
-    auto peersFileBytes = readFile(PEERS);
-    if (!peersFileBytes) return peers;
-
-    // Read peer count
-    uint64_t peersCount = peersFileBytes->readU16();
-
-    // Read each peer
-    for (uint64_t i = 0; i < peersCount; i++)
+    if (std::filesystem::exists(UNKNOWN_PEERS))
     {
-        PeerAddress peerAddr;
-        PeerStatus peerStatus;
+        auto unknownPeersFileBytes = readFile(UNKNOWN_PEERS);
 
-        // Read address string
-        peerAddr.address = peersFileBytes->readString();
+        // Read peer count
+        uint64_t peersCount = unknownPeersFileBytes->readU64();
 
-        // Read port
-        peerAddr.port = peersFileBytes->readU16();
+        // Read each peer
+        for (uint64_t i = 0; i < peersCount; ++i)
+        {
+            PeerAddress peerAddr;
 
-        // Read services
-        peerStatus.services = peersFileBytes->readU64();
+            // Read address type
+            uint8_t addressType = unknownPeersFileBytes->readU8();
 
-        // Read last seen
-        peerStatus.lastSeen = peersFileBytes->readU64();
+            // Read address
+            if (addressType == 4)
+            {
 
-        peers.insert({peerAddr, peerStatus});
+                peerAddr.address = asio::ip::address_v4(unknownPeersFileBytes->readFixedArray<4>());
+            } else if (addressType == 6)
+            {
+                peerAddr.address = asio::ip::address_v6(unknownPeersFileBytes->readFixedArray<16>());
+            }
+
+            // Read port
+            peerAddr.port = unknownPeersFileBytes->readU16();
+
+            unknownPeers.insert(peerAddr);
+        }
+
     }
-
-    return peers;
 }

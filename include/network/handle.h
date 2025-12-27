@@ -13,6 +13,8 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket);
 
 asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket);
 
+asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
+
 // ============================================
 // Handle new data
 // ============================================
@@ -20,3 +22,4 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket);
 asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket);
 
 asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket);
+

@@ -5,15 +5,59 @@
 #include "network/network_main.h"
 #include "../../include/tip.h"
 #include "network/request.h"
+
+#include "verify.h"
 #include "network/network_utils.h"
 #include "storage/storage_utils.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
 
-asio::awaitable<std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash>> requestPeers(asio::ip::tcp::socket& socket)
+asio::awaitable<void> writeMessageType(asio::ip::tcp::socket& socket, uint8_t msg)
 {
-    //TODO: make function
+    co_await asio::async_write(socket, asio::buffer(&msg, 1), asio::use_awaitable);
+}
+
+asio::awaitable<void> requestPeers(asio::ip::tcp::socket& socket)
+{
+    // Write message type
+    co_await writeMessageType(socket, ProtocolMessage::GetPeers);
+
+    // Read peers amount
+    auto peersAmount = co_await readU64Tcp(socket);
+
+    unknownPeers.reserve(peersAmount + knownPeers.size());
+
+    for (uint64_t i = 0; i < peersAmount; ++i)
+    {
+        PeerAddress peerAddr;
+        // Read type
+        uint8_t type;
+        co_await asio::async_read(socket, asio::buffer(&type, 1), asio::use_awaitable);
+        if (type == 4)
+        {
+            std::array<uint8_t, 4> addr{};
+            co_await asio::async_read(socket, asio::buffer(addr.data(), addr.size()), asio::use_awaitable);
+            peerAddr.address = asio::ip::address_v4(addr);
+
+            BytesBuffer port(2);
+            co_await asio::async_read(socket, asio::buffer(port.data(), port.size()), asio::use_awaitable);
+            peerAddr.port = port.readU16();
+
+        } else if (type == 6)
+        {
+            std::array<uint8_t, 16> addr{};
+            co_await asio::async_read(socket, asio::buffer(addr.data(), addr.size()), asio::use_awaitable);
+            peerAddr.address = asio::ip::address_v6(addr);
+
+            BytesBuffer port(2);
+            co_await asio::async_read(socket, asio::buffer(port.data(), port.size()), asio::use_awaitable);
+            peerAddr.port = port.readU16();
+
+        }
+
+        if (!knownPeers.contains(peerAddr)) unknownPeers.insert(peerAddr);
+    }
 }
 
 asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
@@ -21,8 +65,7 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
     try
     {
         // Write message type
-        auto msgType = ProtocolMessage::Handshake;
-        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await writeMessageType(socket, ProtocolMessage::Handshake);
 
         // Write our handshake
         auto myHandshake = serialiseHandshake(createHandshake());
@@ -50,7 +93,7 @@ asio::awaitable<void> requestHandshake(asio::ip::tcp::socket& socket)
             co_return;
         }
 
-        addPeerToMemory(socket, theirHandshake);
+        addPeerToKnown(socket, theirHandshake);
     }
     catch (...)
     {
@@ -62,24 +105,23 @@ asio::awaitable<void> requestPing(asio::ip::tcp::socket& socket)
     try
     {
         // Send message type
-        auto msgType = static_cast<uint8_t>(ProtocolMessage::Ping);
-        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await writeMessageType(socket, ProtocolMessage::Ping);
 
         // Read pong
         uint8_t pong;
         co_await asio::async_read(socket, asio::buffer(&pong, 1), asio::use_awaitable);
 
         PeerAddress peerAdr;
-        peerAdr.address = socket.remote_endpoint().address().to_string();
+        peerAdr.address = socket.remote_endpoint().address();
         peerAdr.port = socket.remote_endpoint().port();
 
         // Update last seen if valid
         if (pong == 0x01)
         {
-            peers[peerAdr].lastSeen = getCurrentTimestamp();
+            knownPeers[peerAdr].lastSeen = getCurrentTimestamp();
         } else if (pong == 0x00) // Else remove from peers
         {
-            peers.erase(peerAdr);
+            knownPeers.erase(peerAdr);
         }
 
     }
@@ -96,8 +138,7 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
     try
     {
         // Write request
-        auto msgType = ProtocolMessage::GetHeader;
-        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await writeMessageType(socket, ProtocolMessage::GetHeader);
 
         // Write header hash
         co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
@@ -107,11 +148,8 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
         co_await asio::async_read(socket, asio::buffer(&hasHeader, 1), asio::use_awaitable);
         if (hasHeader == 0) { co_return std::nullopt; }
 
-        // Read size
-        const uint64_t headerSize = co_await readU64Tcp(socket);
-
         // Read header
-        BytesBuffer headerBytes(headerSize);
+        BytesBuffer headerBytes(calculateBlockHeaderSize());
         co_await asio::async_read(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
 
         co_return parseBlockHeader(headerBytes);
@@ -128,8 +166,7 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
     try
     {
         // Write request
-        auto msgType = ProtocolMessage::GetBlock;
-        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await writeMessageType(socket, ProtocolMessage::GetBlock);
 
         // Block hash
         co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
@@ -154,13 +191,12 @@ asio::awaitable<std::optional<Block>> requestBlock(asio::ip::tcp::socket& socket
     }
 }
 
-asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& socket)
+asio::awaitable<std::map<BlockHeader>> requestHeaders(asio::ip::tcp::socket& socket)
 {
     try
     {
         // Write message type
-        auto msgType = ProtocolMessage::GetHeaders;
-        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await writeMessageType(socket, ProtocolMessage::GetHeaders);
 
         // Get block tip height
         auto tipHeight = getTipHeight();
@@ -202,7 +238,6 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
         // Drop leading headers we already have (chronological order: oldest -> newest)
         std::vector<BlockHeader>::difference_type drop = 0;
-        Array256_t commonAncestor;
 
         while (drop < static_cast<std::vector<BlockHeader>::difference_type>(headers.size()) &&
                std::filesystem::exists(getBlockFilePath(getBlockHeaderHash(headers[drop]))))
@@ -224,13 +259,12 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
     }
 }
 
-asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket)
+asio::awaitable<void> requestMempool(asio::ip::tcp::socket& socket)
 {
     try
     {
         // Write message type
-        auto msgType = ProtocolMessage::GetMempool;
-        co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        co_await writeMessageType(socket, ProtocolMessage::GetMempool);
 
         // Read inv size
         const uint64_t invSize = co_await readU64Tcp(socket);
@@ -281,12 +315,19 @@ asio::awaitable<std::vector<Tx>> requestMempool(asio::ip::tcp::socket& socket)
 
         }
 
-        // Return their mempool missing in ours
-        co_return txs;
+        std::unordered_map<Array256_t, Tx, Array256Hash> theirMempool;
+        theirMempool.reserve(txs.size());
+        for (auto& tx : txs)
+        {
+            if (!verifyTx(tx)) co_return;
+            auto hashTx = getTxHash(tx);
+            mempool.insert({hashTx, tx});
+        }
+
 
     }
     catch (...)
     {
-        co_return std::vector<Tx>{};
+
     }
 }

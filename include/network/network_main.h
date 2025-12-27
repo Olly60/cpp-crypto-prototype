@@ -1,6 +1,8 @@
 #pragma once
 #include "storage/peers.h"
 #include <random>
+#include <unordered_set>
+
 #include "storage/block/genesis_block.h"
 
 // ============================================
@@ -27,6 +29,7 @@ namespace ProtocolMessage
     constexpr uint8_t BroadcastNewTx = 6;
     constexpr uint8_t GetMempool = 7;
     constexpr uint8_t GetHeaders = 8;
+    constexpr uint8_t GetPeers = 9;
 };
 
 constexpr uint32_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
@@ -52,12 +55,9 @@ struct Array256Hash
     }
 };
 
-// ============================================
 // Global State
-// ============================================
-
-inline std::unordered_map<PeerAddress, PeerStatus, PeerAddressHash> peers;
-inline std::unordered_map<Array256_t, Tx, Array256Hash> mempool;
+using MempoolMap = std::unordered_map<Array256_t, Tx, Array256Hash>;
+inline MempoolMap mempool;
 
 enum class Service : uint64_t
 {
