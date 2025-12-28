@@ -9,52 +9,6 @@
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
-namespace
-{
-    // Helper: convert hex character to nibble
-    constexpr uint8_t hexCharToNibble(const char c)
-    {
-        if (c >= '0' && c <= '9') return c - '0';
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        throw std::runtime_error("Invalid hex character");
-    }
-}
-
-// Convert hex string to byte array
-BytesBuffer hexToBytes(const std::string& hex)
-{
-    if (hex.size() % 2 != 0)
-    {
-        throw std::runtime_error("hexToBytes: invalid hex string length");
-    }
-
-    BytesBuffer bytes;
-    for (size_t i = 0; i < hex.size() / 2; i++)
-    {
-        const uint8_t high = hexCharToNibble(hex[i * 2]);
-        const uint8_t low = hexCharToNibble(hex[i * 2 + 1]);
-        bytes.writeU8((high << 4 | low));
-    }
-
-    return bytes;
-}
-
-// Convert byte array to hex string
-std::string bytesToHex(const BytesBuffer& bytes)
-{
-    std::string hex;
-    hex.reserve(bytes.size() * 2);
-
-    for (const auto& byte : bytes)
-    {
-        constexpr char hexChars[] = "0123456789ABCDEF";
-        hex.push_back(hexChars[byte >> 4]);
-        hex.push_back(hexChars[byte & 0x0F]);
-    }
-
-    return hex;
-}
 
 Array256_t sha256Of(const BytesBuffer& data)
 {
@@ -231,7 +185,6 @@ Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
 
     return result;
 }
-
 
 bool isLessLE(const Array256_t& a, const Array256_t& b)
 {

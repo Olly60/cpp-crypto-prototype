@@ -1,6 +1,16 @@
 #pragma once
 #include "network_main.h"
 
+struct Handshake
+{
+    uint64_t version;
+    Array256_t genesisBlockHash;
+    uint64_t services;
+    uint64_t nonce;
+    Array256_t blockchainTip;
+    uint8_t relay;
+};
+
 constexpr uint64_t calculateHandshakeSize();
 
 Handshake createHandshake();

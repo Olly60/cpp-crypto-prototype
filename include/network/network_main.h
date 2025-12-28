@@ -10,27 +10,27 @@
 // Data Structures
 // ============================================
 
-struct Handshake
-{
-    uint64_t version;
-    Array256_t genesisBlockHash;
-    uint64_t services;
-    uint64_t nonce;
-    Array256_t blockchainTip;
-    uint8_t relay;
-};
 
 namespace ProtocolMessage
 {
-    constexpr uint8_t Handshake = 1;
-    constexpr uint8_t Ping = 2;
-    constexpr uint8_t GetHeader = 3;
-    constexpr uint8_t GetBlock = 4;
-    constexpr uint8_t BroadcastNewBlock = 5;
-    constexpr uint8_t BroadcastNewTx = 6;
-    constexpr uint8_t GetMempool = 7;
-    constexpr uint8_t GetHeaders = 8;
-    constexpr uint8_t GetPeers = 9;
+    constexpr uint8_t CommandSize = 16;
+
+    constexpr std::array<uint8_t, CommandSize> makeCommand(const char* str) {
+    std::array<uint8_t, CommandSize> a{};
+    for (size_t i = 0; i < CommandSize && str[i] != '\0'; ++i) {
+        a[i] = static_cast<uint8_t>(str[i]);
+    }
+    return a;
+}
+    constexpr auto Handshake = makeCommand("handshake");
+    constexpr auto Ping = makeCommand("ping");
+    constexpr auto GetHeader= makeCommand("getheader");
+    constexpr auto GetBlock = makeCommand("getblock");
+    constexpr auto BroadcastNewBlock = makeCommand("broadcastnewblock");
+    constexpr auto BroadcastNewTx = makeCommand("broadcastnewtx");
+    constexpr auto GetMempool = makeCommand("getmempool");
+    constexpr auto GetHeaders = makeCommand("getheaders");
+    constexpr auto GetPeers = makeCommand("getpeers");
 };
 
 constexpr uint32_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
@@ -61,13 +61,19 @@ using MempoolMap = std::unordered_map<Array256_t, Tx, Array256Hash>;
 inline MempoolMap mempool;
 inline asio::io_context ioCtx;
 
-enum class Service : uint64_t
+namespace Services
 {
-    FullNode = 1 << 0
+    constexpr uint64_t FullNode = 1;
+    constexpr uint64_t Handshake = 2;
+    constexpr uint64_t Ping = 4;
+    constexpr uint64_t GetHeader = 8;
+    constexpr uint64_t GetBlock = 16;
+    constexpr uint64_t BroadcastNewBlock = 32;
+    constexpr uint64_t BroadcastNewTx = 64;
+    constexpr uint64_t GetMempool = 128;
+    constexpr uint64_t GetHeaders = 256;
+    constexpr uint64_t GetPeers = 512;
 };
-
-constexpr uint64_t FullNode =
-    static_cast<uint64_t>(Service::FullNode);
 
 constexpr uint64_t ProtocolVersion = 1;
 const Array256_t GenesisBlockHash = getGenesisBlockHash();

@@ -25,12 +25,12 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
 
     for (;;) // Loop until peer closes connection
     {
-        // Read message type
-        uint8_t msgType;
-        co_await asio::async_read(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+        // Read fixed-size message command
+        std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
+        co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
 
-        // Handle handshake
-        if (msgType == ProtocolMessage::Handshake)
+        // Handle handshake first
+        if (msgCommand == ProtocolMessage::Handshake)
         {
             co_await handleHandshake(socket);
         }
@@ -46,37 +46,27 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
         knownPeers[peer].lastSeen = getCurrentTimestamp();
 
         // Route message
-        switch (msgType)
-        {
-        case ProtocolMessage::Ping:
+        if (msgCommand == ProtocolMessage::Ping)
             co_await handlePing(socket);
-            break;
-        case ProtocolMessage::GetHeader:
+        else if (msgCommand == ProtocolMessage::GetHeader)
             co_await handleGetHeader(socket);
-            break;
-        case ProtocolMessage::GetBlock:
+        else if (msgCommand == ProtocolMessage::GetBlock)
             co_await handleGetBlock(socket);
-            break;
-        case ProtocolMessage::BroadcastNewBlock:
+        else if (msgCommand == ProtocolMessage::BroadcastNewBlock)
             co_await handleNewBlock(socket);
-            break;
-        case ProtocolMessage::BroadcastNewTx:
+        else if (msgCommand == ProtocolMessage::BroadcastNewTx)
             co_await handleNewTx(socket);
-            break;
-        case ProtocolMessage::GetMempool:
+        else if (msgCommand == ProtocolMessage::GetMempool)
             co_await handleGetMempool(socket);
-            break;
-        case ProtocolMessage::GetHeaders:
+        else if (msgCommand == ProtocolMessage::GetHeaders)
             co_await handleGetHeaders(socket);
-            break;
-        case ProtocolMessage::GetPeers:
+        else if (msgCommand == ProtocolMessage::GetPeers)
             co_await handleGetPeers(socket);
-            break;
-        default:
+        else
             break; // Unknown message
-        }
     }
 }
+
 
 // ============================================
 // Accept connections

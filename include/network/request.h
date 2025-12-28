@@ -1,7 +1,11 @@
 #pragma once
-#include <map>
+#include <optional>
+#include <asio/awaitable.hpp>
+#include "crypto_utils.h"
 
 asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket);
+
+asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket);
 
 asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket);
 

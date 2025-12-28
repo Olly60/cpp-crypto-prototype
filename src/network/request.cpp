@@ -13,8 +13,12 @@
 #include "storage/block/block_indexes.h"
 #include "storage/block/block_utils.h"
 
-asio::awaitable<void> writeMessageType(asio::ip::tcp::socket& socket, uint8_t msg)
+asio::awaitable<bool> writeRequest(asio::ip::tcp::socket& socket, uint8_t msg)
 {
+    // Check node accepts service
+    auto services = knownPeers[socket.remote_endpoint()].services;
+    if ((services & Services::FullNode) != 0 || (services & ) != 0) co_return false;
+
     co_await asio::async_write(socket, asio::buffer(&msg, 1), asio::use_awaitable);
 }
 
@@ -23,7 +27,7 @@ asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
     try
     {
         // Write message type
-        co_await writeMessageType(socket, ProtocolMessage::GetPeers);
+        co_await writeRequest(socket, ProtocolMessage::GetPeers);
 
         // Read peers amount
         auto peersAmount = co_await readU64Tcp(socket);
@@ -70,7 +74,7 @@ asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket)
     try
     {
         // Write message type
-        co_await writeMessageType(socket, ProtocolMessage::Handshake);
+        co_await writeRequest(socket, ProtocolMessage::Handshake);
 
         // Write our handshake
         auto myHandshake = serialiseHandshake(createHandshake());
@@ -114,7 +118,7 @@ asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
     try
     {
         // Send message type
-        co_await writeMessageType(socket, ProtocolMessage::Ping);
+        co_await writeRequest(socket, ProtocolMessage::Ping);
 
         // Read pong
         uint8_t pong;
@@ -147,7 +151,7 @@ asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
     try
     {
         // Write request
-        co_await writeMessageType(socket, ProtocolMessage::GetHeader);
+        co_await writeRequest(socket, ProtocolMessage::GetHeader);
 
         // Write header hash
         co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
@@ -175,7 +179,7 @@ asio::awaitable<std::optional<ChainBlock>> requestBlock(asio::ip::tcp::socket& s
     try
     {
         // Write request
-        co_await writeMessageType(socket, ProtocolMessage::GetBlock);
+        co_await writeRequest(socket, ProtocolMessage::GetBlock);
 
         // Block hash
         co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
@@ -205,7 +209,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
     try
     {
         // Write message type
-        co_await writeMessageType(socket, ProtocolMessage::GetHeaders);
+        co_await writeRequest(socket, ProtocolMessage::GetHeaders);
 
         // Get block tip height
         auto tipHeight = getTipHeight();
@@ -275,8 +279,9 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
 {
     try
     {
-        // Write message type
-        co_await writeMessageType(socket, ProtocolMessage::GetMempool);
+
+        // Write message request
+        co_await writeRequest(socket, ProtocolMessage::GetMempool);
 
         // Read inv size
         const uint64_t invSize = co_await readU64Tcp(socket);
@@ -326,7 +331,7 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
             txs.push_back(parseTx(txBytes));
         }
 
-        std::unordered_map<Array256_t, Tx, Array256Hash> theirMempool;
+        MempoolMap theirMempool;
         theirMempool.reserve(txs.size());
         for (auto& tx : txs)
         {

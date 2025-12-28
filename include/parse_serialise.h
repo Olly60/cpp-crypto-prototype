@@ -65,7 +65,17 @@ public:
     void reserve(size_t newCap) { data_.reserve(newCap); }
     void resize(size_t newSize) { data_.resize(newSize); }
 
-    [[nodiscard]] std::string toHex() const { return bytesToHex(*this); }
+    [[nodiscard]] std::string toHex() const {     std::string hex;
+        hex.reserve(this->size() * 2);
+
+        for (const auto& byte : *this)
+        {
+            constexpr char hexChars[] = "0123456789ABCDEF";
+            hex.push_back(hexChars[byte >> 4]);
+            hex.push_back(hexChars[byte & 0x0F]);
+        }
+
+        return hex; }
 
     // ------------------------------------------------------------
     // Fixed-width integers (explicit)

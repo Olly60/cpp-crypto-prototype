@@ -3,3 +3,5 @@
 ChainBlock getGenesisBlock();
 
 Array256_t getGenesisBlockHash();
+
+void initGenesisBlock();

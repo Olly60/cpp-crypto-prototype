@@ -83,10 +83,6 @@ constexpr size_t calculateBlockHeaderSize()
         + sizeof(decltype(BlockHeader::nonce)); // nonce
 }
 
-// Convert hex string to 32-byte array
-BytesBuffer hexToBytes(const std::string& hex);
-
-
 // Compute SHA-256 hash of data
 Array256_t sha256Of(const BytesBuffer& data);
 
