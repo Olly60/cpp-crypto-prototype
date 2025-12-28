@@ -15,7 +15,7 @@ git clone --recursive https://github.com/Olly60/crypto.git
 ```cmake
 cmake -S . -B build-release \
 -DCMAKE_BUILD_TYPE=Release \
--DCMAKE_TOOLCHAIN_FILE=./vcpkg/scripts/buildsystems/vcpkg.cmake
+-DCMAKE_TOOLCHAIN_FILE=./external/vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
 ### Build the project using the generated build files
