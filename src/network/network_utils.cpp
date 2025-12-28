@@ -26,9 +26,9 @@ constexpr uint64_t calculateHandshakeSize()
 Handshake createHandshake()
 {
     return {
-        ProtocolVersion,
-        GenesisBlockHash,
-        FullNode,
+        LocalProtocolVersion,
+        getGenesisBlockHash(),
+        Services::FullNode,
         LOCAL_NONCE,
         getTipHash(),
         RELAY
@@ -62,7 +62,7 @@ Handshake parseHandshake(BytesBuffer& buffer)
 bool isValidHandshake(const Handshake& hs)
 {
     return
-        hs.version == ProtocolVersion &&
+        hs.version == LocalProtocolVersion &&
         hs.genesisBlockHash == GenesisBlockHash &&
         hs.nonce != LOCAL_NONCE;
 }

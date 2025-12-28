@@ -3,14 +3,11 @@
 #include <random>
 #include <unordered_set>
 #include <asio/awaitable.hpp>
-
 #include "storage/block/genesis_block.h"
 
 // ============================================
-// Data Structures
+// Protocol messages
 // ============================================
-
-
 namespace ProtocolMessage
 {
     constexpr uint8_t CommandSize = 16;
@@ -33,34 +30,9 @@ namespace ProtocolMessage
     constexpr auto GetPeers = makeCommand("getpeers");
 };
 
-constexpr uint32_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
-constexpr uint32_t MAX_TX_SIZE = 8 * 1024 * 256;
-
-struct Array256Hash
-{
-    size_t operator()(const Array256_t& a) const
-    {
-        // Simple xor-folding over 8-byte chunks
-        size_t result = 0;
-        for (size_t i = 0; i < 32; i += 8)
-        {
-            size_t chunk = 0;
-            for (size_t j = 0; j < 8; ++j)
-            {
-                chunk <<= 8;
-                chunk |= a[i + j];
-            }
-            result ^= chunk;
-        }
-        return result;
-    }
-};
-
-// Global State
-using MempoolMap = std::unordered_map<Array256_t, Tx, Array256Hash>;
-inline MempoolMap mempool;
-inline asio::io_context ioCtx;
-
+// ============================================
+// Services a node offers
+// ============================================
 namespace Services
 {
     constexpr uint64_t FullNode = 1;
@@ -75,19 +47,31 @@ namespace Services
     constexpr uint64_t GetPeers = 512;
 };
 
-constexpr uint64_t ProtocolVersion = 1;
-const Array256_t GenesisBlockHash = getGenesisBlockHash();
+// ============================================
+// Limit transaction and block size
+// ============================================
+constexpr uint32_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
+constexpr uint32_t MAX_TX_SIZE = 8 * 1024 * 256;
 
-inline uint64_t generateLocalNonce()
-{
-        static std::mt19937_64 gen(std::random_device{}());
-        return gen();
-}
+// ============================================
+// Global State
+// ============================================
 
+// Mempool
+using MempoolMap = std::unordered_map<Array256_t, Tx, Array256Hash>;
+inline MempoolMap mempool;
 
-const uint64_t LOCAL_NONCE = generateLocalNonce();
+// IO context
+inline asio::io_context ioCtx;
 
-constexpr uint64_t RELAY = 0;
+// Protocol version this node is running
+constexpr uint64_t LocalProtocolVersion = 1;
+
+// Does this node accept mempool transactions?
+constexpr uint64_t RELAY = 1;
+
+// Local nonce to ensure no self connections happen
+const uint64_t LOCAL_NONCE = [] { static std::mt19937_64 g(std::random_device{}()); return g(); }();
 
 asio::awaitable<void> acceptConnections();
 

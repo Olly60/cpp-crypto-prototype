@@ -33,7 +33,7 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
         }
 
 
-        Array256_t hash = computeTxInputSignHash(tx, i);
+        Array256_t hash = computeTxSignHash(tx, i);
 
         // Verify signature
         if (crypto_sign_verify_detached(

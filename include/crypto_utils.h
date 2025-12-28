@@ -6,7 +6,6 @@
 #include <istream>
 #include "parse_serialise.h"
 
-
 // ============================================================================
 // TYPE ALIASES
 // ============================================================================
@@ -14,6 +13,26 @@
 using Array256_t = std::array<uint8_t, 32>;
 
 using Array512_t = std::array<uint8_t, 64>;
+
+struct Array256Hash
+{
+    size_t operator()(const Array256_t& a) const
+    {
+        // Simple xor-folding over 8-byte chunks
+        size_t result = 0;
+        for (size_t i = 0; i < 32; i += 8)
+        {
+            size_t chunk = 0;
+            for (size_t j = 0; j < 8; ++j)
+            {
+                chunk <<= 8;
+                chunk |= a[i + j];
+            }
+            result ^= chunk;
+        }
+        return result;
+    }
+};
 
 // ============================================================================
 // MAIN BUFFER
@@ -106,7 +125,7 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs);
 // SIGNING
 // ============================================================================
 
-Array256_t computeTxInputSignHash(const Tx& tx, uint64_t inputIndex);
+Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex);
 
 Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed);
 

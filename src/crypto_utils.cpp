@@ -119,25 +119,23 @@ Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex)
     return sha256Of(buf);
 }
 
-
-
-
-Tx signTxInputs(const Tx& tx, const Array256_t& privKeySeed)
+Tx signTxInputs(const Tx& tx, const Array512_t& sk) // full secret key
 {
-    Tx signedTx = tx; // make a copy
+    Tx signedTx = tx; // copy
 
     for (size_t i = 0; i < signedTx.txInputs.size(); i++)
     {
         Array256_t hash = computeTxSignHash(signedTx, i); // input-specific hash
 
         Array512_t sig;
-        crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), privKeySeed.data());
+        crypto_sign_detached(sig.data(), nullptr, hash.data(), hash.size(), sk.data());
 
-        signedTx.txInputs[i].signature = sig; // assign signature
+        signedTx.txInputs[i].signature = sig;
     }
 
     return signedTx;
 }
+
 
 
 // ============================================================================
