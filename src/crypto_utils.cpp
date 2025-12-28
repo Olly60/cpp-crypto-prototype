@@ -165,7 +165,7 @@ Array256_t getBlockWork(const Array256_t& difficulty)
 
     return blockWork;
 }
-
+// TODO: fix these functions
 
 
 Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
