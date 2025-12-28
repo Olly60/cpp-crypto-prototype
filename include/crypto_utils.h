@@ -138,11 +138,8 @@ Array256_t getBlockWork(const Array256_t& difficulty);
 
 Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b);
 
-// Returns true if a > b
-bool isLessLE(const Array256_t& a, const Array256_t& b);
-
 // Decrease difficulty (easier -> shift left)
-Array256_t decreaseDifficultyLE(const Array256_t& arr);
+Array256_t shiftRight(const Array256_t& arr);
 
 // Increase difficulty (harder -> shift right)
-Array256_t increaseDifficultyLE(const Array256_t& arr);
+Array256_t shiftLeft(const Array256_t& arr);

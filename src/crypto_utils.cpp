@@ -146,27 +146,27 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk) // full secret key
 Array256_t getBlockWork(const Array256_t& difficulty)
 {
     Array256_t blockWork;
-    blockWork.fill(0xFF);  // start with 2^256 - 1
-    uint64_t shiftAmount = 0;
+    blockWork.fill(0xFF); // 2^256 - 1
 
-    // Count consecutive 1 bits in difficulty
-    for (auto u8 : difficulty)
+    // Count consecutive 1 bits in difficulty (MSB-first)
+    size_t shiftAmount = 0;
+    for (size_t i = 0; i < 32; ++i)
     {
-        for (uint8_t mask = 1; mask != 0; mask <<= 1)
+        for (uint8_t mask = 0x80; mask != 0; mask >>= 1) // MSB → LSB in each byte
         {
-            if ((u8 & mask) != 0)
-                shiftAmount++;
-            else
-                break; // stop at first 0 if bits are always in a row
+            if (difficulty[i] & mask) shiftAmount++;
+            else break;
         }
     }
 
-    // Shift work left by shiftAmount
-    for (uint64_t i = 0; i < shiftAmount; ++i)
-        blockWork = increaseDifficultyLE(blockWork);
+    // Shift left by shiftAmount (easier)
+    for (size_t i = 0; i < shiftAmount; ++i)
+        blockWork = shiftLeftBE(blockWork);
 
     return blockWork;
 }
+
+
 
 Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
 {
@@ -183,47 +183,43 @@ Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
 
     return result;
 }
+}
 
-bool isLessLE(const Array256_t& a, const Array256_t& b)
+
+// Shift right (harder) -> divide by 2
+Array256_t shiftRightBE(const Array256_t& arr)
 {
-    for (int i = 31; i >= 0; --i)
+    Array256_t result = arr;
+    uint8_t carry = 0;
+
+    for (size_t i = 0; i < 32; ++i) // MSB -> LSB
     {
-        if (a[i] < b[i]) return true;
-        if (a[i] > b[i]) return false;
-    }
-    return false; // a == b
-}
-
-// Decrease difficulty (easier -> shift left)
-Array256_t decreaseDifficultyLE(const Array256_t& arr)
-{
-    Array256_t newDifficulty = arr;
-    uint8_t carry = 0;
-    // Iterate from least significant byte to most significant
-    for (unsigned char & i : newDifficulty) {
-        uint8_t newCarry = i >> 7;
-        i = (i << 1) | carry;
+        uint8_t newCarry = result[i] & 1;
+        result[i] = (result[i] >> 1) | (carry << 7);
         carry = newCarry;
     }
-    // Set least significant bit to 1 (index 0 in little-endian)
-    newDifficulty[0] |= 1;
-    return newDifficulty;
+    // Ensure at least 1 in LSB so it never becomes zero
+    result[31] |= 1;
+
+    return result;
 }
 
-// Increase difficulty (harder -> shift right)
-Array256_t increaseDifficultyLE(const Array256_t& arr)
+// Shift left (easier) -> multiply by 2
+Array256_t shiftLeftBE(const Array256_t& arr)
 {
-    Array256_t newDifficulty = arr;
+    Array256_t result = arr;
     uint8_t carry = 0;
-    // Iterate from most significant byte to least significant
-    for (size_t i = newDifficulty.size(); i-- > 0;) {
-        uint8_t newCarry = newDifficulty[i] & 1;
-        newDifficulty[i] = (newDifficulty[i] >> 1) | (carry << 7);
+
+    for (int i = 31; i >= 0; --i) // LSB -> MSB for carry
+    {
+        uint8_t newCarry = (result[i] & 0x80) >> 7;
+        result[i] = (result[i] << 1) | carry;
         carry = newCarry;
     }
-    // Set least significant bit to 1 (index 0 in little-endian)
-    newDifficulty[0] |= 1;
-    return newDifficulty;
+    // Ensure at least 1 in LSB so it never becomes zero
+    result[31] |= 1;
+
+    return result;
 }
 
 

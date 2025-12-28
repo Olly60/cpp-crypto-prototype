@@ -104,8 +104,8 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
 
     Array256_t expectedDifficulty =
         (timeDelta < 600)
-            ? increaseDifficultyLE(prevHeader.difficulty)
-            : decreaseDifficultyLE(prevHeader.difficulty);
+            ? shiftLeft(prevHeader.difficulty)
+            : shiftRight(prevHeader.difficulty);
 
     if (header.difficulty != expectedDifficulty)
         return false;
