@@ -146,7 +146,7 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk) // full secret key
 Array256_t getBlockWork(const Array256_t& difficulty)
 {
     Array256_t blockWork;
-    blockWork.fill(0xFF); // 2^256 - 1
+    blockWork.fill(0xFF); // 2^256
 
     // Count consecutive 1 bits in difficulty (MSB-first)
     size_t shiftAmount = 0;
@@ -161,7 +161,7 @@ Array256_t getBlockWork(const Array256_t& difficulty)
 
     // Shift left by shiftAmount (easier)
     for (size_t i = 0; i < shiftAmount; ++i)
-        blockWork = shiftLeftBE(blockWork);
+        blockWork = shiftLeft(blockWork);
 
     return blockWork;
 }
