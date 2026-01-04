@@ -3,7 +3,6 @@
 #include <span>
 #include "crypto_utils.h"
 
-// TODO: fix this and done inline everything
 struct BytesBuffer
 {
 private:
