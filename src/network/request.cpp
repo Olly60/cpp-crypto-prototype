@@ -5,6 +5,9 @@
 #include "network/network_main.h"
 #include "tip.h"
 #include "network/request.h"
+
+#include <iostream>
+
 #include "verify.h"
 #include "network/network_utils.h"
 #include "storage/block/block_heights.h"
@@ -53,7 +56,6 @@ asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
 
             unknownPeers.insert(peerAddr);
         }
-
         co_return true;
     }
     catch (...)

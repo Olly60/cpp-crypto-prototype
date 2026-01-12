@@ -46,7 +46,7 @@ rocksdb::DB* blockIndexesDb() {
         rocksdb::DB* db = nullptr;
         rocksdb::Status status = rocksdb::DB::Open(
             options,
-            "block_heights",
+            "block_indexes",
             &db
         );
 

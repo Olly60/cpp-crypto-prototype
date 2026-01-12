@@ -3,6 +3,8 @@
 #include <asio/use_awaitable.hpp>
 #include "crypto_utils.h"
 #include <asio.hpp>
+#include <iostream>
+
 #include "parse_serialise.h"
 #include "verify.h"
 #include "tip.h"
@@ -75,6 +77,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
 asio::awaitable<void> acceptConnections()
 {
     asio::ip::tcp::acceptor acceptor(ioCtx, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), 50000));
+    std::cout << "listening on: " << acceptor.local_endpoint().address().to_string() << " " << acceptor.local_endpoint().port() << std::endl;
 
     try
     {
@@ -242,7 +245,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 // ============================================
 // Update chain and connect to network
 // ============================================
-asio::awaitable<void> trySyncWithPeers()
+asio::awaitable<bool> trySyncWithPeers()
 {
     for (auto& peer : knownPeers)
     {
@@ -255,12 +258,13 @@ asio::awaitable<void> trySyncWithPeers()
             if (!co_await requestPing(socket)) continue;
             if (!co_await syncIfBetter(socket)) continue;
 
-            break; // synced successfully
+            co_return true; // synced successfully
         }
         catch (...)
         {
         }
     }
+
 }
 
 // ============================================

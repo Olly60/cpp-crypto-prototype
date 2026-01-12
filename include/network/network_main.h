@@ -85,7 +85,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket);
 // Update chain and connect to network
 // ============================================
 
-asio::awaitable<void> trySyncWithPeers();
+asio::awaitable<bool> trySyncWithPeers();
 
 // ============================================
 // Broadcast

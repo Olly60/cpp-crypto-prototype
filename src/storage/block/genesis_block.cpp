@@ -59,16 +59,16 @@ void initGenesisBlock()
     rocksdb::Status s = heightsDb()->Put(wo, rocksdb::Slice(key), rocksdb::Slice(value));
     if (!s.ok()) throw std::runtime_error(s.ToString());
 
-
     // Setup Index
     BlockIndexValue blockIndex;
     blockIndex.chainWork = getBlockWork(genesisBlock.header.difficulty);
     blockIndex.height = 0;
     putBlockIndexBatch({genesisBlockHash}, {blockIndex});
 
-    // Write block file
-    writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
-
-    // Genesis utxo
-    applyUtxoBatch( {}, {std::pair<TxInput, TxOutput>({getTxHash(genesisBlock.txs[0]),0}, genesisBlock.txs[0].txOutputs[0])});
+    //
+    // // Write block file
+    // writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
+    //
+    // // Genesis utxo
+    // applyUtxoBatch( {}, {std::pair<TxInput, TxOutput>({getTxHash(genesisBlock.txs[0]),0}, genesisBlock.txs[0].txOutputs[0])});
 }
