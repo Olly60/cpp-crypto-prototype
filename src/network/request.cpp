@@ -9,6 +9,7 @@
 #include "network/network_utils.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
+#include "storage/block/block_utils.h"
 
 asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
 {
@@ -228,7 +229,6 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
         // Make list of block hashes with (Ancestor -> Tip)
         std::vector<Array256_t> blockHashes;
-        auto blockIndexesDb = openBlockIndexesDb();
 
         // Add genesis block hash at the start
         blockHashes.push_back(getGenesisBlockHash());
@@ -236,7 +236,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
         // Exponential hash collection (Ancestor -> Tip)
         for (uint64_t i = 1; i < tipHeight; i++)
         {
-            blockHashes.push_back(*tryGetHeightHash(*blockIndexesDb, i));
+            blockHashes.push_back(*tryGetHeightHash(i));
         }
 
         // Add tip block hash at the end

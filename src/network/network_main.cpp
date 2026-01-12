@@ -109,8 +109,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     if (!commonAncestorHeader) co_return false; // common ancestor doesnt exist
 
     // Get that new chain block work
-    auto blockIndexesDb = openBlockIndexesDb();
-    auto peerChainwork = tryGetBlockIndex(*blockIndexesDb, commonAncestorHeader->difficulty)->chainWork;
+    auto peerChainwork = tryGetBlockIndex(commonAncestorHeader->difficulty)->chainWork;
 
     std::vector<Array256_t> blockHashes;
     blockHashes.reserve(headers.size());
@@ -121,7 +120,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     }
 
     // Chainwork is lower
-    if (!isLessLE(getTipChainWork(), peerChainwork)) co_return false;
+    if (getTipChainWork() > peerChainwork) co_return false;
 
     // Verify first header
     VerifyBlockHeaderContext h0Ctx;
@@ -194,7 +193,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     auto readTmpBlockFile = [&getTmpBlockPath](const Array256_t& hash) -> ChainBlock
     {
         auto blockBytes = readFile(getTmpBlockPath(hash));
-        return parseBlock(blockBytes);
+        return parseBlock(*blockBytes);
     };
 
     // Transactions context

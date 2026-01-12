@@ -32,35 +32,34 @@ namespace
     }
 }
 
-const std::filesystem::path BLOCK_HEIGHTS = "block_heights";
+rocksdb::DB* heightsDb() {
+    static rocksdb::DB* raw = []{
+        rocksdb::Options options;
+        options.create_if_missing = true;
 
-std::unique_ptr<rocksdb::DB> openHeightsDb()
-{
-    rocksdb::Options options;
-    options.create_if_missing = true;
+        rocksdb::DB* db = nullptr;
+        rocksdb::Status status = rocksdb::DB::Open(
+            options,
+            "block_heights",
+            &db
+        );
 
-    rocksdb::DB* raw = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(
-        options,
-        BLOCK_HEIGHTS,
-        &raw
-    );
+        if (!status.ok() || !db) {
+            throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
+        }
 
-    if (!status.ok() || !raw)
-    {
-        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
-    }
-
-    return std::unique_ptr<rocksdb::DB>(raw);
+        return db;
+    }();
+    return raw;
 }
 
 std::optional<Array256_t>
-tryGetHeightHash(rocksdb::DB& db, uint64_t height)
+tryGetHeightHash(uint64_t height)
 {
     const std::string key = makeHeightKey(height);
     std::string value;
 
-    auto status = db.Get(
+    auto status = heightsDb()->Get(
         rocksdb::ReadOptions(),
         key,
         &value
@@ -80,7 +79,6 @@ tryGetHeightHash(rocksdb::DB& db, uint64_t height)
 
 
 void putHeightHashBatch(
-    rocksdb::DB& db,
     const std::vector<Array256_t>& hashes)
 {
     rocksdb::WriteBatch batch;
@@ -104,13 +102,13 @@ void putHeightHashBatch(
     rocksdb::WriteOptions wo;
     wo.sync = false;
 
-    auto status = db.Write(wo, &batch);
+    auto status = heightsDb()->Write(wo, &batch);
     if (!status.ok())
         throw std::runtime_error("Height-hash batch write failed: " + status.ToString());
 }
 
 
-void deleteHeightHashBatch(rocksdb::DB& db, uint64_t amount)
+void deleteHeightHashBatch(uint64_t amount)
 {
     const uint64_t tip = getTipHeight();
     if (amount > tip + 1)
@@ -130,7 +128,7 @@ void deleteHeightHashBatch(rocksdb::DB& db, uint64_t amount)
     rocksdb::WriteOptions wo;
     wo.sync = false;
 
-    auto status = db.Write(wo, &batch);
+    auto status = heightsDb()->Write(wo, &batch);
     if (!status.ok())
         throw std::runtime_error("Height-hash batch delete failed: " + status.ToString());
 }

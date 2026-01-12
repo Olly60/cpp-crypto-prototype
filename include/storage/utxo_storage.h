@@ -3,9 +3,9 @@
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
 
-std::unique_ptr<rocksdb::DB> openUtxoDb();
+rocksdb::DB* utxoDb();
 
-std::optional<TxOutput> tryGetUtxo(rocksdb::DB& db,
+std::optional<TxOutput> tryGetUtxo(
     const TxInput& input);
 
 // -------------------------------------------------
@@ -13,6 +13,6 @@ std::optional<TxOutput> tryGetUtxo(rocksdb::DB& db,
 // -------------------------------------------------
 
 void applyUtxoBatch(
-    rocksdb::DB& db,
+
     const std::vector<TxInput>& spends,
     const std::vector<std::pair<TxInput, TxOutput>>& adds);

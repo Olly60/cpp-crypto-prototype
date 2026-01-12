@@ -46,33 +46,35 @@ namespace
 // Single-UTXO operations (non-throwing where possible)
 // -------------------------------------------------
 
-std::unique_ptr<rocksdb::DB> openUtxoDb()
-{
-    rocksdb::Options options;
-    options.create_if_missing = true;
+rocksdb::DB* utxoDb() {
+    static rocksdb::DB* raw = []{
+        rocksdb::Options options;
+        options.create_if_missing = true;
 
-    rocksdb::DB* raw = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(
-        options,
-        "block_heights",
-        &raw
-    );
+        rocksdb::DB* db = nullptr;
+        rocksdb::Status status = rocksdb::DB::Open(
+            options,
+            "utxos",
+            &db
+        );
 
-    if (!status.ok() || !raw)
-    {
-        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
-    }
+        if (!status.ok() || !db) {
+            throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
+        }
 
-    return std::unique_ptr<rocksdb::DB>(raw);
+        return db;
+    }();
+    return raw;
 }
 
+
 std::optional<TxOutput>
-tryGetUtxo(rocksdb::DB& db, const TxInput& input)
+tryGetUtxo(const TxInput& input)
 {
     const std::string key = makeUtxoKey(input.UTXOTxHash, input.UTXOOutputIndex);
     std::string value;
 
-    auto status = db.Get(
+    auto status = utxoDb()->Get(
         rocksdb::ReadOptions(),
         key,
         &value
@@ -94,7 +96,7 @@ tryGetUtxo(rocksdb::DB& db, const TxInput& input)
 // -------------------------------------------------
 
 void applyUtxoBatch(
-    rocksdb::DB& db,
+
     const std::vector<TxInput>& spends,
     const std::vector<std::pair<TxInput, TxOutput>>& adds)
 {
@@ -128,7 +130,7 @@ void applyUtxoBatch(
     rocksdb::WriteOptions wo;
     wo.sync = false;
 
-    auto status = db.Write(wo, &batch);
+    auto status = utxoDb()->Write(wo, &batch);
     if (!status.ok())
         throw std::runtime_error("UTXO batch write failed: " + status.ToString());
 }

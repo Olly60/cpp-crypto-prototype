@@ -7,7 +7,6 @@
 
 bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 {
-    auto utxoDb = openUtxoDb();
     uint64_t totalInputAmount = 0;
     uint64_t totalOutputAmount = 0;
 
@@ -19,7 +18,7 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 
     for (uint64_t i = 0; i < tx.txInputs.size(); ++i)
     {
-        auto utxoInDb = tryGetUtxo(*utxoDb, tx.txInputs[i]);
+        auto utxoInDb = tryGetUtxo(tx.txInputs[i]);
 
         if (ctx.includeUtxos) // if included is defined then check it for the utxo as well
         {
@@ -104,15 +103,14 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
 
     Array256_t expectedDifficulty =
         (timeDelta < 600)
-            ? shiftLeft(prevHeader.difficulty)
-            : shiftRight(prevHeader.difficulty);
+            ? shiftLeftBE(prevHeader.difficulty)
+            : shiftRightBE(prevHeader.difficulty);
 
     if (header.difficulty != expectedDifficulty)
         return false;
 
     // Proof-of-work: hash must be <= target
-    if (!isLessLE(blockHash, header.difficulty))
-        return false;
+    if (blockHash > header.difficulty) return false;
 
     return true;
 }

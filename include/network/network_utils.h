@@ -1,5 +1,5 @@
 #pragma once
-#include "network_main.h"
+#include "parse_serialise.h"
 
 struct Handshake
 {
@@ -11,7 +11,13 @@ struct Handshake
     uint8_t relay;
 };
 
-constexpr uint64_t calculateHandshakeSize();
+constexpr uint64_t calculateHandshakeSize()
+{
+    return sizeof(decltype(Handshake::nonce)) + sizeof(decltype(Handshake::blockchainTip)) + sizeof(decltype(
+        Handshake::genesisBlockHash)) + sizeof(decltype(Handshake::services)) + sizeof(decltype(Handshake::version))
+    +
+    sizeof(decltype(Handshake::relay));
+};
 
 Handshake createHandshake();
 

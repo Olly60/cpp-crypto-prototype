@@ -1,14 +1,12 @@
-#include "genesis_block.h"
-
-#pragma once
+#include "storage/block/genesis_block.h"
 #include <filesystem>
-
 #include "crypto_utils.h"
 #include "tip.h"
 #include "storage/storage_utils.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
+#include "storage/block/block_utils.h"
 
 // Genesis block
 ChainBlock getGenesisBlock()
@@ -55,23 +53,22 @@ void initGenesisBlock()
     writeFileTrunc(TIP, hashBuf);
 
     // Setup height
-    auto heightsDb = openHeightsDb();
     rocksdb::WriteOptions wo;
     std::string key = "0";
     std::string value(reinterpret_cast<const char*>(genesisBlockHash.data()), genesisBlockHash.size());
-    rocksdb::Status s = heightsDb->Put(wo, rocksdb::Slice(key), rocksdb::Slice(value));
+    rocksdb::Status s = heightsDb()->Put(wo, rocksdb::Slice(key), rocksdb::Slice(value));
+    if (!s.ok()) throw std::runtime_error(s.ToString());
+
 
     // Setup Index
-    auto blockIndexesDb = openBlockIndexesDb();
     BlockIndexValue blockIndex;
     blockIndex.chainWork = getBlockWork(genesisBlock.header.difficulty);
     blockIndex.height = 0;
-    putBlockIndexBatch(*blockIndexesDb, {genesisBlockHash}, {blockIndex});
+    putBlockIndexBatch({genesisBlockHash}, {blockIndex});
 
     // Write block file
     writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
 
     // Genesis utxo
-    auto utxoDb = openUtxoDb();
-    applyUtxoBatch(*utxoDb, {}, {std::pair<TxInput, TxOutput>({getTxHash(genesisBlock.txs[0]),0}, genesisBlock.txs[0].txOutputs[0])});
+    applyUtxoBatch( {}, {std::pair<TxInput, TxOutput>({getTxHash(genesisBlock.txs[0]),0}, genesisBlock.txs[0].txOutputs[0])});
 }

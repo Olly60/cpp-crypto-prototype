@@ -22,6 +22,7 @@ add_executable(crypto
         src/storage/storage_utils.cpp
         src/storage/utxo_storage.cpp
         src/verify.cpp
+        src/tip.cpp
 )
 
 # Include headers

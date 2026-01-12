@@ -15,13 +15,6 @@
 // ============================================
 // Handshake Helpers
 // ============================================
-constexpr uint64_t calculateHandshakeSize()
-{
-    return sizeof(decltype(Handshake::nonce)) + sizeof(decltype(Handshake::blockchainTip)) + sizeof(decltype(
-            Handshake::genesisBlockHash)) + sizeof(decltype(Handshake::services)) + sizeof(decltype(Handshake::version))
-        +
-        sizeof(decltype(Handshake::relay));
-}
 
 Handshake createHandshake()
 {
@@ -63,7 +56,7 @@ bool isValidHandshake(const Handshake& hs)
 {
     return
         hs.version == LocalProtocolVersion &&
-        hs.genesisBlockHash == GenesisBlockHash &&
+        hs.genesisBlockHash == getGenesisBlockHash() &&
         hs.nonce != LOCAL_NONCE;
 }
 

@@ -2,8 +2,6 @@
 #include "crypto_utils.h"
 #include "storage/storage_utils.h"
 #include "../include/tip.h"
-#include <sodium/crypto_sign.h>
-
 #include "verify.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
@@ -18,14 +16,12 @@ Array256_t getTipHash()
 
 uint64_t getTipHeight()
 {
-    auto blockIndexesDb = openBlockIndexesDb();
-    return tryGetBlockIndex(*blockIndexesDb, getTipHash())->height;
+    return tryGetBlockIndex(getTipHash())->height;
 }
 
 Array256_t getTipChainWork()
 {
-    auto blockIndexesDb = openBlockIndexesDb();
-    return tryGetBlockIndex(*blockIndexesDb, getTipHash())->chainWork;
+    return tryGetBlockIndex(getTipHash())->chainWork;
 
 }
 
@@ -48,8 +44,6 @@ void addNewTipBlock(const ChainBlock& block)
     std::filesystem::path blockFilePath = getBlockFilePath(blockHash);
     std::filesystem::path undoFilePath = getUndoFilePath(blockHash);
 
-    auto utxoDb = openUtxoDb();
-
     BytesBuffer undoData;
 
     // Prepare UTXO batch
@@ -69,7 +63,7 @@ void addNewTipBlock(const ChainBlock& block)
             undoData.writeU64(input.UTXOTxHash.size());
             undoData.writeU64(input.UTXOOutputIndex);
 
-            TxOutput output = *tryGetUtxo(*utxoDb, input);
+            TxOutput output = *tryGetUtxo(input);
 
             undoData.writeU64(output.amount);
             undoData.writeU64(output.recipient.size());
@@ -93,21 +87,19 @@ void addNewTipBlock(const ChainBlock& block)
     writeFileTrunc(blockFilePath, blockBytes);
 
     // Apply UTXO batch
-    applyUtxoBatch(*utxoDb, spends, adds);
+    applyUtxoBatch(spends, adds);
 
     // Update block height and chain work
-    auto heightsDb = openHeightsDb();
 
     uint64_t blockHeight = getTipHeight() + 1;
     auto blockWork = getBlockWork(block.header.difficulty);
 
-    putHeightHashBatch(*heightsDb, {blockHash});
+    putHeightHashBatch({blockHash});
 
-    auto blockIndexesDb = openBlockIndexesDb();
     BlockIndexValue blockIndex;
     blockIndex.chainWork = addBlockWorkLe(getTipChainWork(), blockWork);
     blockIndex.height = blockHeight;
-    putBlockIndexBatch(*blockIndexesDb, {blockHash}, {blockIndex});
+    putBlockIndexBatch({blockHash}, {blockIndex});
 
     // Write new tip hash
     BytesBuffer hashBuf;
@@ -117,15 +109,9 @@ void addNewTipBlock(const ChainBlock& block)
 
 void undoNewTipBlock()
 {
-    // Block file path
     Array256_t blockHash = getTipHash();
-    auto blockFilePath = getBlockFilePath(blockHash);
 
-    // Undo file path
-    auto undoFilePath = getUndoFilePath(blockHash);
-
-    ChainBlock block = parseBlock(readFile(blockFilePath));
-    auto utxoDb = openUtxoDb();
+    ChainBlock block = *getBlock(blockHash);
 
     // Collect UTXOs created by this block for deletion
     std::vector<TxInput> spends;
@@ -135,8 +121,10 @@ void undoNewTipBlock()
         for (uint64_t i = 0; i < tx.txOutputs.size(); i++)
             spends.push_back(TxInput{txHash, i, {}});
     }
-
+    // Undo file path
+    auto undoFilePath = getUndoFilePath(blockHash);
     // Restore spent UTXOs from undo file
+
     std::vector<std::pair<TxInput, TxOutput>> restores;
     {
         auto undoDataBytes = readFile(undoFilePath);
@@ -163,19 +151,18 @@ void undoNewTipBlock()
     }
 
     // Apply batch UTXO changes
-    applyUtxoBatch(*utxoDb, spends, restores);
+    applyUtxoBatch(spends, restores);
 
     // Remove block and undo files
+    auto blockFilePath = getBlockFilePath(blockHash);
     std::filesystem::remove(blockFilePath);
     std::filesystem::remove(undoFilePath);
 
     // Remove block from heights DB
-    auto heightsDb = openHeightsDb();
-    deleteHeightHashBatch(*heightsDb, 1);
+    deleteHeightHashBatch(1);
 
     // Remove block from indexes DB
-    auto blockIndexesDb = openBlockIndexesDb();
-    batchDeleteBlockIndex(*blockIndexesDb, {blockHash});
+    batchDeleteBlockIndex({blockHash});
 
     // Write new tip hash
     BytesBuffer hashBuf;

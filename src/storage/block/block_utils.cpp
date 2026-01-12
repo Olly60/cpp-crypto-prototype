@@ -1,20 +1,39 @@
 #include "storage/block/block_utils.h"
+
+#include <asio/ip/address.hpp>
+
 #include "parse_serialise.h"
 #include "tip.h"
 #include "storage/storage_utils.h"
 
+std::filesystem::path getBlockFilePath(const Array256_t& blockHash)
+{
+    BytesBuffer hashBuf;
+    hashBuf.writeArray256(blockHash);
+    return std::filesystem::path("blocks") / bytesToHex(hashBuf);
+}
+
+std::filesystem::path getUndoFilePath(const Array256_t& blockHash)
+{
+    BytesBuffer hashBuf;
+    hashBuf.writeArray256(blockHash);
+    return std::filesystem::path("undo") / bytesToHex(hashBuf);
+};
+
 std::optional<ChainBlock> getBlock(const Array256_t& blockHash)
 {
-    auto block = parseBlock(readFile(getBlockFilePath(blockHash)));
-    if (!block) return std::nullopt;
+    auto blockBytes = readFile(getBlockFilePath(blockHash));
+    if (!blockBytes) return std::nullopt;
+    auto block = parseBlock(*blockBytes);
     return block;
 }
 
 std::optional<BlockHeader> getBlockHeader(const Array256_t& blockHash)
 {
-    auto BlockHeader = parseBlockHeader(readFile(getBlockFilePath(blockHash), calculateBlockHeaderSize()));
-    if (!BlockHeader) return std::nullopt;
-    return BlockHeader;
+    auto headerBytes = readFile(getBlockFilePath(blockHash));
+    if (!headerBytes) return std::nullopt;
+    auto blockHeader = parseBlockHeader(*headerBytes);
+    return blockHeader;
 }
 
 std::optional<BytesBuffer> getBlockBytes(const Array256_t& blockHash)

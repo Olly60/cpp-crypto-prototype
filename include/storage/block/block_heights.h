@@ -2,14 +2,14 @@
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
 
-std::unique_ptr<rocksdb::DB> openHeightsDb();
+rocksdb::DB* heightsDb();
 
-std::optional<Array256_t> tryGetHeightHash(rocksdb::DB& db,
+std::optional<Array256_t> tryGetHeightHash(
     uint64_t height);
 
 void putHeightHashBatch(
-    rocksdb::DB& db,
+
     const std::vector<Array256_t>& hashes);
 
-void deleteHeightHashBatch(  rocksdb::DB& db,
+void deleteHeightHashBatch(
     uint64_t amount);

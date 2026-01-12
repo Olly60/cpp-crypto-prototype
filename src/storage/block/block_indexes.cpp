@@ -38,31 +38,29 @@ namespace
     }
 }
 
-const std::filesystem::path BLOCK_INDEXES = "block_indexes";
-std::unique_ptr<rocksdb::DB> openBlockIndexesDb()
-{
+rocksdb::DB* blockIndexesDb() {
+    static rocksdb::DB* raw = []{
+        rocksdb::Options options;
+        options.create_if_missing = true;
 
-    rocksdb::Options options;
-    options.create_if_missing = true;
+        rocksdb::DB* db = nullptr;
+        rocksdb::Status status = rocksdb::DB::Open(
+            options,
+            "block_heights",
+            &db
+        );
 
-    rocksdb::DB* raw = nullptr;
-    rocksdb::Status status = rocksdb::DB::Open(
-        options,
-        "block_indexes",
-        &raw
-    );
+        if (!status.ok() || !db) {
+            throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
+        }
 
-    if (!status.ok() || !raw)
-    {
-        throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
-    }
-
-    return std::unique_ptr<rocksdb::DB>(raw);
+        return db;
+    }();
+    return raw;
 }
 
 // Put block index
 void putBlockIndexBatch(
-    rocksdb::DB& db,
     const std::vector<Array256_t>& hashes,
     const std::vector<BlockIndexValue>& values)
 {
@@ -89,7 +87,7 @@ void putBlockIndexBatch(
     rocksdb::WriteOptions wo;
     wo.sync = false;
 
-    const auto s = db.Write(wo, &batch);
+    const auto s = blockIndexesDb()->Write(wo, &batch);
     if (!s.ok())
         throw std::runtime_error(
             "Batch put block index failed: " + s.ToString()
@@ -99,7 +97,6 @@ void putBlockIndexBatch(
 
 // Delete block index
 void batchDeleteBlockIndex(
-    rocksdb::DB& db,
     const std::vector<Array256_t>& hashes)
 {
     rocksdb::WriteBatch batch;
@@ -117,7 +114,7 @@ void batchDeleteBlockIndex(
     rocksdb::WriteOptions wo;
     wo.sync = false;
 
-    const auto s = db.Write(wo, &batch);
+    const auto s = blockIndexesDb()->Write(wo, &batch);
     if (!s.ok())
         throw std::runtime_error(
             "Batch delete block index failed: " + s.ToString()
@@ -128,12 +125,12 @@ void batchDeleteBlockIndex(
 
 // Get block index
 std::optional<BlockIndexValue>
-tryGetBlockIndex(rocksdb::DB& db, const Array256_t& hash)
+tryGetBlockIndex(const Array256_t& hash)
 {
     const std::string key = makeHashKey(hash);
     std::string value;
 
-    auto s = db.Get(
+    auto s = blockIndexesDb()->Get(
         rocksdb::ReadOptions(),
         key,
         &value

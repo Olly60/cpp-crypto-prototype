@@ -1,7 +1,86 @@
 #pragma once
+#include <cstdint>
 #include <cstring>
 #include <span>
-#include "crypto_utils.h"
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+// ============================================================================
+// TYPE ALIASES
+// ============================================================================
+
+using Array256_t = std::array<uint8_t, 32>;
+
+using Array512_t = std::array<uint8_t, 64>;
+
+struct Array256Hash
+{
+    size_t operator()(const Array256_t& a) const
+    {
+        // Simple xor-folding over 8-byte chunks
+        size_t result = 0;
+        for (size_t i = 0; i < 32; i += 8)
+        {
+            size_t chunk = 0;
+            for (size_t j = 0; j < 8; ++j)
+            {
+                chunk <<= 8;
+                chunk |= a[i + j];
+            }
+            result ^= chunk;
+        }
+        return result;
+    }
+};
+
+// ============================================================================
+// DATA STRUCTURES
+// ============================================================================
+
+struct TxOutput
+{
+    uint64_t amount = 0;
+    Array256_t recipient{};
+};
+
+struct TxInput
+{
+    Array256_t UTXOTxHash{}; // Hash of transaction containing the UTXO
+    uint64_t UTXOOutputIndex = 0; // Index of output in that transaction
+    Array512_t signature{}; // Signature proving ownership
+};
+
+struct Tx
+{
+    uint64_t version = 1;
+    std::vector<TxInput> txInputs{};
+    std::vector<TxOutput> txOutputs{};
+};
+
+struct BlockHeader
+{
+    uint64_t version = 1;
+    Array256_t prevBlockHash{};
+    Array256_t merkleRoot{};
+    uint64_t timestamp = 0;
+    Array256_t difficulty{};
+    Array256_t nonce{};
+
+    BlockHeader()
+    {
+        prevBlockHash.fill(0xFF);
+        difficulty.fill(0xFF);
+    }
+};
+
+struct ChainBlock
+{
+    BlockHeader header;
+    std::vector<Tx> txs{};
+};
+
+
 
 struct BytesBuffer
 {
@@ -64,18 +143,6 @@ public:
     void prepareRead(size_t newSize) { data_.resize(newSize); }
     void reserve(size_t newCap) { data_.reserve(newCap); }
     void resize(size_t newSize) { data_.resize(newSize); }
-
-    [[nodiscard]] std::string toHex() const {     std::string hex;
-        hex.reserve(this->size() * 2);
-
-        for (const auto& byte : *this)
-        {
-            constexpr char hexChars[] = "0123456789ABCDEF";
-            hex.push_back(hexChars[byte >> 4]);
-            hex.push_back(hexChars[byte & 0x0F]);
-        }
-
-        return hex; }
 
     // ------------------------------------------------------------
     // Fixed-width integers (explicit)

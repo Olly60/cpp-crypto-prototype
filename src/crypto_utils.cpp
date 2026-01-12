@@ -1,11 +1,24 @@
-﻿#pragma once
-#include "crypto_utils.h"
+﻿#include "crypto_utils.h"
 #include <stdexcept>
 #include <sodium.h>
 #include <chrono>
 #include "storage/storage_utils.h"
 #include "parse_serialise.h"
 
+std::string bytesToHex(const BytesBuffer& bytes)
+{
+    std::string hex;
+    hex.reserve(bytes.size() * 2);
+
+    for (const auto& byte : bytes)
+    {
+        constexpr char hexChars[] = "0123456789ABCDEF";
+        hex.push_back(hexChars[byte >> 4]);
+        hex.push_back(hexChars[byte & 0x0F]);
+    }
+
+    return hex;
+};
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
@@ -161,7 +174,7 @@ Array256_t getBlockWork(const Array256_t& difficulty)
 
     // Shift left by shiftAmount (easier)
     for (size_t i = 0; i < shiftAmount; ++i)
-        blockWork = shiftLeft(blockWork);
+        blockWork = shiftLeftBE(blockWork);
 
     return blockWork;
 }
@@ -183,7 +196,7 @@ Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
 
     return result;
 }
-}
+
 
 
 // Shift right (harder) -> divide by 2

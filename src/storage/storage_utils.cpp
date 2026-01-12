@@ -54,7 +54,10 @@ std::optional<BytesBuffer> readFile(const std::filesystem::path& filePath, size_
 void writeFileTrunc(const std::filesystem::path& path, const BytesBuffer& buf)
 {
     // Ensure parent directories exist
-    std::filesystem::create_directories(path.parent_path());
+    const auto dir = path.parent_path();
+    if (!dir.empty()) {
+        std::filesystem::create_directories(dir);
+    }
 
     // Open file in binary truncate mode
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
