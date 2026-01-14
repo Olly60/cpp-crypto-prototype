@@ -103,6 +103,7 @@ asio::awaitable<void> acceptConnections()
 
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
+    co_await requestHandshake(socket);
 
     if (knownPeers[socket.remote_endpoint()].tip == getTipHash() ) co_return true;
 
