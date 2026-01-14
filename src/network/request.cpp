@@ -102,7 +102,7 @@ asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket)
         }
 
         knownPeers.insert({
-            socket.remote_endpoint(), {theirHandshake.services, getCurrentTimestamp(), theirHandshake.relay}
+            socket.remote_endpoint(), {theirHandshake.services, {}, theirHandshake.relay, theirHandshake.blockchainTip}
         });
         co_return true;
     }
@@ -130,7 +130,6 @@ asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
         // Update last seen if valid
         if (pong == 0x01)
         {
-            knownPeers[socket.remote_endpoint()].lastSeen = getCurrentTimestamp();
             co_return true;
         }
 

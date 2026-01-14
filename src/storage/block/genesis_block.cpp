@@ -24,7 +24,7 @@ ChainBlock getGenesisBlock()
 
     // Genesis block
     BlockHeader header;
-    header.merkleRoot = getTxHash(genesisTx);
+    header.merkleRoot = getMerkleRoot({genesisTx});
 
     ChainBlock genesisBlock{
         header,

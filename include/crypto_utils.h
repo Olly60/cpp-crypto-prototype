@@ -14,8 +14,6 @@
 
 std::string bytesToHex(const BytesBuffer& bytes);
 
-
-
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -64,7 +62,7 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk);
 // Get block work
 Array256_t getBlockWork(const Array256_t& difficulty);
 
-Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b);
+Array256_t addBlockWork(const Array256_t& a, const Array256_t& b);
 
 // Decrease difficulty (easier -> shift left)
 Array256_t shiftRightBE(const Array256_t& arr);

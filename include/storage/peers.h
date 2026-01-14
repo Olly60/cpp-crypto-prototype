@@ -47,6 +47,7 @@ struct PeerStatus
     uint64_t services{};
     uint64_t lastSeen{};
     uint8_t relay{};
+    Array256_t tip{};
 };
 
 using KnownPeersMap = std::unordered_map<asio::ip::tcp::endpoint, PeerStatus, EndpointHash>;

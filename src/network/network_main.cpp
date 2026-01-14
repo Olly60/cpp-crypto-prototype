@@ -103,6 +103,9 @@ asio::awaitable<void> acceptConnections()
 
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
+
+    if (knownPeers[socket.remote_endpoint()].tip == getTipHash() ) co_return true;
+
     auto headers = co_await requestHeaders(socket);
 
     // Headers empty blockchain uptodate
@@ -118,7 +121,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     blockHashes.reserve(headers.size());
     for (const auto& header : headers)
     {
-        peerChainwork = addBlockWorkLe(peerChainwork, getBlockWork(header.difficulty));
+        peerChainwork = addBlockWork(peerChainwork, getBlockWork(header.difficulty));
         blockHashes.push_back(getBlockHeaderHash(header));
     }
 

@@ -149,8 +149,6 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk) // full secret key
     return signedTx;
 }
 
-
-
 // ============================================================================
 // BLOCK WORK
 // ============================================================================
@@ -158,43 +156,14 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk) // full secret key
 // Get Block work
 Array256_t getBlockWork(const Array256_t& difficulty)
 {
-    Array256_t blockWork;
-    blockWork.fill(0xFF); // 2^256
 
-    // Count consecutive 1 bits in difficulty (MSB-first)
-    size_t shiftAmount = 0;
-    for (size_t i = 0; i < 32; ++i)
-    {
-        for (uint8_t mask = 0x80; mask != 0; mask >>= 1) // MSB → LSB in each byte
-        {
-            if (difficulty[i] & mask) shiftAmount++;
-            else break;
-        }
-    }
-
-    // Shift left by shiftAmount (easier)
-    for (size_t i = 0; i < shiftAmount; ++i)
-        blockWork = shiftLeftBE(blockWork);
-
-    return blockWork;
 }
 // TODO: fix these functions difficulty and block work should be big endian
 
 
-Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
+Array256_t addBlockWork(const Array256_t& a, const Array256_t& b)
 {
-    Array256_t result{};
-    uint16_t carry = 0;
 
-    // Iterate from least significant byte (index 0) to most significant (index 31)
-    for (int i = 0; i < 32; ++i)
-    {
-        uint16_t sum = uint16_t{a[i]} + uint16_t{b[i]} + carry;
-        result[i] = static_cast<uint8_t>(sum & 0xFF);  // keep lowest 8 bits
-        carry = sum >> 8;                 // upper bits become carry
-    }
-
-    return result;
 }
 
 
@@ -202,37 +171,13 @@ Array256_t addBlockWorkLe(const Array256_t& a, const Array256_t& b)
 // Shift right (harder) -> divide by 2
 Array256_t shiftRightBE(const Array256_t& arr)
 {
-    Array256_t result = arr;
-    uint8_t carry = 0;
 
-    for (size_t i = 0; i < 32; ++i) // MSB -> LSB
-    {
-        uint8_t newCarry = result[i] & 1;
-        result[i] = (result[i] >> 1) | (carry << 7);
-        carry = newCarry;
-    }
-    // Ensure at least 1 in LSB so it never becomes zero
-    result[31] |= 1;
-
-    return result;
 }
 
 // Shift left (easier) -> multiply by 2
 Array256_t shiftLeftBE(const Array256_t& arr)
 {
-    Array256_t result = arr;
-    uint8_t carry = 0;
 
-    for (int i = 31; i >= 0; --i) // LSB -> MSB for carry
-    {
-        uint8_t newCarry = (result[i] & 0x80) >> 7;
-        result[i] = (result[i] << 1) | carry;
-        carry = newCarry;
-    }
-    // Ensure at least 1 in LSB so it never becomes zero
-    result[31] |= 1;
-
-    return result;
 }
 
 

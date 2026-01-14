@@ -97,7 +97,7 @@ void addNewTipBlock(const ChainBlock& block)
     putHeightHashBatch({blockHash});
 
     BlockIndexValue blockIndex;
-    blockIndex.chainWork = addBlockWorkLe(getTipChainWork(), blockWork);
+    blockIndex.chainWork = addBlockWork(getTipChainWork(), blockWork);
     blockIndex.height = blockHeight;
     putBlockIndexBatch({blockHash}, {blockIndex});
 
@@ -121,10 +121,11 @@ void undoNewTipBlock()
         for (uint64_t i = 0; i < tx.txOutputs.size(); i++)
             spends.push_back(TxInput{txHash, i, {}});
     }
+
     // Undo file path
     auto undoFilePath = getUndoFilePath(blockHash);
-    // Restore spent UTXOs from undo file
 
+    // Restore spent UTXOs from undo file
     std::vector<std::pair<TxInput, TxOutput>> restores;
     {
         auto undoDataBytes = readFile(undoFilePath);
