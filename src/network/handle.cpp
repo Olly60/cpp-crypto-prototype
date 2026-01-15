@@ -19,23 +19,25 @@ asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
 {
     co_await writeU64Tcp(socket, knownPeers.size());
     co_await writeU64Tcp(socket, knownPeers.size());
-    for (const auto& key : knownPeers | std::views::keys)
+    for (const auto& peer : knownPeers)
     {
-        if (key.address().is_v4())
+        if (peer.first.is_v4())
         {
             uint8_t ipType = 0x04;
             co_await asio::async_write(socket, asio::buffer(&ipType, 1), asio::use_awaitable);
-            co_await asio::async_write(socket, asio::buffer(key.address().to_v4().to_bytes()), asio::use_awaitable);
+            auto address = peer.first.to_v4().to_bytes();
+            co_await asio::async_write(socket, asio::buffer(address), asio::use_awaitable);
             BytesBuffer portBuf;
-            portBuf.writeU16(key.port());
+            portBuf.writeU16(peer.second.port);
             co_await asio::async_write(socket, asio::buffer(portBuf.data(), portBuf.size()), asio::use_awaitable);
-        } else if (key.address().is_v6())
+        } else if (peer.first.is_v6())
         {
             uint8_t ipType = 0x06;
             co_await asio::async_write(socket, asio::buffer(&ipType, 1), asio::use_awaitable);
-            co_await asio::async_write(socket, asio::buffer(key.address().to_v6().to_bytes()), asio::use_awaitable);
+            auto address = peer.first.to_v6().to_bytes();
+            co_await asio::async_write(socket, asio::buffer(address), asio::use_awaitable);
             BytesBuffer portBuf;
-            portBuf.writeU16(key.port());
+            portBuf.writeU16(peer.second.port);
             co_await asio::async_write(socket, asio::buffer(portBuf.data(), portBuf.size()), asio::use_awaitable);
         }
     }
@@ -100,8 +102,10 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
     co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
 
     knownPeers.insert({
-    socket.remote_endpoint(), {theirHandshake.services, getCurrentTimestamp(), theirHandshake.relay}
+    socket.remote_endpoint().address(), {theirHandshake.services, {}, theirHandshake.relay, theirHandshake.blockchainTip, theirHandshake.port}
+
 });
+    unknownPeers.erase({socket.remote_endpoint().address(), theirHandshake.port});
 }
 
 asio::awaitable<void> handlePing(asio::ip::tcp::socket& socket)

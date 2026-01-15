@@ -2,6 +2,7 @@
 #include "network/request.h"
 #include "user_commands.h"
 #include <iostream>
+#include <ranges>
 #include <asio/use_awaitable.hpp>
 #include <asio/use_future.hpp>
 #include <asio/co_spawn.hpp>
@@ -18,66 +19,71 @@ asio::io_context userIo;
 
 asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& parts)
 {
-    if (parts.size() < 3) co_return;
-    std::cout << "awaiting response from peer...\n";
+    try
+    {
+        if (parts.size() < 4)
+            co_return;
 
-    asio::ip::tcp::socket socket(userIo);
+        asio::ip::tcp::socket socket(userIo);
 
-    co_await socket.async_connect(
-        asio::ip::tcp::endpoint(asio::ip::make_address(parts[2]), static_cast<uint16_t>(std::stoi(parts[3]))),
-        asio::use_awaitable);
+        co_await socket.async_connect(
+            asio::ip::tcp::endpoint(
+                asio::ip::make_address(parts[2]),
+                static_cast<uint16_t>(std::stoi(parts[3]))
+            ),
+            asio::use_awaitable
+        );
 
-    std::cout << "connected to: " << socket.remote_endpoint().address().to_string() << "\n";
+        auto remote = socket.remote_endpoint().address().to_string();
 
-    if (parts[1] == "ping")
-    {
-        auto result = co_await requestPing(socket);
-        if (result)
+        if (parts[1] == "ping")
         {
-            std::cout << "Pong from: " << socket.remote_endpoint().address().to_string() << "\n";
-            co_return;
+            if (co_await requestPing(socket))
+            {
+                std::cout << "Pong from: " << remote << "\n";
+            }
+            else { std::cout << "No pong from: " << remote << "\n"; }
         }
-        std::cout << "No pong from: " << socket.remote_endpoint().address().to_string() << "\n";
+        else if (parts[1] == "get_mempool")
+        {
+            if (co_await requestMempool(socket))
+            {
+                std::cout << "Got mempool from: " << remote << "\n";
+            }
+            else { std::cout << "Failed to get whole mempool from: " << remote << "\n"; }
+        }
+        else if (parts[1] == "get_peers")
+        {
+            if (co_await requestPeers(socket))
+            {
+                std::cout << "Got peers from: " << remote << "\n";
+            }
+            else { std::cout << "Couldn't get peers from: " << remote << "\n"; }
+        }
+        else if (parts[1] == "handshake")
+        {
+            if (co_await requestHandshake(socket))
+            {
+                std::cout << "Successful handshake with: " << remote << "\n";
+            }
+            else { std::cout << "Failed to handshake with: " << remote << "\n"; }
+        }
+        else if (parts[1] == "sync")
+        {
+            if (co_await syncIfBetter(socket))
+            {
+                std::cout << "Synced with: " << remote << "\n";
+            }
+            else { std::cout << "Didn't sync with: " << remote << "\n"; }
+        }
     }
-    else if (parts[1] == "getmempool")
+    catch (const std::exception& e)
     {
-        auto result = co_await requestMempool(socket);
-        if (result)
-        {
-            std::cout << "Got mempool from: " << socket.remote_endpoint().address().to_string() << "\n";
-            co_return;
-        }
-        std::cout << "Failed to get whole mempool from: " << socket.remote_endpoint().address().to_string() << "\n";
+        std::cerr << "network command error: " << e.what() << "\n";
     }
-    else if (parts[1] == "getpeers")
+    catch (...)
     {
-        auto result = co_await requestPeers(socket);
-        if (result)
-        {
-            std::cout << "Got peers from: " << socket.remote_endpoint().address().to_string() << "\n";
-            co_return;
-        }
-        std::cout << "Failed to get peers from: " << socket.remote_endpoint().address().to_string() << "\n";
-    }
-    else if (parts[1] == "handshake")
-    {
-        auto result = co_await requestHandshake(socket);
-        if (result)
-        {
-            std::cout << "Successful handshake with: " << socket.remote_endpoint().address().to_string() << "\n";
-            co_return;
-        }
-        std::cout << "Failed to handshake with: " << socket.remote_endpoint().address().to_string() << "\n";
-    }
-    else if (parts[1] == "sync")
-    {
-        auto result = co_await syncIfBetter(socket);
-        if (result)
-        {
-            std::cout << "Synced with: " << socket.remote_endpoint().address().to_string() << "\n";
-            co_return;
-        }
-        std::cout << "Didn't sync with: " << socket.remote_endpoint().address().to_string() << "\n";
+        std::cerr << "unknown network command error\n";
     }
 }
 
@@ -93,12 +99,13 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "peers")
     {
-        asio::co_spawn(userIo, handleUserNetworkCommand(parts), asio::use_future);
+        asio::co_spawn(userIo, handleUserNetworkCommand(parts), asio::detached);
         userIo.run();
+        userIo.restart();
         return;
     }
 
-    if (parts[0] == "chaininfo")
+    if (parts[0] == "chain_info")
     {
         std::cout << "Length: " << std::to_string(tryGetBlockIndex(getTipHash())->height + 1) << "\n";
         BytesBuffer chainWorkBuf;
@@ -128,10 +135,26 @@ void handleUserCommand(const std::string& input)
         }
     }
 
-    if (parts[0] == "newtx")
+    if (parts[0] == "new_tx")
     {
         BytesBuffer buf;
         buf.writeArray256(getBlock(getTipHash())->header.difficulty);
         std::cout << bytesToHex(buf) << "\n";
+    }
+
+    if (parts[0] == "known_peers")
+    {
+        for (const auto& key : knownPeers | std::views::keys)
+        {
+            std::cout << key.address().to_string() << " " << key.port() << "\n";
+        }
+    }
+
+    if (parts[0] == "unknown_peers")
+    {
+        for (auto& peer : unknownPeers)
+        {
+            std::cout << peer.address().to_string() << " " << peer.port() << "\n";
+        }
     }
 }

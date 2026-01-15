@@ -9,14 +9,15 @@ struct Handshake
     uint64_t nonce;
     Array256_t blockchainTip;
     uint8_t relay;
+    uint16_t port;
 };
 
 constexpr uint64_t calculateHandshakeSize()
 {
     return sizeof(decltype(Handshake::nonce)) + sizeof(decltype(Handshake::blockchainTip)) + sizeof(decltype(
-        Handshake::genesisBlockHash)) + sizeof(decltype(Handshake::services)) + sizeof(decltype(Handshake::version))
-    +
-    sizeof(decltype(Handshake::relay));
+            Handshake::genesisBlockHash)) + sizeof(decltype(Handshake::services)) + sizeof(decltype(Handshake::version))
+        +
+        sizeof(decltype(Handshake::relay)) + sizeof(decltype(Handshake::port));
 };
 
 Handshake createHandshake();

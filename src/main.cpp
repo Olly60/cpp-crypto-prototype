@@ -27,7 +27,7 @@ int main()
     ioCtx.restart();
 
 
-    std::cout << "Enter port: ";
+    std::cout << "Enter port (default is 50000): ";
     std::string port;
     std::getline(std::cin, port);
     uint16_t portNum = std::stoi(port);

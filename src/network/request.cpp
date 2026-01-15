@@ -6,6 +6,8 @@
 #include "tip.h"
 #include "network/request.h"
 
+#include <iostream>
+
 #include "node.h"
 #include "verify.h"
 #include "network/network_utils.h"
@@ -15,10 +17,9 @@
 
 asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
 {
-    try
-    {
+
         // Check node offers service
-        auto peerServices = knownPeers[socket.remote_endpoint()].services;
+        auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
         if ((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetPeers) != 0) co_return false;
 
         // Write message type
@@ -56,17 +57,11 @@ asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
             unknownPeers.insert(peerAddr);
         }
         co_return true;
-    }
-    catch (...)
-    {
-        co_return false;
-    }
+
 }
 
 asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket)
 {
-    try
-    {
 
         // Write message type
         co_await asio::async_write(socket, asio::buffer(ProtocolMessage::Handshake), asio::use_awaitable);
@@ -98,21 +93,15 @@ asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket)
         }
 
         knownPeers.insert({
-            socket.remote_endpoint(), {theirHandshake.services, {}, theirHandshake.relay, theirHandshake.blockchainTip}
+            socket.remote_endpoint().address(), {theirHandshake.services, {}, theirHandshake.relay, theirHandshake.blockchainTip, theirHandshake.port}
         });
+
+        unknownPeers.erase({socket.remote_endpoint().address(), theirHandshake.port});
         co_return true;
-    }
-    catch (...)
-    {
-        co_return false;
-    }
 }
 
 asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
 {
-    try
-    {
-
         // Write message type
         co_await asio::async_write(socket, asio::buffer(ProtocolMessage::Ping), asio::use_awaitable);
 
@@ -128,22 +117,17 @@ asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
 
         if (pong == 0x00) // Else remove from peers
         {
-            knownPeers.erase(socket.remote_endpoint());
+            knownPeers.erase(socket.remote_endpoint().address());
         }
         co_return false;
-    }
-    catch (...)
-    {
-        co_return false;
-    }
+
 }
 
 asio::awaitable<std::optional<ChainBlock>> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
 {
-    try
-    {
+
         // Check node offers service
-        auto peerServices = knownPeers[socket.remote_endpoint()].services;
+        auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
         if ((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetBlock) != 0) co_return std::nullopt;
 
         // Write message type
@@ -165,19 +149,14 @@ asio::awaitable<std::optional<ChainBlock>> requestBlock(asio::ip::tcp::socket& s
         co_await asio::async_read(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
 
         co_return parseBlock(blockBytes);
-    }
-    catch (const std::exception&)
-    {
-        co_return std::nullopt; // treat any failure as "unavailable"
-    }
+
 }
 
 asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& socket)
 {
-    try
-    {
+
         // Check node offers service
-        auto peerServices = knownPeers[socket.remote_endpoint()].services;
+        auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
         if ((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetHeaders) != 0) co_return std::vector<BlockHeader>{};
 
         // Write message type
@@ -237,20 +216,14 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
 
         co_return headers;
-    }
-    catch (...)
-    {
-        co_return std::vector<BlockHeader>{};
-    }
+
 }
 
 asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
 {
-    try
-    {
 
         // Check node offers service
-        auto peerServices = knownPeers[socket.remote_endpoint()].services;
+        auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
         if ((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetMempool) != 0) co_return false;
 
         // Write message type
@@ -315,8 +288,4 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
         }
         co_return true;
     }
-    catch (...)
-    {
-        co_return false;
-    }
-}
+

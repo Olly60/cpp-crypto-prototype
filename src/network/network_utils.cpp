@@ -38,6 +38,7 @@ BytesBuffer serialiseHandshake(const Handshake& hs)
     handshakeBytes.writeU64(hs.nonce);
     handshakeBytes.writeArray256(hs.blockchainTip);
     handshakeBytes.writeU8(hs.relay);
+    handshakeBytes.writeU16(hs.port);
     return handshakeBytes;
 }
 
@@ -50,6 +51,7 @@ Handshake parseHandshake(BytesBuffer& buffer)
     hs.nonce = buffer.readU64();
     hs.blockchainTip = buffer.readArray256();
     hs.relay = buffer.readU8();
+    hs.port = buffer.readU16();
     return hs;
 }
 

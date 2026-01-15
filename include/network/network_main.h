@@ -8,6 +8,8 @@
 constexpr uint64_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
 constexpr uint64_t MAX_TX_SIZE = 8 * 1024 * 256;
 
+constexpr uint16_t DEFAULT_PORT = 50000;
+
 // ============================================
 // Protocol messages
 // ============================================
@@ -22,14 +24,14 @@ namespace ProtocolMessage
     }
     return a;
 }
-    constexpr auto Handshake = makeCommand("handshake");
+    constexpr auto Handshake = makeCommand("hand_shake");
     constexpr auto Ping = makeCommand("ping");
-    constexpr auto GetBlock = makeCommand("getblock");
-    constexpr auto BroadcastNewBlock = makeCommand("broadcastnewblock");
-    constexpr auto BroadcastNewTx = makeCommand("broadcastnewtx");
-    constexpr auto GetMempool = makeCommand("getmempool");
-    constexpr auto GetHeaders = makeCommand("getheaders");
-    constexpr auto GetPeers = makeCommand("getpeers");
+    constexpr auto GetBlock = makeCommand("get_block");
+    constexpr auto BroadcastNewBlock = makeCommand("broadcast_block");
+    constexpr auto BroadcastNewTx = makeCommand("broadcast_tx");
+    constexpr auto GetMempool = makeCommand("get_mempool");
+    constexpr auto GetHeaders = makeCommand("get_headers");
+    constexpr auto GetPeers = makeCommand("get_peers");
 };
 
 // ============================================

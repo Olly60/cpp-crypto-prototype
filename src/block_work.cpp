@@ -146,9 +146,6 @@ void mineBlocks(Array256_t pubKey)
         {
             if (isMining == false ) return;
             block.header.nonce = generateNonce();
-            BytesBuffer buf;
-            buf.writeArray256(block.header.difficulty);
-            std::cout << bytesToHex(buf) << "\n";
         }
 
         if (getBlockHeaderHash(block.header) < block.header.difficulty && block.header.prevBlockHash == getTipHash())

@@ -16,85 +16,87 @@
 #include "block.h"
 #include "block_work.h"
 
-// TODO: add limits and safety to network and peer bans
 // ============================================
 // Handle connection
 // ============================================
 
-asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
+asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 {
-    auto peer = socket.remote_endpoint();
 
-    for (;;) // Loop until peer closes connection
-    {
-        // Read fixed-size message command
-        std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
-        co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
+        auto peer = socket.remote_endpoint().address();
 
-
-        // Handle handshake first
-        if (msgCommand == ProtocolMessage::Handshake)
+        for (;;) // Loop until peer closes connection
         {
-            std::cout << socket.remote_endpoint().address().to_string() << " Requested handshake\n";
-            co_await handleHandshake(socket);
-        }
+            // Read fixed-size message command
+            std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
+            co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
 
 
-        // Check if peer is authenticated
-        if (!knownPeers.contains(peer))
-        {
-            std::cout << "Unknown peer: " << socket.remote_endpoint().address().to_string() <<
-                " requested something other than a handshake\n";
-            unknownPeers.insert(peer);
-            co_return; // Unauthenticated peer
-        }
+            // Handle handshake first
+            if (msgCommand == ProtocolMessage::Handshake)
+            {
+                std::cout << socket.remote_endpoint().address().to_string() << " Requested handshake\n";
+                co_await handleHandshake(socket);
+                continue;
+            }
 
-        // Update last seen
-        knownPeers[peer].lastSeen = getCurrentTimestamp();
 
-        // Route message
-        if (msgCommand == ProtocolMessage::Ping)
-        {
-            std::cout << socket.remote_endpoint().address().to_string() << " Requested ping\n";
-            co_await handlePing(socket);
+            // Check if peer is authenticated
+            if (!knownPeers.contains(peer))
+            {
+                std::cout << "Unknown peer: " << socket.remote_endpoint().address().to_string() <<
+                    " requested something other than a handshake\n";
+                unknownPeers.insert(peer);
+                co_return; // Unauthenticated peer
+            }
+
+            // Update last seen
+            knownPeers[peer].lastSeen = getCurrentTimestamp();
+
+            // Route message
+            if (msgCommand == ProtocolMessage::Ping)
+            {
+                std::cout << socket.remote_endpoint().address().to_string() << " Requested ping\n";
+                co_await handlePing(socket);
+            }
+            else if (msgCommand == ProtocolMessage::GetBlock)
+            {
+                std::cout << socket.remote_endpoint().address().to_string() << " Requested block\n";
+                co_await handleGetBlock(socket);
+            }
+            else if (msgCommand == ProtocolMessage::BroadcastNewBlock)
+            {
+                std::cout << "New block from: " << socket.remote_endpoint().address().to_string() << "\n";
+                co_await handleNewBlock(socket);
+            }
+            else if (msgCommand == ProtocolMessage::BroadcastNewTx)
+            {
+                std::cout << "New transaction from: " << socket.remote_endpoint().address().to_string() << "\n";
+                co_await handleNewTx(socket);
+            }
+            else if (msgCommand == ProtocolMessage::GetMempool)
+            {
+                std::cout << socket.remote_endpoint().address().to_string() << " Requested mempool\n";
+                co_await handleGetMempool(socket);
+            }
+            else if (msgCommand == ProtocolMessage::GetHeaders)
+            {
+                std::cout << socket.remote_endpoint().address().to_string() << " Requested headers\n";
+                co_await handleGetHeaders(socket);
+            }
+            else if (msgCommand == ProtocolMessage::GetPeers)
+            {
+                std::cout << socket.remote_endpoint().address().to_string() << " Requested peers";
+                co_await handleGetPeers(socket);
+            }
+            else
+            {
+                std::cout << "Unknown message from: " << socket.remote_endpoint().address().to_string();
+                break;
+            }
         }
-        else if (msgCommand == ProtocolMessage::GetBlock)
-        {
-            std::cout << socket.remote_endpoint().address().to_string() << " Requested block\n";
-            co_await handleGetBlock(socket);
-        }
-        else if (msgCommand == ProtocolMessage::BroadcastNewBlock)
-        {
-            std::cout << "New block from: " << socket.remote_endpoint().address().to_string() << "\n";
-            co_await handleNewBlock(socket);
-        }
-        else if (msgCommand == ProtocolMessage::BroadcastNewTx)
-        {
-            std::cout << "New transaction from: " << socket.remote_endpoint().address().to_string() << "\n";
-            co_await handleNewTx(socket);
-        }
-        else if (msgCommand == ProtocolMessage::GetMempool)
-        {
-            std::cout << socket.remote_endpoint().address().to_string() << " Requested mempool\n";
-            co_await handleGetMempool(socket);
-        }
-        else if (msgCommand == ProtocolMessage::GetHeaders)
-        {
-            std::cout << socket.remote_endpoint().address().to_string() << " Requested headers\n";
-            co_await handleGetHeaders(socket);
-        }
-        else if (msgCommand == ProtocolMessage::GetPeers)
-        {
-            std::cout << socket.remote_endpoint().address().to_string() << " Requested peers";
-            co_await handleGetPeers(socket);
-        }
-        else
-        {
-            std::cout << "Unknown message from: " << socket.remote_endpoint().address().to_string();
-            break;
-        }
-    }
 }
+
 
 
 // ============================================
@@ -116,13 +118,13 @@ asio::awaitable<void> acceptConnections(uint16_t port)
 
             // Spawn a coroutine to handle the connection
             co_spawn(ioCtx,
-                     handleConnection(socket),
+                     handleConnection(std::move(socket)),
                      asio::detached);
         }
     }
     catch (...)
     {
-        // log or handle acceptor errors
+
     }
 }
 
@@ -134,152 +136,158 @@ std::mutex syncLock; // Can only sync with one peer at a time
 
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
-    std::lock_guard<std::mutex> lock(syncLock);
-    std::cout << "Attempting to sync blockchain with " << socket.remote_endpoint().address().to_string() << "\n";
-
-    co_await requestHandshake(socket);
-
-    if (knownPeers[socket.remote_endpoint()].tip == getTipHash()) co_return true;
-
-    auto headers = co_await requestHeaders(socket);
-
-    // Headers empty blockchain uptodate
-    if (headers.empty()) co_return true;
-
-    auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
-    if (!commonAncestorHeader) co_return false; // common ancestor doesnt exist
-
-    // Get that new chain block work
-    auto peerChainwork = tryGetBlockIndex(commonAncestorHeader->difficulty)->chainWork;
-
-    std::vector<Array256_t> blockHashes;
-    blockHashes.reserve(headers.size());
-    for (const auto& header : headers)
+    try
     {
-        peerChainwork = addBlockWork(peerChainwork, getBlockWork(header.difficulty));
-        blockHashes.push_back(getBlockHeaderHash(header));
-    }
+        std::lock_guard<std::mutex> lock(syncLock);
+        std::cout << "Attempting to sync blockchain with " << socket.remote_endpoint().address().to_string() << "\n";
 
-    // Chainwork is lower
-    if (tryGetBlockIndex(getTipHash())->chainWork > peerChainwork) co_return false;
+        co_await requestHandshake(socket);
 
-    // Verify first header
-    VerifyBlockHeaderContext h0Ctx;
-    h0Ctx.prevHeader = &(*commonAncestorHeader);
-    uint64_t h0CtxTimestamp = tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp : 0;
-    h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
-    if (!verifyBlockHeader(headers[0], h0Ctx)) co_return false;
+        if (knownPeers[socket.remote_endpoint()].tip == getTipHash()) co_return true;
 
-    // Verify 2nd header if size > 1
-    VerifyBlockHeaderContext h1Ctx;
-    h1Ctx.prevHeader = &headers[0];
-    uint64_t h1CtxTimestamp = tryGetBlockIndex(getTipHash())->height;
-    h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
-    if (headers.size() > 1) { if (!verifyBlockHeader(headers[1], h1Ctx)) co_return false; }
+        auto headers = co_await requestHeaders(socket);
 
-    // Verify all other headers if size > 2
-    if (headers.size() > 2)
-    {
-        for (size_t i = 2; i < headers.size(); ++i)
+        // Headers empty blockchain uptodate
+        if (headers.empty()) co_return true;
+
+        auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
+        if (!commonAncestorHeader) co_return false; // common ancestor doesnt exist
+
+        // Get that new chain block work
+        auto peerChainwork = tryGetBlockIndex(commonAncestorHeader->difficulty)->chainWork;
+
+        std::vector<Array256_t> blockHashes;
+        blockHashes.reserve(headers.size());
+        for (const auto& header : headers)
         {
-            VerifyBlockHeaderContext headerCtx;
-            headerCtx.prevHeader = &headers[i - 1];
-            headerCtx.prevPrevTimestamp = &headers[i - 2].timestamp;
-            if (!verifyBlockHeader(headers[i], headerCtx)) co_return false;
+            peerChainwork = addBlockWork(peerChainwork, getBlockWork(header.difficulty));
+            blockHashes.push_back(getBlockHeaderHash(header));
         }
-    }
 
-    std::filesystem::path tmpBlocksPath = "tmp_blockchain";
-    auto getTmpBlockPath = [&tmpBlocksPath](const Array256_t& hash) -> std::filesystem::path
-    {
-        BytesBuffer hashBuf;
-        hashBuf.writeArray256(hash);
-        return tmpBlocksPath / (bytesToHex(hashBuf) + ".block");
-    };
+        // Chainwork is lower
+        if (tryGetBlockIndex(getTipHash())->chainWork > peerChainwork) co_return false;
 
-    // ----------------------------------------
-    // Blockchain extension
-    // ----------------------------------------
-    auto commonAncestorHash = getBlockHeaderHash(*commonAncestorHeader);
-    auto tipHash = getTipHash();
-    if (commonAncestorHash == tipHash)
-    {
+        // Verify first header
+        VerifyBlockHeaderContext h0Ctx;
+        h0Ctx.prevHeader = &(*commonAncestorHeader);
+        uint64_t h0CtxTimestamp = tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp : 0;
+        h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
+        if (!verifyBlockHeader(headers[0], h0Ctx)) co_return false;
+
+        // Verify 2nd header if size > 1
+        VerifyBlockHeaderContext h1Ctx;
+        h1Ctx.prevHeader = &headers[0];
+        uint64_t h1CtxTimestamp = tryGetBlockIndex(getTipHash())->height;
+        h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
+        if (headers.size() > 1) { if (!verifyBlockHeader(headers[1], h1Ctx)) co_return false; }
+
+        // Verify all other headers if size > 2
+        if (headers.size() > 2)
+        {
+            for (size_t i = 2; i < headers.size(); ++i)
+            {
+                VerifyBlockHeaderContext headerCtx;
+                headerCtx.prevHeader = &headers[i - 1];
+                headerCtx.prevPrevTimestamp = &headers[i - 2].timestamp;
+                if (!verifyBlockHeader(headers[i], headerCtx)) co_return false;
+            }
+        }
+
+        std::filesystem::path tmpBlocksPath = "tmp_blockchain";
+        auto getTmpBlockPath = [&tmpBlocksPath](const Array256_t& hash) -> std::filesystem::path
+        {
+            BytesBuffer hashBuf;
+            hashBuf.writeArray256(hash);
+            return tmpBlocksPath / (bytesToHex(hashBuf) + ".block");
+        };
+
+        // ----------------------------------------
+        // Blockchain extension
+        // ----------------------------------------
+        auto commonAncestorHash = getBlockHeaderHash(*commonAncestorHeader);
+        auto tipHash = getTipHash();
+        if (commonAncestorHash == tipHash)
+        {
+            for (auto& hash : blockHashes)
+            {
+                auto block = co_await requestBlock(socket, hash);
+                if (!block) co_return false; // peer doesn’t have block
+
+                if (!verifyBlock(*block)) co_return false;
+
+                addNewTipBlock(*block);
+            }
+            co_return true; // Done syncing these blocks
+        }
+
+        // ----------------------------------------
+        // Blockchain reorg
+        // ----------------------------------------
+        // Store blocks
         for (auto& hash : blockHashes)
         {
+            // Read block
             auto block = co_await requestBlock(socket, hash);
-            if (!block) co_return false; // peer doesn’t have block
+            if (!block) co_return false; // Peer doesnt have block
 
-            if (!verifyBlock(*block)) co_return false;
-
-            addNewTipBlock(*block);
+            // Write block file
+            writeFileTrunc(getTmpBlockPath(hash), serialiseBlock(*block));
         }
-        co_return true; // Done syncing these blocks
-    }
 
-    // ----------------------------------------
-    // Blockchain reorg
-    // ----------------------------------------
-    // Store blocks
-    for (auto& hash : blockHashes)
-    {
-        // Read block
-        auto block = co_await requestBlock(socket, hash);
-        if (!block) co_return false; // Peer doesnt have block
-
-        // Write block file
-        writeFileTrunc(getTmpBlockPath(hash), serialiseBlock(*block));
-    }
-
-    // Verify blocks
-    auto readTmpBlockFile = [&getTmpBlockPath](const Array256_t& hash) -> ChainBlock
-    {
-        auto blockBytes = readFile(getTmpBlockPath(hash));
-        return parseBlock(*blockBytes);
-    };
-
-    // Transactions context
-    std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> seenUtxosInDb;
-    std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> includeUtxos;
-    VerifyBlockContext blockCtx;
-    blockCtx.txCtx.seenUtxos = &seenUtxosInDb;
-    blockCtx.txCtx.includeUtxos = &includeUtxos;
-
-    // Verify first block
-    blockCtx.headerCtx = h0Ctx;
-    if (!verifyBlock(readTmpBlockFile(blockHashes[0]), blockCtx)) co_return false;
-
-    // Verify 2nd block if size > 1
-    blockCtx.headerCtx = h1Ctx;
-    if (headers.size() > 1) { if (!verifyBlock(readTmpBlockFile(blockHashes[1]), blockCtx)) co_return false; }
-
-    // Verify all other blocks if size > 2
-    if (headers.size() > 2)
-    {
-        for (size_t i = 2; i < headers.size(); ++i)
+        // Verify blocks
+        auto readTmpBlockFile = [&getTmpBlockPath](const Array256_t& hash) -> ChainBlock
         {
-            // Header
-            blockCtx.headerCtx.prevHeader = &headers[i - 1];
-            blockCtx.headerCtx.prevPrevTimestamp = &headers[i - 2].timestamp;
-            // Transactions
-            if (!verifyBlock(readTmpBlockFile(blockHashes[i]), blockCtx)) co_return false;
+            auto blockBytes = readFile(getTmpBlockPath(hash));
+            return parseBlock(*blockBytes);
+        };
+
+        // Transactions context
+        std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> seenUtxosInDb;
+        std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> includeUtxos;
+        VerifyBlockContext blockCtx;
+        blockCtx.txCtx.seenUtxos = &seenUtxosInDb;
+        blockCtx.txCtx.includeUtxos = &includeUtxos;
+
+        // Verify first block
+        blockCtx.headerCtx = h0Ctx;
+        if (!verifyBlock(readTmpBlockFile(blockHashes[0]), blockCtx)) co_return false;
+
+        // Verify 2nd block if size > 1
+        blockCtx.headerCtx = h1Ctx;
+        if (headers.size() > 1) { if (!verifyBlock(readTmpBlockFile(blockHashes[1]), blockCtx)) co_return false; }
+
+        // Verify all other blocks if size > 2
+        if (headers.size() > 2)
+        {
+            for (size_t i = 2; i < headers.size(); ++i)
+            {
+                // Header
+                blockCtx.headerCtx.prevHeader = &headers[i - 1];
+                blockCtx.headerCtx.prevPrevTimestamp = &headers[i - 2].timestamp;
+                // Transactions
+                if (!verifyBlock(readTmpBlockFile(blockHashes[i]), blockCtx)) co_return false;
+            }
         }
-    }
 
-    // Verification complete now add to local chain
-    // Undo chain up to common ancestor
-    while (tipHash != commonAncestorHash)
+        // Verification complete now add to local chain
+        // Undo chain up to common ancestor
+        while (tipHash != commonAncestorHash)
+        {
+            undoNewTipBlock();
+        }
+
+        // Add new blocks from peer
+        for (auto& hash : blockHashes)
+        {
+            addNewTipBlock(readTmpBlockFile(hash));
+        }
+
+        std::cout << "Synced blockchain with: " << socket.remote_endpoint().address().to_string() << "\n";
+        co_return true;
+    } catch (...)
     {
-        undoNewTipBlock();
+        co_return false;
     }
-
-    // Add new blocks from peer
-    for (auto& hash : blockHashes)
-    {
-        addNewTipBlock(readTmpBlockFile(hash));
-    }
-
-    std::cout << "Synced blockchain with: " << socket.remote_endpoint().address().to_string() << "\n";
-    co_return true;
 }
 
 // ============================================
@@ -287,7 +295,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 // ============================================
 asio::awaitable<bool> trySyncWithPeers()
 {
-    std::cout << "Syncing blockchain with peers\n";
+    std::cout << "Syncing blockchain with peers...\n";
     for (auto& peer : knownPeers)
     {
         asio::ip::tcp::socket socket(ioCtx);

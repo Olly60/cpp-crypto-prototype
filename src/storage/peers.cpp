@@ -106,6 +106,9 @@ void loadPeers()
             // Read relay
             peerStatus.relay = knownPeersFileBytes->readU8();
 
+            // Read port
+            peerStatus.port = knownPeersFileBytes->readU16();
+
             knownPeers.insert({peerAddr, peerStatus});
         }
     }
