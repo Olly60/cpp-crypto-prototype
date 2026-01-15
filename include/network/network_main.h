@@ -8,7 +8,7 @@
 constexpr uint64_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
 constexpr uint64_t MAX_TX_SIZE = 8 * 1024 * 256;
 
-constexpr uint16_t DEFAULT_PORT = 50000;
+inline uint16_t localPort;
 
 // ============================================
 // Protocol messages

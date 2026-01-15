@@ -46,7 +46,6 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             {
                 std::cout << "Unknown peer: " << socket.remote_endpoint().address().to_string() <<
                     " requested something other than a handshake\n";
-                unknownPeers.insert(peer);
                 co_return; // Unauthenticated peer
             }
 
@@ -143,7 +142,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
         co_await requestHandshake(socket);
 
-        if (knownPeers[socket.remote_endpoint()].tip == getTipHash()) co_return true;
+        if (knownPeers[socket.remote_endpoint().address()].tip == getTipHash()) co_return true;
 
         auto headers = co_await requestHeaders(socket);
 
@@ -302,7 +301,7 @@ asio::awaitable<bool> trySyncWithPeers()
 
         try
         {
-            co_await socket.async_connect(peer.first, asio::use_awaitable);
+            co_await socket.async_connect({peer.first, peer.second.port}, asio::use_awaitable);
 
             if (!co_await requestPing(socket)) continue;
             if (!co_await syncIfBetter(socket)) continue;
@@ -330,7 +329,7 @@ asio::awaitable<void> BroadcastNewTx(asio::io_context &io, const Tx& tx)
         try
         {
             asio::ip::tcp::socket socket(io);
-            co_await socket.async_connect(peer.first);
+            co_await socket.async_connect({peer.first, peer.second.port});
 
             // Send message type
             auto msgType = ProtocolMessage::BroadcastNewTx;
@@ -359,7 +358,7 @@ asio::awaitable<void> BroadcastNewBlock(asio::io_context& io, const ChainBlock& 
         try
         {
             asio::ip::tcp::socket socket(io);
-            co_await socket.async_connect(peer.first);
+            co_await socket.async_connect({peer.first, peer.second.port});
 
             // Send message type
             auto msgType = ProtocolMessage::BroadcastNewBlock;

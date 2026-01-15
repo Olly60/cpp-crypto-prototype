@@ -25,7 +25,8 @@ Handshake createHandshake()
         Services::FullNode,
         LOCAL_NONCE,
         getTipHash(),
-        RELAY
+        RELAY,
+        localPort
     };
 }
 

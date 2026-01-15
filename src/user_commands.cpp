@@ -144,9 +144,9 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "known_peers")
     {
-        for (const auto& key : knownPeers | std::views::keys)
+        for (const auto& peer : knownPeers)
         {
-            std::cout << key.address().to_string() << " " << key.port() << "\n";
+            std::cout << peer.first.to_string() << " " << peer.second.port << "\n";
         }
     }
 

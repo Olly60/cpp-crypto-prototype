@@ -8,7 +8,7 @@
 #include <thread>
 #include "node.h"
 #include "user_commands.h"
-#include "../include/block.h"
+#include "block.h"
 
 // ============================================
 // Main
@@ -30,9 +30,9 @@ int main()
     std::cout << "Enter port (default is 50000): ";
     std::string port;
     std::getline(std::cin, port);
-    uint16_t portNum = std::stoi(port);
+    localPort = std::stoi(port);
 
-    asio::co_spawn(ioCtx, acceptConnections(portNum), asio::detached);
+    asio::co_spawn(ioCtx, acceptConnections(localPort), asio::detached);
 
     std::thread handlePeers([](){ ioCtx.run();});
 
