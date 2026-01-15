@@ -27,9 +27,9 @@ namespace
 
     Array256_t parseHashValue(const std::string& value)
     {
-        BytesBuffer valueBuf;
-        valueBuf.writeString(value);
-        return valueBuf.readArray256();
+        Array256_t hash;
+        std::copy_n(reinterpret_cast<const uint8_t*>(value.data()), 32, hash.begin());
+        return hash;
     }
 }
 
@@ -59,6 +59,8 @@ tryGetHeightHash(uint64_t height)
 {
     const std::string key = makeHeightKey(height);
     std::string value;
+    BytesBuffer heightBuffer;
+    heightBuffer.writeU64(height);
 
     auto status = heightsDb()->Get(
         rocksdb::ReadOptions(),

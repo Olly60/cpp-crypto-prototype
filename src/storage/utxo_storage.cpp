@@ -33,12 +33,19 @@ namespace
 
     TxOutput parseUtxoValue(const std::string& value)
     {
-        BytesBuffer buf;
-        buf.writeString(value);
-
         TxOutput out;
-        out.amount    = buf.readU64();
-        out.recipient = buf.readArray256();
+        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(value.data());
+
+        // Parse amount (little-endian)
+        out.amount = 0;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            out.amount |= static_cast<uint64_t>(ptr[i]) << (8 * i);
+        }
+
+        // Copy recipient (raw 32 bytes)
+        std::copy(ptr + 8, ptr + 40, out.recipient.begin());
+
         return out;
     }
 

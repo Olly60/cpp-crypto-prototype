@@ -7,13 +7,13 @@
 #include <asio/use_future.hpp>
 #include <asio/co_spawn.hpp>
 #include <asio/ip/tcp.hpp>
-
+#include <boost/multiprecision/number.hpp>
 #include "block_work.h"
 #include "node.h"
 #include "tip.h"
 #include "network/network_main.h"
+#include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "block.h"
 
 asio::io_context userIo;
 
@@ -143,9 +143,10 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "new_tx")
     {
-        BytesBuffer buf;
-        buf.writeArray256(getBlock(getTipHash())->header.difficulty);
-        std::cout << bytesToHex(buf) << "\n";
+        std::cout << tryGetBlockIndex(getTipHash())->height;
+        BytesBuffer hashBuf;
+        hashBuf.writeArray256(*tryGetHeightHash(0));
+        std::cout << bytesToHex(hashBuf);
     }
 
     if (parts[0] == "known_peers")

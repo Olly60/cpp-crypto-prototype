@@ -29,12 +29,20 @@ namespace
     // Deserialize BlockIndexValue
     BlockIndexValue parseIndexValue(const std::string& value)
     {
-        BytesBuffer buf;
-        buf.writeString(value);
-        BlockIndexValue result;
-        result.height = buf.readU64();
-        result.chainWork = buf.readArray256();
-        return result;
+        BlockIndexValue idx;
+
+        // Parse height stored in little-endian
+        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(value.data());
+        idx.height = 0;
+        for (size_t i = 0; i < 8; ++i)
+        {
+            idx.height |= static_cast<uint64_t>(ptr[i]) << (8 * i);
+        }
+
+        // Copy chainWork (raw 32 bytes)
+        std::copy(ptr + 8, ptr + 40, idx.chainWork.begin());
+
+        return idx;
     }
 }
 
