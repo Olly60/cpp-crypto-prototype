@@ -3,6 +3,7 @@
 #include <asio/awaitable.hpp>
 #include <asio.hpp>
 #include "crypto_utils.h"
+#include "block.h"
 
 asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket);
 

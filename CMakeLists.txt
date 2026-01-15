@@ -9,14 +9,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(crypto
         src/main.cpp
         src/crypto_utils.cpp
-        src/parse_serialise.cpp
         src/network/handle.cpp
         src/network/network_main.cpp
         src/network/network_utils.cpp
         src/network/request.cpp
         src/storage/block/block_heights.cpp
         src/storage/block/block_indexes.cpp
-        src/storage/block/block_utils.cpp
         src/storage/block/genesis_block.cpp
         src/storage/peers.cpp
         src/storage/storage_utils.cpp
@@ -26,8 +24,8 @@ add_executable(crypto
         src/user_commands.cpp
         src/user_commands.cpp
         src/block_work.cpp
-        include/block_work.h
-        include/transaction.cpp
+        src/transaction.cpp
+        src/block.cpp
 )
 
 # Include headers

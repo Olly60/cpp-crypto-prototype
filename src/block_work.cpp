@@ -10,6 +10,7 @@
 #include "network/network_main.h"
 #include "storage/utxo_storage.h"
 #include "block.h"
+#include "storage/block/block_indexes.h"
 // Get Block work
 Array256_t getBlockWork(const Array256_t& difficulty)
 {
@@ -72,7 +73,7 @@ Array256_t shiftLeftBE(const Array256_t& arr)
 }
 
 
-asio::io_context miningIo;
+
 
 ChainBlock newBlock(Array256_t pubKey)
 {
@@ -84,11 +85,11 @@ ChainBlock newBlock(Array256_t pubKey)
     // Difficulty adjustment (target-based)
     auto currentTipHeader = getBlockHeader(currentTip);
 
-    uint64_t timeDelta = currentTipHeader->timestamp - getBlockHeader(currentTipHeader->prevBlockHash)->timestamp;
+    uint64_t timeDelta = currentTipHeader->timestamp - ( tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(currentTipHeader->prevBlockHash)->timestamp : 0);
 
     block.header.difficulty = (timeDelta < 600)
-                                  ? shiftLeftBE(currentTipHeader->difficulty)
-                                  : shiftRightBE(currentTipHeader->difficulty);
+                                  ? shiftRightBE(currentTipHeader->difficulty)
+                                  : shiftLeftBE(currentTipHeader->difficulty);
 
     uint64_t size = 0;
     for (auto& val : mempool | std::views::values)
@@ -122,9 +123,10 @@ ChainBlock newBlock(Array256_t pubKey)
     return block;
 }
 
+asio::io_context miningIo;
+
 void mineBlocks(Array256_t pubKey)
 {
-    if (isMining == true) return;
     auto generateNonce = [
             engine = std::mt19937{std::random_device{}()},
             dist = std::uniform_int_distribution<int>{0, 255}
@@ -140,18 +142,25 @@ void mineBlocks(Array256_t pubKey)
     while (true)
     {
         auto block = newBlock(pubKey);
-
         while (getBlockHeaderHash(block.header) > block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
             if (isMining == false ) return;
             block.header.nonce = generateNonce();
+            BytesBuffer buf;
+            buf.writeArray256(block.header.difficulty);
+            std::cout << bytesToHex(buf) << "\n";
         }
 
-        if (getBlockHeaderHash(block.header) > block.header.difficulty && block.header.prevBlockHash == getTipHash())
+        if (getBlockHeaderHash(block.header) < block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
             std::cout << "Block mined!\n";
+            std::cout << "Adding block to chain...\n";
+            addNewTipBlock(block);
             asio::co_spawn(miningIo, BroadcastNewBlock(miningIo, block), asio::detached);
+            std::cout << "Broadcasting block to peers...\n";
             miningIo.run();
+            miningIo.restart();
         }
+
     }
 }

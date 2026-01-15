@@ -14,24 +14,21 @@
 ChainBlock getGenesisBlock()
 {
     // Genesis transaction
-    TxOutput genesisOutput{
-        5000000000, // amount
-    };
+    TxOutput genesisOutput;
+    genesisOutput.amount = 5000000000; // amount
 
-    Tx genesisTx{
-        1, // version
-        {}, // no inputs
-        {genesisOutput}
-    };
+    Tx genesisTx;
+    genesisTx.version = 1;
+    genesisTx.txOutputs.push_back(genesisOutput);
 
     // Genesis block
     BlockHeader header;
-    header.merkleRoot = getMerkleRoot({genesisTx});
 
-    ChainBlock genesisBlock{
-        header,
-        {genesisTx}
-    };
+    ChainBlock genesisBlock;
+    genesisBlock.txs.push_back(genesisTx);
+
+    header.merkleRoot = getMerkleRoot(genesisBlock.txs);
+    genesisBlock.header = header;
 
     return genesisBlock;
 }

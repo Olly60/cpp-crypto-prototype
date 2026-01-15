@@ -222,7 +222,7 @@ public:
     // BytesBuffer
     void writeBytesBuffer(const BytesBuffer& other)
     {
-        writeBytesImpl(other);
+        data_.insert(data_.end(), other.data(), other.data() + other.size());
     }
 };
 

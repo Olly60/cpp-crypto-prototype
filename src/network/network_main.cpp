@@ -166,14 +166,14 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     // Verify first header
     VerifyBlockHeaderContext h0Ctx;
     h0Ctx.prevHeader = &(*commonAncestorHeader);
-    uint64_t h0CtxTimestamp = getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp;
+    uint64_t h0CtxTimestamp = tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp : 0;
     h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
     if (!verifyBlockHeader(headers[0], h0Ctx)) co_return false;
 
     // Verify 2nd header if size > 1
     VerifyBlockHeaderContext h1Ctx;
     h1Ctx.prevHeader = &headers[0];
-    uint64_t h1CtxTimestamp = getBlockHeader(headers[0].prevBlockHash)->timestamp;
+    uint64_t h1CtxTimestamp = tryGetBlockIndex(getTipHash())->height;
     h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
     if (headers.size() > 1) { if (!verifyBlockHeader(headers[1], h1Ctx)) co_return false; }
 
