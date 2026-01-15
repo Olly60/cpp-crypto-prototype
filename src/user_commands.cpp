@@ -101,11 +101,9 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "mine")
     {
-        if (parts[1] == "start")
+        if (parts[1] == "start" && isMining == false)
         {
-
-            std::thread miner(mineBlocks());
-            std::cout << "Started mining blocks\n";
+            std::thread miner(mineBlocks, hexToBytes(parts[2]).readArray256());
 
         } else if (parts[1] == "stop")
         {

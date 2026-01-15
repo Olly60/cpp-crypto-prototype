@@ -124,6 +124,7 @@ ChainBlock newBlock(Array256_t pubKey)
 
 void mineBlocks(Array256_t pubKey)
 {
+    if (isMining == true) return;
     auto generateNonce = [
             engine = std::mt19937{std::random_device{}()},
             dist = std::uniform_int_distribution<int>{0, 255}
@@ -142,6 +143,7 @@ void mineBlocks(Array256_t pubKey)
 
         while (getBlockHeaderHash(block.header) > block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
+            if (isMining == false ) return;
             block.header.nonce = generateNonce();
         }
 

@@ -11,4 +11,6 @@ Array256_t shiftRightBE(const Array256_t& arr);
 // Increase difficulty (harder -> shift right)
 Array256_t shiftLeftBE(const Array256_t& arr);
 
+inline bool isMining = false;
+
 void mineBlocks(Array256_t pubKey);

@@ -32,3 +32,29 @@ std::string bytesToHex(const BytesBuffer& bytes)
 
     return hex;
 };
+
+BytesBuffer hexToBytes(const std::string& hex)
+{
+    BytesBuffer bytes;
+
+    if (hex.size() % 2 != 0)
+        throw std::invalid_argument("hex string must have even length");
+
+    auto hexValue = [](char c) -> uint8_t {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        throw std::invalid_argument("invalid hex character");
+    };
+
+    for (size_t i = 0; i < hex.size(); i += 2)
+    {
+        uint8_t byte =
+            (hexValue(hex[i]) << 4) |
+             hexValue(hex[i + 1]);
+
+        bytes.writeU8(byte);
+    }
+
+    return bytes;
+}

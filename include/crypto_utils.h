@@ -231,3 +231,5 @@ Array256_t sha256Of(const BytesBuffer& data);
 uint64_t getCurrentTimestamp();
 
 std::string bytesToHex(const BytesBuffer& bytes);
+
+BytesBuffer hexToBytes(const std::string& hex);
