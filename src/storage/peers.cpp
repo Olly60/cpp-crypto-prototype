@@ -14,19 +14,19 @@ void storePeers()
     for (const auto& peer : knownPeers)
     {
         // Write address type
-        knownPeersFileBytes.writeU8(peer.first.address().is_v4() ? 0x04 : 0x06);
+        knownPeersFileBytes.writeU8(peer.first.is_v4() ? 0x04 : 0x06);
 
         // Address
-        if (peer.first.address().is_v4())
+        if (peer.first.is_v4())
         {
-            knownPeersFileBytes.writeFixedArray(peer.first.address().to_v4().to_bytes());
-        } else if (peer.first.address().is_v6()) {
-            knownPeersFileBytes.writeFixedArray(peer.first.address().to_v6().to_bytes());
+            knownPeersFileBytes.writeFixedArray(peer.first.to_v4().to_bytes());
+        } else if (peer.first.is_v6()) {
+            knownPeersFileBytes.writeFixedArray(peer.first.to_v6().to_bytes());
         }
 
 
         // Port
-        knownPeersFileBytes.writeU16(peer.first.port());
+        knownPeersFileBytes.writeU16(peer.second.port);
 
         // Services
         knownPeersFileBytes.writeU64(peer.second.services);
@@ -78,7 +78,7 @@ void loadPeers()
         // Read each peer
         for (uint64_t i = 0; i < peersCount; ++i)
         {
-            asio::ip::tcp::endpoint peerAddr;
+            asio::ip::address peerAddr;
             PeerStatus peerStatus;
 
             // Read address type
@@ -88,14 +88,11 @@ void loadPeers()
             if (addressType == 4)
             {
 
-                peerAddr.address(asio::ip::address_v4(knownPeersFileBytes->readFixedArray<4>()));
+                peerAddr = asio::ip::address_v4(knownPeersFileBytes->readFixedArray<4>());
             } else if (addressType == 6)
             {
-                peerAddr.address(asio::ip::address_v6(knownPeersFileBytes->readFixedArray<16>()));
+                peerAddr = asio::ip::address_v6(knownPeersFileBytes->readFixedArray<16>());
             }
-
-            // Read port
-            peerAddr.port(knownPeersFileBytes->readU16());
 
             // Read services
             peerStatus.services = knownPeersFileBytes->readU64();
