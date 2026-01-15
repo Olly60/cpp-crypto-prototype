@@ -146,7 +146,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
         auto headers = co_await requestHeaders(socket);
 
-        // Headers empty blockchain uptodate
+        // Headers empty blockchain up to date
         if (headers.empty()) co_return true;
 
         auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);

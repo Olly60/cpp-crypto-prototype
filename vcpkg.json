@@ -5,6 +5,7 @@
   "dependencies": [
     "rocksdb",
     "libsodium",
-    "asio"
+    "asio",
+    "boost-multiprecision"
   ]
 }

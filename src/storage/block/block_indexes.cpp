@@ -69,7 +69,6 @@ void putBlockIndexBatch(
 
     rocksdb::WriteBatch batch;
 
-    // Keys and values must outlive db.Write()
     std::vector<std::string> keys;
     std::vector<std::string> vals;
     keys.reserve(hashes.size());

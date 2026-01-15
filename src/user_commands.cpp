@@ -107,6 +107,12 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "chain_info")
     {
+        BytesBuffer tipBuf;
+        tipBuf.writeArray256(getTipHash());
+        std::cout << "Current tip hash: " << bytesToHex(tipBuf) << "\n";
+        BytesBuffer genBuf;
+        genBuf.writeArray256(getGenesisBlockHash());
+        std::cout << "Genesis hash: " << bytesToHex(genBuf) << "\n";
         std::cout << "Length: " << std::to_string(tryGetBlockIndex(getTipHash())->height + 1) << "\n";
         BytesBuffer chainWorkBuf;
         chainWorkBuf.writeArray256(tryGetBlockIndex(getTipHash())->chainWork);
@@ -156,5 +162,17 @@ void handleUserCommand(const std::string& input)
         {
             std::cout << peer.address().to_string() << " " << peer.port() << "\n";
         }
+    }
+
+    if (parts[0] == "block_info")
+    {
+        BytesBuffer hashBuf;
+        hashBuf.writeArray256(hexToBytes(parts[1]).readArray256());
+        Array256_t hash = hashBuf.readArray256();
+        BytesBuffer genBuf;
+        std::cout << "Block height: " << std::to_string(tryGetBlockIndex(hash)->height + 1) << "\n";
+        BytesBuffer chainWorkBuf;
+        chainWorkBuf.writeArray256(tryGetBlockIndex(hash)->chainWork);
+        std::cout << "Block work: " << bytesToHex(chainWorkBuf) << "\n";
     }
 }

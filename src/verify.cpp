@@ -100,12 +100,16 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
         return false;
 
     // Difficulty adjustment (target-based)
-    uint64_t timeDelta = prevHeader.timestamp - prevPrevTimestamp;
+    uint64_t timeDelta =
+    (prevHeader.timestamp > prevPrevTimestamp)
+        ? prevHeader.timestamp - prevPrevTimestamp
+        : 0;
 
     Array256_t expectedDifficulty =
         (timeDelta < 600)
-            ? shiftRightBE(prevHeader.difficulty)
-            : shiftLeftBE(prevHeader.difficulty);
+            ? shiftRight(prevHeader.difficulty)
+            : shiftLeft(prevHeader.difficulty);
+
 
     if (header.difficulty != expectedDifficulty)
         return false;

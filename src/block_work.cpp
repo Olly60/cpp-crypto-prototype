@@ -11,69 +11,62 @@
 #include "storage/utxo_storage.h"
 #include "block.h"
 #include "storage/block/block_indexes.h"
-// Get Block work
-Array256_t getBlockWork(const Array256_t& difficulty)
-{
-    Array256_t work;
-    work.fill(0xff);
-    for (size_t i = 0; i < difficulty.size(); ++i)
-    {
-        for (size_t j = 0; j < 8; ++j)
-        {
-            if (i >> j != 0) work = shiftRightBE(work);
-        }
-    }
+#include <boost/multiprecision/number.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 
-    return work;
+Array256_t getBlockWork(const Array256_t& target) {
+
+    boost::multiprecision::uint256_t resultNum;
+    boost::multiprecision::import_bits(resultNum, target.rbegin(), target.rend(), 8, true);
+
+    boost::multiprecision::uint256_t max = ~boost::multiprecision::uint256_t{0};
+    resultNum = max / resultNum;
+
+    Array256_t resultArr{};
+    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
+    return resultArr;
 }
 
 Array256_t addBlockWork(const Array256_t& a, const Array256_t& b)
 {
-    Array256_t totalWork;
-    uint8_t carry = 0;
-    for (size_t i = totalWork.size(); i > 0; --i)
-    {
-        totalWork[i - 1] = a[i - 1] + b[i - 1];
-        totalWork[i - 1] += carry;
-        carry = a[i - 1] + b[i - 1] < a[i - 1] || a[i - 1] + b[i - 1] < b[i - 1] ? 1 : 0;
-    }
-    return totalWork;
+
+    boost::multiprecision::uint256_t aNum;
+    boost::multiprecision::uint256_t bNum;
+    boost::multiprecision::import_bits(aNum, a.rbegin(), a.rend(), 8, true);
+    boost::multiprecision::import_bits(bNum, b.rbegin(), b.rend(), 8, true);
+
+    boost::multiprecision::uint256_t resultNum = aNum + bNum;
+
+    Array256_t resultArr{};
+    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
+    return resultArr;
 }
 
 // Shift right (harder)
-Array256_t shiftRightBE(const Array256_t& arr)
+Array256_t shiftRight(const Array256_t& arr)
 {
-    auto newArr = arr;
-    for (size_t i = 0; i < arr.size(); ++i)
-    {
-        if (newArr[i] != 0)
-        {
-            newArr[i] >>= 1;
-            break;
-        }
-    }
-    return newArr;
+    boost::multiprecision::uint256_t resultNum;
+    boost::multiprecision::import_bits(resultNum, arr.rbegin(), arr.rend(), 8, true);
+
+    resultNum = resultNum >> 1;
+
+    Array256_t resultArr{};
+    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
+    return resultArr;
 }
 
 // Shift left (easier)
-Array256_t shiftLeftBE(const Array256_t& arr)
+Array256_t shiftLeft(const Array256_t& arr)
 {
-    auto newArr = arr;
+    boost::multiprecision::uint256_t resultNum;
+    boost::multiprecision::import_bits(resultNum, arr.rbegin(), arr.rend(), 8, true);
 
-    for (size_t i = 0; i < arr.size(); ++i)
-    {
-        if (newArr[i] != 0 || newArr[i + 1] == 0xff)
-        {
-            newArr[i] <<= 1;
-            newArr[i] |= 1;
-            break;
-        }
-    }
-    return newArr;
+    resultNum = resultNum << 1;
+
+    Array256_t resultArr{};
+    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
+    return resultArr;
 }
-
-
-
 
 ChainBlock newBlock(Array256_t pubKey)
 {
@@ -85,11 +78,26 @@ ChainBlock newBlock(Array256_t pubKey)
     // Difficulty adjustment (target-based)
     auto currentTipHeader = getBlockHeader(currentTip);
 
-    uint64_t timeDelta = currentTipHeader->timestamp - ( tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(currentTipHeader->prevBlockHash)->timestamp : 0);
+    uint64_t prevTimestamp = 0;
 
-    block.header.difficulty = (timeDelta < 600)
-                                  ? shiftRightBE(currentTipHeader->difficulty)
-                                  : shiftLeftBE(currentTipHeader->difficulty);
+    if (tryGetBlockIndex(getTipHash())->height > 0)
+    {
+        prevTimestamp = getBlockHeader(currentTipHeader->prevBlockHash)->timestamp;
+    }
+
+    uint64_t timeDelta =
+        (currentTipHeader->timestamp > prevTimestamp)
+            ? currentTipHeader->timestamp - prevTimestamp
+            : 0;
+
+    if (timeDelta < 600)
+    {
+        block.header.difficulty = shiftLeft(currentTipHeader->difficulty);
+    }
+    else
+    {
+        block.header.difficulty = shiftLeft(currentTipHeader->difficulty);
+    }
 
     uint64_t size = 0;
     for (auto& val : mempool | std::views::values)
@@ -142,10 +150,14 @@ void mineBlocks(Array256_t pubKey)
     while (true)
     {
         auto block = newBlock(pubKey);
+        BytesBuffer buf;
+        buf.writeArray256(block.header.difficulty);
+        std::cout << "Current difficulty: " << bytesToHex(buf) << "\n";
         while (getBlockHeaderHash(block.header) > block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
             if (isMining == false ) return;
             block.header.nonce = generateNonce();
+
         }
 
         if (getBlockHeaderHash(block.header) < block.header.difficulty && block.header.prevBlockHash == getTipHash())

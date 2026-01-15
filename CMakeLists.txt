@@ -37,9 +37,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 find_package(RocksDB CONFIG REQUIRED)
 find_package(unofficial-sodium CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
+find_package(Boost CONFIG REQUIRED)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
         RocksDB::rocksdb
         unofficial-sodium::sodium
         asio::asio
-)
+        Boost::boost)

@@ -72,14 +72,11 @@ void addNewTipBlock(const ChainBlock& block)
     applyUtxoBatch(spends, adds);
 
     // Update block height and chain work
-    uint64_t blockHeight = tryGetBlockIndex(getTipHash())->height + 1;
-    auto blockWork = getBlockWork(block.header.difficulty);
-
     putHeightHashBatch({blockHash});
 
     BlockIndexValue blockIndex;
-    blockIndex.chainWork = addBlockWork(tryGetBlockIndex(getTipHash())->chainWork, blockWork);
-    blockIndex.height = blockHeight;
+    blockIndex.chainWork = addBlockWork(tryGetBlockIndex(getTipHash())->chainWork, getBlockWork(block.header.difficulty));
+    blockIndex.height = tryGetBlockIndex(getTipHash())->height + 1;
     putBlockIndexBatch({blockHash}, {blockIndex});
 
     // Write new tip hash
