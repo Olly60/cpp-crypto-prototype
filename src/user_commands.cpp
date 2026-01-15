@@ -6,11 +6,13 @@
 #include <asio/use_future.hpp>
 #include <asio/co_spawn.hpp>
 #include <asio/ip/tcp.hpp>
+
+#include "block_work.h"
 #include "node.h"
 #include "tip.h"
 #include "network/network_main.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
+#include "block.h"
 
 asio::io_context userIo;
 
@@ -94,5 +96,25 @@ void handleUserCommand(const std::string& input)
         BytesBuffer chainWorkBuf;
         chainWorkBuf.writeArray256(tryGetBlockIndex(getTipHash())->chainWork);
         std::cout << "Chain work: " << bytesToHex(chainWorkBuf) << "\n";
+    }
+
+
+    if (parts[0] == "mine")
+    {
+        if (parts[1] == "start")
+        {
+
+            std::thread miner(mineBlocks());
+            std::cout << "Started mining blocks\n";
+
+        } else if (parts[1] == "stop")
+        {
+            std::cout << "Stopped mining blocks\n";
+        }
+    }
+
+    if (parts[0] == "newtx")
+    {
+
     }
 }

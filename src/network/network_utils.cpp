@@ -11,7 +11,7 @@
 #include "verify.h"
 #include "storage/storage_utils.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
+#include "../../include/block.h"
 
 // ============================================
 // Handshake Helpers

@@ -3,6 +3,8 @@
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
 
+#include "transaction.h"
+
 rocksdb::DB* utxoDb();
 
 std::optional<TxOutput> tryGetUtxo(

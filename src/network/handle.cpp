@@ -12,9 +12,8 @@
 #include "node.h"
 #include "network/network_utils.h"
 #include "storage/block/block_indexes.h"
-#include "parse_serialise.h"
 #include "verify.h"
-#include "storage/block/block_utils.h"
+#include "../../include/block.h"
 
 asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
 {
@@ -212,7 +211,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     const uint64_t blockSize = co_await readU64Tcp(socket);
 
     // Limit block size
-    if (blockSize > 8 * 1024 * 1024 * 4) { co_return; }
+    if (blockSize > MAX_BLOCK_SIZE) { co_return; }
 
     // Read block
     BytesBuffer blockBytes(blockSize);
@@ -244,7 +243,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
     const uint64_t txSize = co_await readU64Tcp(socket);
 
     // Limit transaction size
-    if (txSize > 8 * 1024 * 256) co_return;
+    if (txSize > MAX_TX_SIZE) co_return;
 
     // Read transaction
     BytesBuffer txBytes(txSize);

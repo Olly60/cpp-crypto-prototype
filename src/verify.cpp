@@ -3,7 +3,8 @@
 #include "tip.h"
 #include "crypto_utils.h"
 #include "storage/utxo_storage.h"
-#include "storage/block/block_utils.h"
+#include "block.h"
+#include "block_work.h"
 
 bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 {

@@ -1,4 +1,5 @@
 #pragma once
+#include "block.h"
 #include "crypto_utils.h"
 ChainBlock getGenesisBlock();
 

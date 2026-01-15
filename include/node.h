@@ -2,7 +2,8 @@
 #include <random>
 #include <unordered_map>
 #include <asio/io_context.hpp>
-#include "parse_serialise.h"
+
+#include "transaction.h"
 
 // This node's mempool
 using MempoolMap = std::unordered_map<Array256_t, Tx, Array256Hash>;

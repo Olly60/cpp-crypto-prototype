@@ -5,6 +5,9 @@
 #include <asio/awaitable.hpp>
 #include "storage/block/genesis_block.h"
 
+constexpr uint64_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
+constexpr uint64_t MAX_TX_SIZE = 8 * 1024 * 256;
+
 // ============================================
 // Protocol messages
 // ============================================
@@ -59,6 +62,6 @@ asio::awaitable<bool> trySyncWithPeers();
 // Broadcast
 // ============================================
 
-asio::awaitable<void> BroadcastNewTx(const Tx& tx);
+asio::awaitable<void> BroadcastNewTx(asio::io_context &io, const Tx& tx);
 
-asio::awaitable<void> BroadcastNewBlock(const ChainBlock& block);
+asio::awaitable<void> BroadcastNewBlock(asio::io_context& io, const ChainBlock& block);

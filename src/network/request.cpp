@@ -11,7 +11,7 @@
 #include "network/network_utils.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
+#include "../../include/block.h"
 
 asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
 {

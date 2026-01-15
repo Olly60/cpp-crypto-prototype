@@ -1,12 +1,14 @@
 #include "storage/block/genesis_block.h"
 #include <filesystem>
+
+#include "block_work.h"
 #include "crypto_utils.h"
 #include "tip.h"
 #include "storage/storage_utils.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
+#include "../../../include/block.h"
 
 // Genesis block
 ChainBlock getGenesisBlock()

@@ -1,74 +1,57 @@
-#include "parse_serialise.h"
+#include "block.h"
+#include <asio/ip/address.hpp>
+#include "tip.h"
+#include "transaction.h"
+#include "storage/storage_utils.h"
 
-// ----------------------------------------
-// Tx
-// ----------------------------------------
-BytesBuffer serialiseTx(const Tx& tx)
+
+std::filesystem::path getBlockFilePath(const Array256_t& blockHash)
 {
-    BytesBuffer txBytes;
-
-    // Version
-    txBytes.writeU64(tx.version);
-
-    // Inputs amount
-    txBytes.writeU64(tx.txInputs.size());
-
-    // Inputs
-    for (const auto& txInput : tx.txInputs)
-    {
-        txBytes.writeArray256(txInput.UTXOTxHash);
-        txBytes.writeU64(txInput.UTXOOutputIndex);
-        txBytes.writeArray512(txInput.signature);
-    }
-
-    // Outputs amount
-    txBytes.writeU64(tx.txOutputs.size());
-
-    // Outputs
-    for (const auto& txOutput : tx.txOutputs)
-    {
-        txBytes.writeU64(txOutput.amount);
-        txBytes.writeArray256(txOutput.recipient);
-    }
-
-    return txBytes;
+    BytesBuffer hashBuf;
+    hashBuf.writeArray256(blockHash);
+    return std::filesystem::path("blocks") / bytesToHex(hashBuf);
 }
 
-Tx parseTx(BytesBuffer& txBytes)
+std::filesystem::path getUndoFilePath(const Array256_t& blockHash)
 {
-    Tx tx;
+    BytesBuffer hashBuf;
+    hashBuf.writeArray256(blockHash);
+    return std::filesystem::path("undo") / bytesToHex(hashBuf);
+};
 
-    // Tx Version
-    tx.version = txBytes.readU64();
+std::optional<ChainBlock> getBlock(const Array256_t& blockHash)
+{
+    auto blockBytes = readFile(getBlockFilePath(blockHash));
+    if (!blockBytes) return std::nullopt;
+    auto block = parseBlock(*blockBytes);
+    return block;
+}
 
-    // Input amount
-    uint64_t inputAmount = txBytes.readU64();
-    tx.txInputs.reserve(inputAmount);
+std::optional<BlockHeader> getBlockHeader(const Array256_t& blockHash)
+{
+    auto headerBytes = readFile(getBlockFilePath(blockHash));
+    if (!headerBytes) return std::nullopt;
+    auto blockHeader = parseBlockHeader(*headerBytes);
+    return blockHeader;
+}
 
-    // Read inputs
-    for (uint64_t i = 0; i < inputAmount; i++)
-    {
-        TxInput txInput;
-        txInput.UTXOTxHash = txBytes.readArray256();
-        txInput.UTXOOutputIndex = txBytes.readU64();
-        txInput.signature = txBytes.readArray512();
-        tx.txInputs.push_back(txInput);
-    }
+std::optional<BytesBuffer> getBlockBytes(const Array256_t& blockHash)
+{
+    auto blockBytes = readFile(getBlockFilePath(blockHash));
+    if (!blockBytes) return std::nullopt;
+    return blockBytes;
+}
 
-    // Output amount
-    uint64_t outputAmount = txBytes.readU64();
-    tx.txOutputs.reserve(outputAmount);
+std::optional<BytesBuffer> getBlockHeaderBytes(const Array256_t& blockHash)
+{
+    auto blockHeaderBytes = readFile(getBlockFilePath(blockHash), calculateBlockHeaderSize());
+    if (!blockHeaderBytes) return std::nullopt;
+    return blockHeaderBytes;
+}
 
-    // Read outputs
-    for (uint64_t i = 0; i < outputAmount; i++)
-    {
-        TxOutput txOutput;
-        txOutput.amount = txBytes.readU64();
-        txOutput.recipient = txBytes.readArray256();
-        tx.txOutputs.push_back(txOutput);
-    }
-
-    return tx;
+Array256_t getBlockHeaderHash(const BlockHeader& header)
+{
+    return sha256Of(serialiseBlockHeader(header));
 }
 
 // ----------------------------------------

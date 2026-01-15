@@ -1,7 +1,10 @@
 #pragma once
 #include <optional>
 #include <unordered_set>
+
+#include "block.h"
 #include "crypto_utils.h"
+#include "transaction.h"
 
 // Hash function for UTXO keys
 struct TxInputKeyHash

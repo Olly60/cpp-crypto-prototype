@@ -5,6 +5,8 @@
 #include <rocksdb/db.h>
 #include <rocksdb/write_batch.h>
 
+#include "transaction.h"
+
 namespace
 {
     // -------------------------------

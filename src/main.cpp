@@ -8,9 +8,7 @@
 #include <thread>
 #include "node.h"
 #include "user_commands.h"
-#include <mutex>
-
-#include "storage/block/block_utils.h"
+#include "../include/block.h"
 
 // ============================================
 // Main
@@ -18,11 +16,6 @@
 
 int main()
 {
-    Array256_t arr{0x00, 0xff};
-    arr = shiftRightBE(arr);
-    BytesBuffer arrBuf;
-    arrBuf.writeArray256(arr);
-    std::cout << bytesToHex(arrBuf);
 
     initGenesisBlock(); // Add genisis if first time loading
 

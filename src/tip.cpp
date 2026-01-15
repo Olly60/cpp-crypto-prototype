@@ -2,11 +2,14 @@
 #include "crypto_utils.h"
 #include "storage/storage_utils.h"
 #include "../include/tip.h"
+
+#include "block_work.h"
+#include "node.h"
 #include "verify.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
+#include "../include/block.h"
 
 Array256_t getTipHash()
 {
@@ -83,6 +86,12 @@ void addNewTipBlock(const ChainBlock& block)
     BytesBuffer hashBuf;
     hashBuf.writeArray256(blockHash);
     writeFileTrunc(TIP, hashBuf);
+
+    // Remove any used transactions from the mempool
+    for (auto& tx: block.txs)
+    {
+        mempool.erase(getTxHash(tx));
+    }
 }
 
 void undoNewTipBlock()

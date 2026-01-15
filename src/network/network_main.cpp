@@ -5,7 +5,6 @@
 #include <asio.hpp>
 #include <iostream>
 #include "node.h"
-#include "parse_serialise.h"
 #include "verify.h"
 #include "tip.h"
 #include "network/handle.h"
@@ -14,7 +13,8 @@
 #include "storage/peers.h"
 #include "storage/storage_utils.h"
 #include "storage/block/block_indexes.h"
-#include "storage/block/block_utils.h"
+#include "block.h"
+#include "block_work.h"
 
 // TODO: add limits and safety to network and peer bans
 // ============================================
@@ -313,7 +313,7 @@ asio::awaitable<bool> trySyncWithPeers()
 // Broadcast
 // ============================================
 
-asio::awaitable<void> BroadcastNewTx(const Tx& tx)
+asio::awaitable<void> BroadcastNewTx(asio::io_context &io, const Tx& tx)
 {
     for (const auto& peer : knownPeers)
     {
@@ -321,7 +321,7 @@ asio::awaitable<void> BroadcastNewTx(const Tx& tx)
 
         try
         {
-            asio::ip::tcp::socket socket(ioCtx);
+            asio::ip::tcp::socket socket(io);
             co_await socket.async_connect(peer.first);
 
             // Send message type
@@ -344,13 +344,13 @@ asio::awaitable<void> BroadcastNewTx(const Tx& tx)
     }
 }
 
-asio::awaitable<void> BroadcastNewBlock(const ChainBlock& block)
+asio::awaitable<void> BroadcastNewBlock(asio::io_context& io, const ChainBlock& block)
 {
     for (const auto& peer : knownPeers)
     {
         try
         {
-            asio::ip::tcp::socket socket(ioCtx);
+            asio::ip::tcp::socket socket(io);
             co_await socket.async_connect(peer.first);
 
             // Send message type
