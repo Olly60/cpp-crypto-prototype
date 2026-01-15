@@ -76,6 +76,15 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
             }
             else { std::cout << "Didn't sync with: " << remote << "\n"; }
         }
+        else if (parts[1] == "headers")
+        {
+            bool r = (co_await requestHeaders(socket)).empty();
+            if (r)
+            {
+                std::cout << "headers : " << remote << "\n";
+            }
+            else { std::cout << "Didn't headers: " << remote << "\n"; }
+        }
     }
     catch (const std::exception& e)
     {

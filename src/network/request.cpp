@@ -109,16 +109,12 @@ asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
         uint8_t pong;
         co_await asio::async_read(socket, asio::buffer(&pong, 1), asio::use_awaitable);
 
-        // Update last seen if valid
+        // Valid pong
         if (pong == 0x01)
         {
             co_return true;
         }
 
-        if (pong == 0x00) // Else remove from peers
-        {
-            knownPeers.erase(socket.remote_endpoint().address());
-        }
         co_return false;
 
 }
@@ -161,7 +157,6 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
         // Write message type
         co_await asio::async_write(socket, asio::buffer(ProtocolMessage::GetHeaders), asio::use_awaitable);
-
 
         // Make list of block hashes with (Ancestor -> Tip)
         std::vector<Array256_t> blockHashes;
@@ -213,7 +208,6 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
         {
             headers.erase(headers.begin(), headers.begin() + drop);
         }
-
 
         co_return headers;
 

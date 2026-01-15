@@ -90,7 +90,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             }
             else
             {
-                std::cout << "Unknown message from: " << socket.remote_endpoint().address().to_string();
+                std::cout << "Unknown message from: " << socket.remote_endpoint().address().to_string() << "\n";
                 break;
             }
         }
@@ -355,11 +355,12 @@ asio::awaitable<void> BroadcastNewBlock(asio::io_context& io, const ChainBlock& 
 {
     for (const auto& peer : knownPeers)
     {
+
         try
         {
             asio::ip::tcp::socket socket(io);
             co_await socket.async_connect({peer.first, peer.second.port});
-
+            std::cout << "sent to: " << peer.first.to_string() << "\n";
             // Send message type
             auto msgType = ProtocolMessage::BroadcastNewBlock;
             co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
