@@ -24,7 +24,6 @@ void storePeers()
             knownPeersFileBytes.writeFixedArray(peer.first.to_v6().to_bytes());
         }
 
-
         // Port
         knownPeersFileBytes.writeU16(peer.second.port);
 
