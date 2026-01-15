@@ -22,8 +22,8 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 
         if (ctx.includeUtxos) // if included is defined then check it for the utxo as well
         {
-            // Utxo not in database or not in the included list
-            if (!utxoInDb || ctx.includeUtxos->erase(tx.txInputs[i]) == 0) return false;
+            // Utxo not in database and not in the included list
+            if (!utxoInDb && ctx.includeUtxos->erase(tx.txInputs[i]) == 0) return false;
         }
         else
         {
@@ -75,7 +75,7 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
 {
     // Resolve defaults
     const BlockHeader prevHeader =
-        ctx.prevHeader ? *ctx.prevHeader : getTipHeader();
+        ctx.prevHeader ? *ctx.prevHeader : *getBlockHeader(getTipHash());
 
     const uint64_t prevPrevTimestamp = ctx.prevPrevTimestamp
                                            ? *ctx.prevPrevTimestamp
@@ -115,14 +115,6 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
     return true;
 }
 
-uint64_t getBlockSubsidy(uint64_t height)
-{
-    uint64_t halvings = height / 210000;
-    if (halvings >= 64) return 0;
-
-    return 5000000000ULL >> halvings;
-}
-
 bool verifyBlock(const ChainBlock& block, VerifyBlockContext ctx)
 {
     // ---------------------------
@@ -160,12 +152,14 @@ bool verifyBlock(const ChainBlock& block, VerifyBlockContext ctx)
     if (coinbaseTx.txOutputs.empty())
         return false;
 
-    uint64_t expectedReward =
-        getBlockSubsidy(getTipHeight() + 1) + totalFees;
+
+    uint64_t expectedReward = 5000000000 + totalFees;
 
     uint64_t coinbaseAmount = 0;
     for (const TxOutput& output : coinbaseTx.txOutputs)
+    {
         coinbaseAmount += output.amount;
+    }
 
     if (coinbaseAmount != expectedReward)
         return false;

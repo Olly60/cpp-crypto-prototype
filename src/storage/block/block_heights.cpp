@@ -7,6 +7,7 @@
 
 #include "tip.h"
 #include "storage/storage_utils.h"
+#include "storage/block/block_indexes.h"
 
 namespace
 {
@@ -84,7 +85,6 @@ void putHeightHashBatch(
     rocksdb::WriteBatch batch;
 
     // Cache tip and pre-build all keys and values to ensure lifetime
-    const uint64_t tip = getTipHeight();
     std::vector<std::string> keys;
     std::vector<std::string> values;
     keys.reserve(hashes.size());
@@ -92,7 +92,7 @@ void putHeightHashBatch(
 
     for (size_t i = 0; i < hashes.size(); ++i)
     {
-        keys.push_back(makeHeightKey(tip + i + 1));
+        keys.push_back(makeHeightKey(tryGetBlockIndex(getTipHash())->height + i + 1));
         values.push_back(makeHashValue(hashes[i]));
     }
 
@@ -110,7 +110,7 @@ void putHeightHashBatch(
 
 void deleteHeightHashBatch(uint64_t amount)
 {
-    const uint64_t tip = getTipHeight();
+    const uint64_t tip = tryGetBlockIndex(getTipHash())->height;
     if (amount > tip + 1)
         throw std::runtime_error("Count exceeds chain height");
 

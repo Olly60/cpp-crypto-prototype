@@ -3,74 +3,56 @@
 #include <asio/ip/tcp.hpp>
 #include "network/network_main.h"
 #include "storage/peers.h"
-#include <thread>
 #include <iostream>
 #include <asio/use_future.hpp>
+#include <thread>
+#include "node.h"
+#include "user_commands.h"
+#include <mutex>
 
-#include "network/request.h"
+#include "storage/block/block_utils.h"
 
-void cleanup()
-{
-    ioCtx.stop();
-    storePeers();
-}
 // ============================================
 // Main
 // ============================================
 
 int main()
 {
-    std::atexit(cleanup);
+    Array256_t arr{0x00, 0xff};
+    arr = shiftRightBE(arr);
+    BytesBuffer arrBuf;
+    arrBuf.writeArray256(arr);
+    std::cout << bytesToHex(arrBuf);
 
     initGenesisBlock(); // Add genisis if first time loading
 
     loadPeers(); // Load peers into memory
 
     // Sync to latest chain
-    std::cout << "Syncing blockchain with peer\n";
-    std::future<bool> syncResult = asio::co_spawn(ioCtx, trySyncWithPeers(), asio::use_future);
-
+    asio::co_spawn(ioCtx, trySyncWithPeers(), asio::use_future);
     ioCtx.run();
-
-    // Get the result
-    bool synced = syncResult.get();
-    std::cout << (synced ? "Blockchain synced\n" : "Didn't sync blockchain\n");
-
     ioCtx.restart();
+
+
+    std::cout << "Enter port: ";
+    std::string port;
+    std::getline(std::cin, port);
+    uint16_t portNum = std::stoi(port);
+
+    asio::co_spawn(ioCtx, acceptConnections(portNum), asio::detached);
+
+    std::thread handlePeers([](){ ioCtx.run();});
 
     while (true)
     {
-        // Handle peers
-        asio::co_spawn(ioCtx, acceptConnections(), asio::detached);
-
-        ioCtx.poll();
-
         // Handle user input
         std::string input;
-        std::cin >> input;
-
-
-        ioCtx.poll();
-
+        std::getline(std::cin ,input);
+        if (input == "exit") break;
+        handleUserCommand(input);
     }
-}
 
-// std::vector<std::string> splitCommand(const std::string& input) {
-//     std::vector<std::string> parts;
-//     std::istringstream stream(input);
-//     std::string part;
-//     while (stream >> part) {  // reads word by word separated by whitespace
-//         parts.push_back(part);
-//     }
-//     return parts;
-// }
-//
-// void handleUserCommand(const std::string& cmd) {
-//     auto parts = splitCommand(cmd);
-//     if (parts.empty()) return;
-//
-//     if (parts[0] == "ping") {
-//         // Spawn the coroutine without blocking
-//         asio::co_spawn(ioCtx, requestPing(), asio::detached);
-//     }
-// }
+    ioCtx.stop();
+    handlePeers.join();
+    storePeers();
+}

@@ -33,13 +33,11 @@ struct TxInputKeyEq
     }
 };
 
-
 struct VerifyBlockHeaderContext
 {
     const BlockHeader* prevHeader = nullptr;
     const uint64_t* prevPrevTimestamp = nullptr;
 };
-
 
 struct VerifyTxContext
 {

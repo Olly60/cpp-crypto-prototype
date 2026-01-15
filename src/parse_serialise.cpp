@@ -1,46 +1,6 @@
 #include "parse_serialise.h"
 
 // ----------------------------------------
-// TxInput
-// ----------------------------------------
-BytesBuffer serialiseTxInput(const TxInput& txInput)
-{
-    BytesBuffer serialisedTx;
-    serialisedTx.writeArray256(txInput.UTXOTxHash);
-    serialisedTx.writeU64(txInput.UTXOOutputIndex);
-    serialisedTx.writeArray512(txInput.signature);
-    return serialisedTx;
-}
-
-TxInput parseTxInput(BytesBuffer& txInputBytes)
-{
-    TxInput txInput;
-    txInput.UTXOTxHash = txInputBytes.readArray256();
-    txInput.UTXOOutputIndex = txInputBytes.readU64();
-    txInput.signature = txInputBytes.readArray512();
-    return txInput;
-}
-
-// ----------------------------------------
-// TxOutput
-// ----------------------------------------
-BytesBuffer serialiseTxOutput(const TxOutput& txOutput)
-{
-    BytesBuffer serialisedTxOutput;
-    serialisedTxOutput.writeU64(txOutput.amount);
-    serialisedTxOutput.writeArray256(txOutput.recipient);
-    return serialisedTxOutput;
-}
-
-TxOutput parseTxOutput(BytesBuffer& txOutputBytes)
-{
-    TxOutput txOutput;
-    txOutput.amount = txOutputBytes.readU64();
-    txOutput.recipient = txOutputBytes.readArray256();
-    return txOutput;
-}
-
-// ----------------------------------------
 // Tx
 // ----------------------------------------
 BytesBuffer serialiseTx(const Tx& tx)
@@ -54,18 +14,21 @@ BytesBuffer serialiseTx(const Tx& tx)
     txBytes.writeU64(tx.txInputs.size());
 
     // Inputs
-    for (const auto& input : tx.txInputs)
+    for (const auto& txInput : tx.txInputs)
     {
-        txBytes.writeBytesBuffer(serialiseTxInput(input));
+        txBytes.writeArray256(txInput.UTXOTxHash);
+        txBytes.writeU64(txInput.UTXOOutputIndex);
+        txBytes.writeArray512(txInput.signature);
     }
 
     // Outputs amount
     txBytes.writeU64(tx.txOutputs.size());
 
     // Outputs
-    for (const auto& output : tx.txOutputs)
+    for (const auto& txOutput : tx.txOutputs)
     {
-        txBytes.writeBytesBuffer(serialiseTxOutput(output));
+        txBytes.writeU64(txOutput.amount);
+        txBytes.writeArray256(txOutput.recipient);
     }
 
     return txBytes;
@@ -85,7 +48,11 @@ Tx parseTx(BytesBuffer& txBytes)
     // Read inputs
     for (uint64_t i = 0; i < inputAmount; i++)
     {
-        tx.txInputs.push_back(parseTxInput(txBytes));
+        TxInput txInput;
+        txInput.UTXOTxHash = txBytes.readArray256();
+        txInput.UTXOOutputIndex = txBytes.readU64();
+        txInput.signature = txBytes.readArray512();
+        tx.txInputs.push_back(txInput);
     }
 
     // Output amount
@@ -95,7 +62,10 @@ Tx parseTx(BytesBuffer& txBytes)
     // Read outputs
     for (uint64_t i = 0; i < outputAmount; i++)
     {
-        tx.txOutputs.push_back(parseTxOutput(txBytes));
+        TxOutput txOutput;
+        txOutput.amount = txBytes.readU64();
+        txOutput.recipient = txBytes.readArray256();
+        tx.txOutputs.push_back(txOutput);
     }
 
     return tx;

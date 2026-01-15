@@ -6,8 +6,7 @@
 #include "tip.h"
 #include "network/request.h"
 
-#include <iostream>
-
+#include "node.h"
 #include "verify.h"
 #include "network/network_utils.h"
 #include "storage/block/block_heights.h"
@@ -68,9 +67,6 @@ asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket)
 {
     try
     {
-        // Check node offers service
-        auto peerServices = knownPeers[socket.remote_endpoint()].services;
-        if ((peerServices & Services::FullNode) != 0 || (peerServices & Services::Handshake) != 0) co_return false;
 
         // Write message type
         co_await asio::async_write(socket, asio::buffer(ProtocolMessage::Handshake), asio::use_awaitable);
@@ -116,9 +112,6 @@ asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
 {
     try
     {
-        // Check node offers service
-        auto peerServices = knownPeers[socket.remote_endpoint()].services;
-        if ((peerServices & Services::FullNode) != 0 || (peerServices & Services::Ping) != 0) co_return false;
 
         // Write message type
         co_await asio::async_write(socket, asio::buffer(ProtocolMessage::Ping), asio::use_awaitable);
@@ -144,41 +137,6 @@ asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
         co_return false;
     }
 }
-
-asio::awaitable<std::optional<BlockHeader>> requestBlockHeader(
-    asio::ip::tcp::socket& socket,
-    const Array256_t& blockHash
-)
-{
-    try
-    {
-        // Check node offers service
-        auto peerServices = knownPeers[socket.remote_endpoint()].services;
-        if ((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetHeader) != 0) co_return std::nullopt;
-
-        // Write message type
-        co_await asio::async_write(socket, asio::buffer(ProtocolMessage::GetHeader), asio::use_awaitable);
-
-        // Write header hash
-        co_await asio::async_write(socket, asio::buffer(blockHash), asio::use_awaitable);
-
-        // Check they have header
-        uint8_t hasHeader;
-        co_await asio::async_read(socket, asio::buffer(&hasHeader, 1), asio::use_awaitable);
-        if (hasHeader == 0) { co_return std::nullopt; }
-
-        // Read header
-        BytesBuffer headerBytes(calculateBlockHeaderSize());
-        co_await asio::async_read(socket, asio::buffer(headerBytes.data(), headerBytes.size()), asio::use_awaitable);
-
-        co_return parseBlockHeader(headerBytes);
-    }
-    catch (...)
-    {
-        co_return std::nullopt; // treat any failure as "unavailable"
-    }
-}
-
 
 asio::awaitable<std::optional<ChainBlock>> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
 {
@@ -225,8 +183,6 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
         // Write message type
         co_await asio::async_write(socket, asio::buffer(ProtocolMessage::GetHeaders), asio::use_awaitable);
 
-        // Get block tip height
-        auto tipHeight = getTipHeight();
 
         // Make list of block hashes with (Ancestor -> Tip)
         std::vector<Array256_t> blockHashes;
@@ -235,7 +191,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
         blockHashes.push_back(getGenesisBlockHash());
 
         // Exponential hash collection (Ancestor -> Tip)
-        for (uint64_t i = 1; i < tipHeight; i++)
+        for (uint64_t i = 1; i < tryGetBlockIndex(getTipHash())->height; i++)
         {
             blockHashes.push_back(*tryGetHeightHash(i));
         }

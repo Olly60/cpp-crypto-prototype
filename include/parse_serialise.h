@@ -18,7 +18,6 @@ struct Array256Hash
 {
     size_t operator()(const Array256_t& a) const
     {
-        // Simple xor-folding over 8-byte chunks
         size_t result = 0;
         for (size_t i = 0; i < 32; i += 8)
         {
@@ -70,7 +69,12 @@ struct BlockHeader
     BlockHeader()
     {
         prevBlockHash.fill(0xFF);
+        // Starting difficulty
         difficulty.fill(0xFF);
+        difficulty[0] = 0x0;
+        difficulty[1] = 0x0;
+        difficulty[2] = 0x0;
+        difficulty[3] = 0x0;
     }
 };
 
@@ -277,21 +281,6 @@ public:
         writeBytesImpl(other);
     }
 };
-
-// ----------------------------------------
-// TxInput
-// ----------------------------------------
-
-BytesBuffer serialiseTxInput(const TxInput& txInput);
-
-TxInput parseTxInput(BytesBuffer& txInputBytes);
-
-// ----------------------------------------
-// TxOutput
-// ----------------------------------------
-BytesBuffer serialiseTxOutput(const TxOutput& txOutput);
-
-TxOutput parseTxOutput(BytesBuffer& txOutputBytes);
 
 // ----------------------------------------
 // Tx

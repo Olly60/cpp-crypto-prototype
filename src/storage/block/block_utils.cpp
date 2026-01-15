@@ -6,6 +6,21 @@
 #include "tip.h"
 #include "storage/storage_utils.h"
 
+std::string bytesToHex(const BytesBuffer& bytes)
+{
+    std::string hex;
+    hex.reserve(bytes.size() * 2);
+
+    for (const auto& byte : bytes)
+    {
+        constexpr char hexChars[] = "0123456789ABCDEF";
+        hex.push_back(hexChars[byte >> 4]);
+        hex.push_back(hexChars[byte & 0x0F]);
+    }
+
+    return hex;
+};
+
 std::filesystem::path getBlockFilePath(const Array256_t& blockHash)
 {
     BytesBuffer hashBuf;

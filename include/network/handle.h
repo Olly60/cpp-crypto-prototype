@@ -1,8 +1,6 @@
 #pragma once
 #include <asio.hpp>
 
-asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket);
-
 asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket);
 
 asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket);

@@ -14,27 +14,6 @@ Array256_t getTipHash()
     return hash->readArray256();
 }
 
-uint64_t getTipHeight()
-{
-    return tryGetBlockIndex(getTipHash())->height;
-}
-
-Array256_t getTipChainWork()
-{
-    return tryGetBlockIndex(getTipHash())->chainWork;
-
-}
-
-ChainBlock getTipBlock()
-{
-    return *getBlock(getTipHash());
-}
-
-BlockHeader getTipHeader()
-{
-    return *getBlockHeader(getTipHash());
-}
-
 //----------------------------------------
 // Add and undo blocks
 //----------------------------------------
@@ -90,14 +69,13 @@ void addNewTipBlock(const ChainBlock& block)
     applyUtxoBatch(spends, adds);
 
     // Update block height and chain work
-
-    uint64_t blockHeight = getTipHeight() + 1;
+    uint64_t blockHeight = tryGetBlockIndex(getTipHash())->height + 1;
     auto blockWork = getBlockWork(block.header.difficulty);
 
     putHeightHashBatch({blockHash});
 
     BlockIndexValue blockIndex;
-    blockIndex.chainWork = addBlockWork(getTipChainWork(), blockWork);
+    blockIndex.chainWork = addBlockWork(tryGetBlockIndex(getTipHash())->chainWork, blockWork);
     blockIndex.height = blockHeight;
     putBlockIndexBatch({blockHash}, {blockIndex});
 

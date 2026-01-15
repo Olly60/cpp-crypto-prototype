@@ -23,6 +23,10 @@ add_executable(crypto
         src/storage/utxo_storage.cpp
         src/verify.cpp
         src/tip.cpp
+        include/node.h
+        src/user_commands.cpp
+        src/user_commands.cpp
+        include/user_commands.h
 )
 
 # Include headers

@@ -1,18 +1,8 @@
 #pragma once
 #include <vector>
-#include <string>
 #include <array>
 #include <cstdint>
-#include <istream>
 #include "parse_serialise.h"
-
-// ============================================================================
-// MAIN BUFFER
-// ============================================================================
-
-// Convert 32-byte array to hex string
-
-std::string bytesToHex(const BytesBuffer& bytes);
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -28,23 +18,18 @@ constexpr size_t calculateBlockHeaderSize()
         + sizeof(decltype(BlockHeader::nonce)); // nonce
 }
 
-// Compute SHA-256 hash of data
 Array256_t sha256Of(const BytesBuffer& data);
 
-// Get current UNIX timestamp in seconds
 uint64_t getCurrentTimestamp();
 
 // ============================================================================
 // HASHING FUNCTIONS
 // ============================================================================
 
-// Get hash of a block header
 Array256_t getBlockHeaderHash(const BlockHeader& header);
 
-// Get hash of a transaction
 Array256_t getTxHash(const Tx& tx);
 
-// Compute merkle root from list of transactions
 Array256_t getMerkleRoot(const std::vector<Tx>& txs);
 
 // ============================================================================
@@ -59,7 +44,6 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk);
 // BLOCK WORK
 // ============================================================================
 
-// Get block work
 Array256_t getBlockWork(const Array256_t& difficulty);
 
 Array256_t addBlockWork(const Array256_t& a, const Array256_t& b);

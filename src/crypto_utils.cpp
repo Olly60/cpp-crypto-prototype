@@ -2,23 +2,11 @@
 #include <stdexcept>
 #include <sodium.h>
 #include <chrono>
+#include <iostream>
+
 #include "storage/storage_utils.h"
 #include "parse_serialise.h"
 
-std::string bytesToHex(const BytesBuffer& bytes)
-{
-    std::string hex;
-    hex.reserve(bytes.size() * 2);
-
-    for (const auto& byte : bytes)
-    {
-        constexpr char hexChars[] = "0123456789ABCDEF";
-        hex.push_back(hexChars[byte >> 4]);
-        hex.push_back(hexChars[byte & 0x0F]);
-    }
-
-    return hex;
-};
 // ============================================================================
 // BASIC UTILITIES
 // ============================================================================
@@ -156,7 +144,17 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk) // full secret key
 // Get Block work
 Array256_t getBlockWork(const Array256_t& difficulty)
 {
+    Array256_t work;
+    work.fill(0xff);
+    for (unsigned char i : difficulty)
+    {
+        for (size_t j = 0; j < 8; ++j)
+        {
+            if (i >> j != 0) work = shiftLeftBE(work);
+        }
+    }
 
+    return Array256_t{};
 }
 // TODO: fix these functions difficulty and block work should be big endian
 
@@ -164,20 +162,42 @@ Array256_t getBlockWork(const Array256_t& difficulty)
 Array256_t addBlockWork(const Array256_t& a, const Array256_t& b)
 {
 
+    return Array256_t{};
 }
 
 
 
-// Shift right (harder) -> divide by 2
+// Shift right (harder)
 Array256_t shiftRightBE(const Array256_t& arr)
 {
-
+    auto newArr = arr;
+    for (size_t i = 0; i < arr.size(); ++i)
+    {
+        if (newArr[i] != 0)
+        {
+            newArr[i] >>= 1;
+            break;
+        }
+    }
+    return newArr;
 }
 
-// Shift left (easier) -> multiply by 2
+// Shift left (easier)
 Array256_t shiftLeftBE(const Array256_t& arr)
 {
+    auto newArr = arr;
 
+    for (size_t i = 0; i < arr.size(); ++i)
+    {
+        if (newArr[i] != 0 || newArr[i + 1] == 0xff)
+        {
+            newArr[i] <<= 1;
+            newArr[i] &= 1;
+            break;
+        }
+
+    }
+    return newArr;
 }
 
 

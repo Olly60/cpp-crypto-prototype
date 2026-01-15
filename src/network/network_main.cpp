@@ -4,7 +4,7 @@
 #include "crypto_utils.h"
 #include <asio.hpp>
 #include <iostream>
-
+#include "node.h"
 #include "parse_serialise.h"
 #include "verify.h"
 #include "tip.h"
@@ -31,15 +31,20 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
         std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
         co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
 
+
         // Handle handshake first
         if (msgCommand == ProtocolMessage::Handshake)
         {
+            std::cout << socket.remote_endpoint().address().to_string() << " Requested handshake\n";
             co_await handleHandshake(socket);
         }
+
 
         // Check if peer is authenticated
         if (!knownPeers.contains(peer))
         {
+            std::cout << "Unknown peer: " << socket.remote_endpoint().address().to_string() <<
+                " requested something other than a handshake\n";
             unknownPeers.insert(peer);
             co_return; // Unauthenticated peer
         }
@@ -49,23 +54,45 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
 
         // Route message
         if (msgCommand == ProtocolMessage::Ping)
+        {
+            std::cout << socket.remote_endpoint().address().to_string() << " Requested ping\n";
             co_await handlePing(socket);
-        else if (msgCommand == ProtocolMessage::GetHeader)
-            co_await handleGetHeader(socket);
+        }
         else if (msgCommand == ProtocolMessage::GetBlock)
+        {
+            std::cout << socket.remote_endpoint().address().to_string() << " Requested block\n";
             co_await handleGetBlock(socket);
+        }
         else if (msgCommand == ProtocolMessage::BroadcastNewBlock)
+        {
+            std::cout << "New block from: " << socket.remote_endpoint().address().to_string() << "\n";
             co_await handleNewBlock(socket);
+        }
         else if (msgCommand == ProtocolMessage::BroadcastNewTx)
+        {
+            std::cout << "New transaction from: " << socket.remote_endpoint().address().to_string() << "\n";
             co_await handleNewTx(socket);
+        }
         else if (msgCommand == ProtocolMessage::GetMempool)
+        {
+            std::cout << socket.remote_endpoint().address().to_string() << " Requested mempool\n";
             co_await handleGetMempool(socket);
+        }
         else if (msgCommand == ProtocolMessage::GetHeaders)
+        {
+            std::cout << socket.remote_endpoint().address().to_string() << " Requested headers\n";
             co_await handleGetHeaders(socket);
+        }
         else if (msgCommand == ProtocolMessage::GetPeers)
+        {
+            std::cout << socket.remote_endpoint().address().to_string() << " Requested peers";
             co_await handleGetPeers(socket);
+        }
         else
-            break; // Unknown message
+        {
+            std::cout << "Unknown message from: " << socket.remote_endpoint().address().to_string();
+            break;
+        }
     }
 }
 
@@ -74,16 +101,18 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket& socket)
 // Accept connections
 // ============================================
 
-asio::awaitable<void> acceptConnections()
+asio::awaitable<void> acceptConnections(uint16_t port)
 {
-    asio::ip::tcp::acceptor acceptor(ioCtx, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), 50000));
-    std::cout << "listening on: " << acceptor.local_endpoint().address().to_string() << " " << acceptor.local_endpoint().port() << std::endl;
+    asio::ip::tcp::acceptor acceptor(ioCtx, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), port));
+    std::cout << "Listening on: " << acceptor.local_endpoint().address().to_string() << " " << acceptor.local_endpoint()
+        .port() << "\n";
 
     try
     {
         for (;;)
         {
             auto socket = co_await acceptor.async_accept(asio::use_awaitable);
+            std::cout << "Connection from: " << socket.remote_endpoint().address().to_string() << "\n";
 
             // Spawn a coroutine to handle the connection
             co_spawn(ioCtx,
@@ -101,11 +130,16 @@ asio::awaitable<void> acceptConnections()
 // Sync blockchain
 // ============================================
 
+std::mutex syncLock; // Can only sync with one peer at a time
+
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
+    std::lock_guard<std::mutex> lock(syncLock);
+    std::cout << "Attempting to sync blockchain with " << socket.remote_endpoint().address().to_string() << "\n";
+
     co_await requestHandshake(socket);
 
-    if (knownPeers[socket.remote_endpoint()].tip == getTipHash() ) co_return true;
+    if (knownPeers[socket.remote_endpoint()].tip == getTipHash()) co_return true;
 
     auto headers = co_await requestHeaders(socket);
 
@@ -127,7 +161,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     }
 
     // Chainwork is lower
-    if (getTipChainWork() > peerChainwork) co_return false;
+    if (tryGetBlockIndex(getTipHash())->chainWork > peerChainwork) co_return false;
 
     // Verify first header
     VerifyBlockHeaderContext h0Ctx;
@@ -243,6 +277,8 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     {
         addNewTipBlock(readTmpBlockFile(hash));
     }
+
+    std::cout << "Synced blockchain with: " << socket.remote_endpoint().address().to_string() << "\n";
     co_return true;
 }
 
@@ -251,6 +287,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 // ============================================
 asio::awaitable<bool> trySyncWithPeers()
 {
+    std::cout << "Syncing blockchain with peers\n";
     for (auto& peer : knownPeers)
     {
         asio::ip::tcp::socket socket(ioCtx);
@@ -268,7 +305,8 @@ asio::awaitable<bool> trySyncWithPeers()
         {
         }
     }
-
+    std::cout << "No better chain found\n";
+    co_return false;
 }
 
 // ============================================

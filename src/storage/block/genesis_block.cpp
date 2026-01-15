@@ -54,7 +54,8 @@ void initGenesisBlock()
 
     // Setup height
     rocksdb::WriteOptions wo;
-    std::string key = "0";
+    std::string key;
+    key += static_cast<char>(0);
     std::string value(reinterpret_cast<const char*>(genesisBlockHash.data()), genesisBlockHash.size());
     rocksdb::Status s = heightsDb()->Put(wo, rocksdb::Slice(key), rocksdb::Slice(value));
     if (!s.ok()) throw std::runtime_error(s.ToString());
@@ -65,10 +66,9 @@ void initGenesisBlock()
     blockIndex.height = 0;
     putBlockIndexBatch({genesisBlockHash}, {blockIndex});
 
-    //
-    // // Write block file
-    // writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
-    //
-    // // Genesis utxo
-    // applyUtxoBatch( {}, {std::pair<TxInput, TxOutput>({getTxHash(genesisBlock.txs[0]),0}, genesisBlock.txs[0].txOutputs[0])});
+    // Write block file
+    writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
+
+    // Genesis utxo
+    applyUtxoBatch( {}, {std::pair<TxInput, TxOutput>({getTxHash(genesisBlock.txs[0]),0}, genesisBlock.txs[0].txOutputs[0])});
 }

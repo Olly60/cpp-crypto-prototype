@@ -86,7 +86,6 @@ void putBlockIndexBatch(
 
     rocksdb::WriteOptions wo;
     wo.sync = false;
-
     const auto s = blockIndexesDb()->Write(wo, &batch);
     if (!s.ok())
         throw std::runtime_error(

@@ -3,6 +3,7 @@
 #include <asio.hpp>
 #include "network/network_utils.h"
 #include "crypto_utils.h"
+#include "node.h"
 #include "network/network_main.h"
 #include "storage/peers.h"
 #include "tip.h"

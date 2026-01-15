@@ -5,7 +5,11 @@
 #include "network/network_main.h"
 #include "tip.h"
 #include "network/handle.h"
+
+#include <iostream>
 #include <ranges>
+
+#include "node.h"
 #include "network/network_utils.h"
 #include "storage/block/block_indexes.h"
 #include "parse_serialise.h"
@@ -36,30 +40,6 @@ asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
             co_await asio::async_write(socket, asio::buffer(portBuf.data(), portBuf.size()), asio::use_awaitable);
         }
     }
-}
-
-asio::awaitable<void> handleGetHeader(asio::ip::tcp::socket& socket)
-{
-    // Read block hash
-    Array256_t blockHash;
-    co_await asio::async_read(socket, asio::buffer(blockHash), asio::use_awaitable);
-
-    // Check block is in storage
-    auto headerBytes = getBlockHeaderBytes(blockHash);
-    if (!headerBytes)
-    {
-        // Write I dont have it
-        uint8_t haveHeader = 0;
-        co_await asio::async_write(socket, asio::buffer(&haveHeader, 1), asio::use_awaitable);
-        co_return;
-    }
-
-    // Tell peer I have it
-    uint8_t haveHeader = 1;
-    co_await asio::async_write(socket, asio::buffer(&haveHeader, 1), asio::use_awaitable);
-
-    // Send header
-    co_await asio::async_write(socket, asio::buffer(headerBytes->data(), headerBytes->size()), asio::use_awaitable);
 }
 
 asio::awaitable<void> handleGetBlock(asio::ip::tcp::socket& socket)
@@ -161,7 +141,7 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
     uint64_t ancestorHeight = tryGetBlockIndex(commonAncestor)->height;
 
     // Amount of headers peer is missing
-    uint64_t peerMissingAmount = getTipHeight() - ancestorHeight;
+    uint64_t peerMissingAmount = tryGetBlockIndex(getTipHash())->height - ancestorHeight;
 
     // Write header amount
     co_await writeU64Tcp(socket, peerMissingAmount);
@@ -222,13 +202,17 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 // Handle new data
 // ============================================
 
+std::mutex newDataLock; // Ensure new data can only be accepted from one peer at a time
+
 asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 {
+    std::lock_guard<std::mutex> lock(newDataLock);
+
     // Read size
     const uint64_t blockSize = co_await readU64Tcp(socket);
 
     // Limit block size
-    if (blockSize > MAX_BLOCK_SIZE) { co_return; }
+    if (blockSize > 8 * 1024 * 1024 * 4) { co_return; }
 
     // Read block
     BytesBuffer blockBytes(blockSize);
@@ -239,6 +223,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     // New block doesnt match current tip -> take peers chain if better
     if (block.header.prevBlockHash != getTipHash())
     {
+        std::cout << "Block not matching current tip from:" << socket.remote_endpoint().address().to_string() << " " << socket.remote_endpoint().port() << "\n";
         co_await syncIfBetter(socket);
         co_return;
     }
@@ -253,11 +238,13 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 
 asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 {
+    std::lock_guard<std::mutex> lock(newDataLock);
+
     // Read size
     const uint64_t txSize = co_await readU64Tcp(socket);
 
     // Limit transaction size
-    if (txSize > MAX_TX_SIZE) co_return;
+    if (txSize > 8 * 1024 * 256) co_return;
 
     // Read transaction
     BytesBuffer txBytes(txSize);
