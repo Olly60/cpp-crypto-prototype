@@ -125,18 +125,14 @@ asio::awaitable<void> acceptConnections(uint16_t port)
 // Sync blockchain
 // ============================================
 
-std::mutex syncLock; // Can only sync with one peer at a time
-
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
     try
     {
-        std::lock_guard<std::mutex> lock(syncLock);
         std::cout << "Attempting to sync blockchain with " << socket.remote_endpoint().address().to_string() << "\n";
 
         co_await requestHandshake(socket);
 
-        std::cout << (knownPeers[socket.remote_endpoint().address()].tip == getTipHash());
         if (knownPeers[socket.remote_endpoint().address()].tip == getTipHash()) co_return true;
 
         auto headers = co_await requestHeaders(socket);
@@ -145,10 +141,12 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         if (headers.empty()) co_return true;
 
         auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
+        
+        std::cout << commonAncestorHeader.has_value();
         if (!commonAncestorHeader) co_return false; // common ancestor doesnt exist
 
         // Get that new chain block work
-        auto peerChainwork = tryGetBlockIndex(commonAncestorHeader->difficulty)->chainWork;
+        auto peerChainwork = tryGetBlockIndex(getBlockHeaderHash(*commonAncestorHeader))->chainWork;
 
         std::vector<Array256_t> blockHashes;
         blockHashes.reserve(headers.size());
@@ -159,19 +157,19 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         }
 
         // Chainwork is lower
-        if (tryGetBlockIndex(getTipHash())->chainWork > peerChainwork) co_return false;
+        if (tryGetBlockIndex(getTipHash())->chainWork >= peerChainwork) co_return false;
 
         // Verify first header
         VerifyBlockHeaderContext h0Ctx;
         h0Ctx.prevHeader = &(*commonAncestorHeader);
-        uint64_t h0CtxTimestamp = tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp : 0;
+        uint64_t h0CtxTimestamp = getBlockHeader(commonAncestorHeader->prevBlockHash) ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp : 0;
         h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
         if (!verifyBlockHeader(headers[0], h0Ctx)) co_return false;
 
         // Verify 2nd header if size > 1
         VerifyBlockHeaderContext h1Ctx;
         h1Ctx.prevHeader = &headers[0];
-        uint64_t h1CtxTimestamp = tryGetBlockIndex(getTipHash())->height;
+        uint64_t h1CtxTimestamp = getBlockHeader(getTipHash())->timestamp;
         h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
         if (headers.size() > 1) { if (!verifyBlockHeader(headers[1], h1Ctx)) co_return false; }
 
@@ -265,7 +263,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
         // Verification complete now add to local chain
         // Undo chain up to common ancestor
-        while (tipHash != commonAncestorHash)
+        while (getTipHash() != commonAncestorHash)
         {
             undoNewTipBlock();
         }

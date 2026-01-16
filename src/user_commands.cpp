@@ -15,8 +15,6 @@
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
 
-asio::io_context userIo;
-
 asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& parts)
 {
     try
@@ -24,7 +22,7 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
         if (parts.size() < 4)
             co_return;
 
-        asio::ip::tcp::socket socket(userIo);
+        asio::ip::tcp::socket socket(ioCtx);
 
         co_await socket.async_connect(
             asio::ip::tcp::endpoint(
@@ -108,9 +106,7 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "peers")
     {
-        asio::co_spawn(userIo, handleUserNetworkCommand(parts), asio::detached);
-        userIo.run();
-        userIo.restart();
+        asio::co_spawn(ioCtx, handleUserNetworkCommand(parts), asio::detached);
         return;
     }
 

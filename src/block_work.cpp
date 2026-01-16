@@ -165,10 +165,8 @@ void mineBlocks(Array256_t pubKey)
             std::cout << "Block mined!\n";
             std::cout << "Adding block to chain...\n";
             addNewTipBlock(block);
-            asio::co_spawn(miningIo, BroadcastNewBlock(miningIo, block), asio::detached);
+            asio::co_spawn(ioCtx, BroadcastNewBlock(miningIo, block), asio::detached);
             std::cout << "Broadcasting block to peers...\n";
-            miningIo.run();
-            miningIo.restart();
         }
 
     }
