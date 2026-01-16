@@ -24,7 +24,7 @@ namespace ProtocolMessage
     }
     return a;
 }
-    constexpr auto Handshake = makeCommand("hand_shake");
+    constexpr auto Handshake = makeCommand("handshake");
     constexpr auto Ping = makeCommand("ping");
     constexpr auto GetBlock = makeCommand("get_block");
     constexpr auto BroadcastNewBlock = makeCommand("broadcast_block");

@@ -31,11 +31,12 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
             co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
 
+            std::cout << std::string(msgCommand.begin(), msgCommand.end()) << " " << socket.remote_endpoint().address().to_string() << "\n";
+
 
             // Handle handshake first
             if (msgCommand == ProtocolMessage::Handshake)
             {
-                std::cout << socket.remote_endpoint().address().to_string() << " Requested handshake\n";
                 co_await handleHandshake(socket);
                 continue;
             }
@@ -55,37 +56,30 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             // Route message
             if (msgCommand == ProtocolMessage::Ping)
             {
-                std::cout << socket.remote_endpoint().address().to_string() << " Requested ping\n";
                 co_await handlePing(socket);
             }
             else if (msgCommand == ProtocolMessage::GetBlock)
             {
-                std::cout << socket.remote_endpoint().address().to_string() << " Requested block\n";
                 co_await handleGetBlock(socket);
             }
             else if (msgCommand == ProtocolMessage::BroadcastNewBlock)
             {
-                std::cout << "New block from: " << socket.remote_endpoint().address().to_string() << "\n";
                 co_await handleNewBlock(socket);
             }
             else if (msgCommand == ProtocolMessage::BroadcastNewTx)
             {
-                std::cout << "New transaction from: " << socket.remote_endpoint().address().to_string() << "\n";
                 co_await handleNewTx(socket);
             }
             else if (msgCommand == ProtocolMessage::GetMempool)
             {
-                std::cout << socket.remote_endpoint().address().to_string() << " Requested mempool\n";
                 co_await handleGetMempool(socket);
             }
             else if (msgCommand == ProtocolMessage::GetHeaders)
             {
-                std::cout << socket.remote_endpoint().address().to_string() << " Requested headers\n";
                 co_await handleGetHeaders(socket);
             }
             else if (msgCommand == ProtocolMessage::GetPeers)
             {
-                std::cout << socket.remote_endpoint().address().to_string() << " Requested peers";
                 co_await handleGetPeers(socket);
             }
             else
@@ -142,6 +136,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
         co_await requestHandshake(socket);
 
+        std::cout << (knownPeers[socket.remote_endpoint().address()].tip == getTipHash());
         if (knownPeers[socket.remote_endpoint().address()].tip == getTipHash()) co_return true;
 
         auto headers = co_await requestHeaders(socket);

@@ -106,6 +106,8 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
 
 });
     unknownPeers.erase({socket.remote_endpoint().address(), theirHandshake.port});
+
+    std::cout << "Successful handshake with: " << socket.remote_endpoint().address().to_string() << "\n";
 }
 
 asio::awaitable<void> handlePing(asio::ip::tcp::socket& socket)
@@ -226,7 +228,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     // New block doesnt match current tip -> take peers chain if better
     if (block.header.prevBlockHash != getTipHash())
     {
-        std::cout << "Block not matching current tip from:" << socket.remote_endpoint().address().to_string() << " " << socket.remote_endpoint().port() << "\n";
+        std::cout << "Block not matching current tip from:" << socket.remote_endpoint().address().to_string() << "\n";
         co_await syncIfBetter(socket);
         co_return;
     }
