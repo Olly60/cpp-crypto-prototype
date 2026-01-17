@@ -5,13 +5,14 @@
 #include <ranges>
 #include <thread>
 #include <asio/use_awaitable.hpp>
-#include <asio/use_future.hpp>
 #include <asio/co_spawn.hpp>
 #include <asio/ip/tcp.hpp>
 #include <boost/multiprecision/number.hpp>
+#include <sodium/crypto_sign.h>
 #include "block_work.h"
 #include "node.h"
 #include "tip.h"
+#include "wallet.h"
 #include "network/network_main.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
@@ -162,10 +163,8 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "new_tx")
     {
-        std::cout << tryGetBlockIndex(getTipHash())->height;
-        BytesBuffer hashBuf;
-        hashBuf.writeArray256(*tryGetHeightHash(0));
-        std::cout << bytesToHex(hashBuf);
+        asio::co_spawn(ioCtx,broadcastNewTx(ioCtx ,makeTx(wallets[hexToBytes(parts[1]).readArray256()], hexToBytes(parts[2]).readArray512(), hexToBytes(parts[3]).readArray256(), std::stoi(parts[4]))), asio::detached);
+
     }
 
     if (parts[0] == "known_peers")
@@ -202,11 +201,13 @@ void handleUserCommand(const std::string& input)
         if (parts[1] == "add")
         {
                 wallets[pubKey] = getUtxosForRecipient(pubKey);
+                std::cout << "Added wallet" << "\n";
         }
 
         if (parts[1] == "remove")
         {
             wallets.erase(pubKey);
+            std::cout << "Removed wallet" << "\n";
         }
 
         if (parts[1] == "amount")
@@ -218,5 +219,21 @@ void handleUserCommand(const std::string& input)
             }
             std::cout << amount << "\n";
         }
+
+    }
+    if (parts[0] == "key_set")
+    {
+        Array256_t pubKey;
+        Array512_t secKey;
+        crypto_sign_keypair(pubKey.data(), secKey.data());
+
+        BytesBuffer keysBuf;
+        keysBuf.writeArray256(pubKey);
+        std::cout << "Public key is: " << bytesToHex(keysBuf) << "\n";
+
+        keysBuf.clear();
+        keysBuf.writeArray512(secKey);
+        std::cout << "Secret key is: " << bytesToHex(keysBuf) << "\n";
+
     }
 }

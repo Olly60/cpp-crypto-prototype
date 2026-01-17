@@ -55,13 +55,9 @@ struct UTXOIdHash
 };
 
 
-inline std::unordered_map<Array256_t, std::unordered_set<UTXOId, UTXOIdHash>, Array256Hash> wallets;
-
-
 Array256_t getTxHash(const Tx& tx);
 
 Array256_t getMerkleRoot(const std::vector<Tx>& txs);
-
 
 
 Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex);
@@ -69,8 +65,10 @@ Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex);
 Tx signTxInputs(const Tx& tx, const Array512_t& sk);
 
 
-
 BytesBuffer serialiseTx(const Tx& tx);
 
 Tx parseTx(BytesBuffer& txBytes);
+
+
+Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t& secKey, const Array256_t& recipient, uint64_t amount);
 

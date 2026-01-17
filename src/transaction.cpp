@@ -1,6 +1,7 @@
 #include "transaction.h"
 #include <sodium/crypto_sign.h>
 #include "crypto_utils.h"
+#include "storage/utxo_storage.h"
 
 Array256_t getTxHash(const Tx& tx)
 {
@@ -170,5 +171,32 @@ Tx parseTx(BytesBuffer& txBytes)
 
     return tx;
 }
+
+Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t& secKey, const Array256_t& recipient, uint64_t amount)
+{
+    Tx tx;
+    tx.version = 1;
+
+    // Spend Utxos
+    for (const auto& utxo : utxos)
+    {
+        TxInput txInput;
+        txInput.utxoId = utxo;
+        tx.txInputs.push_back(txInput);
+    }
+
+    uint64_t inputAmount = 0;
+    for (const auto& utxo : utxos)
+    {
+        inputAmount += tryGetUtxo(utxo)->amount;
+    }
+
+    if (inputAmount < amount + std::max(inputAmount / 100, static_cast<uint64_t>(1))) throw std::runtime_error("Not enough funds");
+
+    tx.txOutputs.push_back({amount, recipient});
+
+    return signTxInputs(tx, secKey);
+}
+
 
 

@@ -67,9 +67,9 @@ void storePeers()
 
 void loadPeers()
 {
-    if (std::filesystem::exists(KNOWN_PEERS))
+    if (auto knownPeersFileBytes = readFile(KNOWN_PEERS))
     {
-        auto knownPeersFileBytes = readFile(KNOWN_PEERS);
+
 
         // Read peer count
         uint64_t peersCount = knownPeersFileBytes->readU16();
@@ -108,9 +108,9 @@ void loadPeers()
             knownPeers.insert({peerAddr, peerStatus});
         }
     }
-    if (std::filesystem::exists(UNKNOWN_PEERS))
+
+    if (auto unknownPeersFileBytes = readFile(UNKNOWN_PEERS))
     {
-        auto unknownPeersFileBytes = readFile(UNKNOWN_PEERS);
 
         // Read peer count
         uint64_t peersCount = unknownPeersFileBytes->readU64();

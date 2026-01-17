@@ -9,6 +9,7 @@
 #include "node.h"
 #include "user_commands.h"
 #include "block.h"
+#include "wallet.h"
 
 // ============================================
 // Main
@@ -17,9 +18,11 @@
 int main()
 {
 
-    initGenesisBlock(); // Add genisis if first time loading
+    initGenesisBlock();
 
-    loadPeers(); // Load peers into memory
+    loadPeers();
+
+    loadWallets();
 
     // Sync to latest chain
     asio::co_spawn(ioCtx, trySyncWithPeers(), asio::use_future);
@@ -45,6 +48,8 @@ int main()
         handleUserCommand(input);
     }
 
+    // Save
     ioCtx.stop();
     storePeers();
+    storeWallets();
 }

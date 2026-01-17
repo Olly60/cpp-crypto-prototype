@@ -65,6 +65,6 @@ asio::awaitable<bool> trySyncWithPeers();
 // Broadcast
 // ============================================
 
-asio::awaitable<void> BroadcastNewTx(asio::io_context &io, const Tx& tx);
+asio::awaitable<void> broadcastNewTx(asio::io_context &io, const Tx& tx);
 
-asio::awaitable<void> BroadcastNewBlock(asio::io_context& io, const ChainBlock& block);
+asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& block);

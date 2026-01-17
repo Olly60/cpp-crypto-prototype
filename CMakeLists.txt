@@ -22,10 +22,10 @@ add_executable(crypto
         src/verify.cpp
         src/tip.cpp
         src/user_commands.cpp
-        src/user_commands.cpp
         src/block_work.cpp
         src/transaction.cpp
         src/block.cpp
+        src/wallet.cpp
 )
 
 # Include headers

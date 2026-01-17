@@ -166,7 +166,7 @@ void mineBlocks(std::stop_token st, Array256_t pubKey)
             std::cout << "Block mined!\n";
             std::cout << "Adding block to chain...\n";
             addNewTipBlock(block);
-            asio::co_spawn(ioCtx, BroadcastNewBlock(ioCtx, block), asio::detached);
+            asio::co_spawn(ioCtx, broadcastNewBlock(ioCtx, block), asio::detached);
             std::cout << "Broadcasting block to peers...\n";
         }
 

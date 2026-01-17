@@ -9,6 +9,7 @@
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
 #include "../../../include/block.h"
+#include "network/network_main.h"
 
 // Genesis block
 ChainBlock getGenesisBlock()

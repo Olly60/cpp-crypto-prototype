@@ -5,6 +5,7 @@
 #include "storage/utxo_storage.h"
 #include "block.h"
 #include "block_work.h"
+#include "network/network_main.h"
 #include "storage/block/block_indexes.h"
 
 bool verifyTx(const Tx& tx, VerifyTxContext ctx)

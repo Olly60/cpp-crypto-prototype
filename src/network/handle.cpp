@@ -247,7 +247,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     if (verifyBlock(block))
     {
         addNewTipBlock(block);
-        co_await BroadcastNewBlock(ioCtx, block);
+        co_await broadcastNewBlock(ioCtx, block);
     }
 }
 
@@ -273,5 +273,5 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
     mempool.insert({getTxHash(newTx), newTx});
 
     // Broadcast to other peers
-    co_await BroadcastNewTx(ioCtx,newTx);
+    co_await broadcastNewTx(ioCtx,newTx);
 }

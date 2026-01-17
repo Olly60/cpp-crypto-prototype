@@ -3,9 +3,12 @@
 #include "storage/storage_utils.h"
 #include "../include/tip.h"
 
+#include <iostream>
+
 #include "block_work.h"
 #include "node.h"
 #include "verify.h"
+#include "wallet.h"
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
@@ -51,11 +54,7 @@ void addNewTipBlock(const ChainBlock& block)
 
             spends.push_back(input.utxoId);
 
-            if (wallets.contains(output.recipient))
-            {
-                wallets[output.recipient].erase(input.utxoId);
-            }
-
+            wallets[output.recipient].erase(input.utxoId);
         }
 
         // Process outputs
