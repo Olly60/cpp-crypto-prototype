@@ -31,8 +31,6 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
             co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
 
-            std::cout << std::string(msgCommand.begin(), msgCommand.end()) << " " << socket.remote_endpoint().address().to_string() << "\n";
-
 
             // Handle handshake first
             if (msgCommand == ProtocolMessage::Handshake)
@@ -99,9 +97,6 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 asio::awaitable<void> acceptConnections(uint16_t port)
 {
     asio::ip::tcp::acceptor acceptor(ioCtx, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), port));
-    std::cout << "Listening on: " << acceptor.local_endpoint().address().to_string() << " " << acceptor.local_endpoint()
-        .port() << "\n";
-
     try
     {
         for (;;)
@@ -131,22 +126,26 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     {
         std::cout << "Attempting to sync blockchain with " << socket.remote_endpoint().address().to_string() << "\n";
 
+        // Handshake to find peer's tip hash
         co_await requestHandshake(socket);
 
+        // Tip already the same as peer's
         if (knownPeers[socket.remote_endpoint().address()].tip == getTipHash()) co_return true;
 
+        // Get missing headers
         auto headers = co_await requestHeaders(socket);
 
         // Headers empty blockchain up to date
         if (headers.empty()) co_return true;
 
         auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
-        
-        std::cout << commonAncestorHeader.has_value();
-        if (!commonAncestorHeader) co_return false; // common ancestor doesnt exist
 
-        // Get that new chain block work
-        auto peerChainwork = tryGetBlockIndex(getBlockHeaderHash(*commonAncestorHeader))->chainWork;
+        // common ancestor doesnt exist
+        if (!commonAncestorHeader) co_return false;
+        std::cout << "Found common ancestor: " << "\n";
+
+        // Get chain work from new headers
+        auto peerChainwork = tryGetBlockIndex(getTipHash())->chainWork;
 
         std::vector<Array256_t> blockHashes;
         blockHashes.reserve(headers.size());
@@ -158,6 +157,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
         // Chainwork is lower
         if (tryGetBlockIndex(getTipHash())->chainWork >= peerChainwork) co_return false;
+        std::cout << "Peer has higher chainwork\n";
 
         // Verify first header
         VerifyBlockHeaderContext h0Ctx;
@@ -190,7 +190,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         {
             BytesBuffer hashBuf;
             hashBuf.writeArray256(hash);
-            return tmpBlocksPath / (bytesToHex(hashBuf) + ".block");
+            return tmpBlocksPath / (bytesToHex(hashBuf) + ".dat");
         };
 
         // ----------------------------------------
@@ -353,7 +353,6 @@ asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& 
         {
             asio::ip::tcp::socket socket(io);
             co_await socket.async_connect({peer.first, peer.second.port});
-            std::cout << "sent to: " << peer.first.to_string() << "\n";
             // Send message type
             auto msgType = ProtocolMessage::BroadcastNewBlock;
             co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);

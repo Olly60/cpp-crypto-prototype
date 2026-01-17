@@ -17,25 +17,36 @@
 
 asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
 {
+
+    // Write amount
     co_await writeU64Tcp(socket, knownPeers.size());
-    co_await writeU64Tcp(socket, knownPeers.size());
+
+    // Write peers
     for (const auto& peer : knownPeers)
     {
         if (peer.first.is_v4())
         {
+            // Ip type
             uint8_t ipType = 0x04;
             co_await asio::async_write(socket, asio::buffer(&ipType, 1), asio::use_awaitable);
+
+            // Address
             auto address = peer.first.to_v4().to_bytes();
             co_await asio::async_write(socket, asio::buffer(address), asio::use_awaitable);
+
+            // Port
             BytesBuffer portBuf;
             portBuf.writeU16(peer.second.port);
             co_await asio::async_write(socket, asio::buffer(portBuf.data(), portBuf.size()), asio::use_awaitable);
+
         } else if (peer.first.is_v6())
         {
             uint8_t ipType = 0x06;
             co_await asio::async_write(socket, asio::buffer(&ipType, 1), asio::use_awaitable);
+
             auto address = peer.first.to_v6().to_bytes();
             co_await asio::async_write(socket, asio::buffer(address), asio::use_awaitable);
+
             BytesBuffer portBuf;
             portBuf.writeU16(peer.second.port);
             co_await asio::async_write(socket, asio::buffer(portBuf.data(), portBuf.size()), asio::use_awaitable);
@@ -131,26 +142,21 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
         blockHashes.push_back(blockHash);
     }
 
+    BytesBuffer buf;
+    buf.writeArray256(blockHashes.back());
+    std::cout << bytesToHex(buf) << "\n";
+    if (blockHashes.back() != getGenesisBlockHash()) { co_await writeU64Tcp(socket, 0); co_return; }
+
     // Find common ancestor
     Array256_t commonAncestor;
     for (const auto& hash : blockHashes)
     {
-        if (std::filesystem::exists(getBlockFilePath(hash)))
+        if (tryGetBlockIndex(hash))
         {
             commonAncestor = hash;
             break;
         }
     }
-
-    // Find header amount from common ancestor to tip
-    uint64_t ancestorHeight = tryGetBlockIndex(commonAncestor)->height;
-
-    // Amount of headers peer is missing
-    uint64_t peerMissingAmount = tryGetBlockIndex(getTipHash())->height - ancestorHeight;
-
-    // Write header amount
-    co_await writeU64Tcp(socket, peerMissingAmount);
-
 
     // Collect headers (Tip -> Ancestor (excluding common ancestor))
     std::vector<BlockHeader> headers;
@@ -161,8 +167,11 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
         headers.push_back(*i);
     }
 
+    // Write header amount
+    co_await writeU64Tcp(socket, headers.size());
+
     // Write headers (Ancestor -> Tip (excluding common ancestor))
-    for (auto& header : headers)
+    for (auto header : headers | std::views::reverse)
     {
         auto headerBytes = serialiseBlockHeader(header);
             co_await asio::async_write(socket, asio::buffer(headerBytes.data(), headerBytes.size()),

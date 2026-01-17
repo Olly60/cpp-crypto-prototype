@@ -161,7 +161,7 @@ void handleUserCommand(const std::string& input)
         }
     }
 
-    if (parts[0] == "new_tx")
+    if (parts[0] == "tx")
     {
         asio::co_spawn(ioCtx,broadcastNewTx(ioCtx ,makeTx(wallets[hexToBytes(parts[1]).readArray256()], hexToBytes(parts[2]).readArray512(), hexToBytes(parts[3]).readArray256(), std::stoi(parts[4]))), asio::detached);
 
@@ -217,11 +217,11 @@ void handleUserCommand(const std::string& input)
             {
                 amount += tryGetUtxo(value)->amount;
             }
-            std::cout << amount << "\n";
+            std::cout << wallets[pubKey].size() << "\n";
         }
 
     }
-    if (parts[0] == "key_set")
+    if (parts[0] == "keyset")
     {
         Array256_t pubKey;
         Array512_t secKey;
@@ -236,4 +236,5 @@ void handleUserCommand(const std::string& input)
         std::cout << "Secret key is: " << bytesToHex(keysBuf) << "\n";
 
     }
+
 }

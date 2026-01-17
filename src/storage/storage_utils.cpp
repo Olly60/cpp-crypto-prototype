@@ -1,4 +1,5 @@
 #include "storage/storage_utils.h"
+#include <fstream>
 
 // ============================================================================
 // FILE I/O UTILITIES

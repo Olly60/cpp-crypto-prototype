@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
@@ -30,6 +31,7 @@ struct Tx
     uint64_t version = 1;
     std::vector<TxInput> txInputs{};
     std::vector<TxOutput> txOutputs{};
+    Array256_t nonce{};
 };
 
 struct UTXOIdHash

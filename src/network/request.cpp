@@ -159,7 +159,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 
     uint64_t tipHeight = tryGetBlockIndex(getTipHash())->height;
     uint64_t step = 1;
-    for (uint64_t h = tipHeight; /* break inside */;)
+    for (uint64_t h = tipHeight; ;)
     {
         blockHashes.push_back(*tryGetHeightHash(h));
 

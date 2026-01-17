@@ -13,4 +13,4 @@ Array256_t shiftRight(const Array256_t& arr);
 // Increase difficulty (harder -> shift right)
 Array256_t shiftLeft(const Array256_t& arr);
 
-void mineBlocks(std::stop_token st, Array256_t pubKey);
+void mineBlocks(const std::stop_token& st, const Array256_t& pubKey);

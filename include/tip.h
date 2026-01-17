@@ -3,7 +3,7 @@
 
 #include "block.h"
 #include "crypto_utils.h"
-const std::filesystem::path TIP = "blockchain_tip";
+const std::filesystem::path TIP = "blockchain_tip.dat";
 
 Array256_t getTipHash();
 

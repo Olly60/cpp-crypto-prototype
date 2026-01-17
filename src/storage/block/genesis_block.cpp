@@ -54,7 +54,9 @@ void initGenesisBlock()
 
     // Setup height
     rocksdb::WriteOptions wo;
-    std::string key(1, 0);
+    BytesBuffer heightBuf;
+    heightBuf.writeU64(0);
+    std::string key(heightBuf.cdata(), heightBuf.size());
     std::string value(reinterpret_cast<const char*>(genesisBlockHash.data()), genesisBlockHash.size());
     rocksdb::Status s = heightsDb()->Put(wo, rocksdb::Slice(key), rocksdb::Slice(value));
     if (!s.ok()) throw std::runtime_error(s.ToString());

@@ -15,25 +15,31 @@
 // Main
 // ============================================
 
-int main()
+int main(int argc, char* argv[])
 {
+    // If a program argument is given, parse it as the port
+    if (argc >= 2)
+    {
+        try
+        {
+            localPort = std::stoi(argv[1]);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Invalid port argument, using default 50000\n";
+        }
+    }
+
+    std::cout << "Using port: " << localPort << "\n";
 
     initGenesisBlock();
-
     loadPeers();
-
     loadWallets();
 
     // Sync to latest chain
     asio::co_spawn(ioCtx, trySyncWithPeers(), asio::use_future);
     ioCtx.run();
     ioCtx.restart();
-
-
-    std::cout << "Enter port (default is 50000): ";
-    std::string port;
-    std::getline(std::cin, port);
-    localPort = std::stoi(port);
 
     asio::co_spawn(ioCtx, acceptConnections(localPort), asio::detached);
 

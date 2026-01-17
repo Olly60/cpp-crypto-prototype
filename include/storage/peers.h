@@ -1,12 +1,10 @@
 #pragma once
-#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <asio/ip/address.hpp>
 #include <asio/ip/tcp.hpp>
-
 #include "crypto_utils.h"
 
 struct AddressHash
@@ -60,8 +58,8 @@ struct EndpointHash
     }
 };
 
-const std::filesystem::path KNOWN_PEERS = "known_peers";
-const std::filesystem::path UNKNOWN_PEERS = "unknown_peers";
+const std::filesystem::path KNOWN_PEERS = "known_peers.dat";
+const std::filesystem::path UNKNOWN_PEERS = "unknown_peers.dat";
 
 
 

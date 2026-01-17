@@ -1,6 +1,5 @@
 #pragma once
 #include <filesystem>
-#include <fstream>
 #include "crypto_utils.h"
 #include <rocksdb/db.h>
 

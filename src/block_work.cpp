@@ -78,21 +78,17 @@ ChainBlock newBlock(Array256_t pubKey)
     block.header.prevBlockHash = getTipHash();
     block.header.timestamp = getCurrentTimestamp();
 
-    // Difficulty adjustment (target-based)
+    // Difficulty
     auto currentTipHeader = getBlockHeader(currentTip);
-
     uint64_t prevTimestamp = 0;
-
     if (tryGetBlockIndex(getTipHash())->height > 0)
     {
         prevTimestamp = getBlockHeader(currentTipHeader->prevBlockHash)->timestamp;
     }
-
     uint64_t timeDelta =
         (currentTipHeader->timestamp > prevTimestamp)
             ? currentTipHeader->timestamp - prevTimestamp
             : 0;
-
     if (timeDelta < 600)
     {
         block.header.difficulty = shiftLeft(currentTipHeader->difficulty);
@@ -102,6 +98,7 @@ ChainBlock newBlock(Array256_t pubKey)
         block.header.difficulty = shiftLeft(currentTipHeader->difficulty);
     }
 
+    // Transactions
     uint64_t size = 0;
     for (auto& val : mempool | std::views::values)
     {
@@ -125,8 +122,13 @@ ChainBlock newBlock(Array256_t pubKey)
         totalFees += txFee;
     }
 
+    // Coinbase
     Tx coinbaseTx;
     coinbaseTx.txOutputs.push_back({totalFees + BLOCK_REWARD, pubKey});
+
+    BytesBuffer nonceBuf;
+    nonceBuf.writeU64(tryGetBlockIndex(getTipHash())->height + 1);
+    coinbaseTx.nonce = sha256Of(nonceBuf);
 
     block.txs.insert(block.txs.begin(), coinbaseTx);
 
@@ -134,7 +136,7 @@ ChainBlock newBlock(Array256_t pubKey)
     return block;
 }
 
-void mineBlocks(std::stop_token st, Array256_t pubKey)
+void mineBlocks(const std::stop_token& st, const Array256_t& pubKey)
 {
     auto generateNonce = [
             engine = std::mt19937{std::random_device{}()},
@@ -148,12 +150,12 @@ void mineBlocks(std::stop_token st, Array256_t pubKey)
         }
         return arr;
     };
+
     while (true)
     {
         auto block = newBlock(pubKey);
         BytesBuffer buf;
         buf.writeArray256(block.header.difficulty);
-        std::cout << "Current difficulty: " << bytesToHex(buf) << "\n";
         while (getBlockHeaderHash(block.header) > block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
             if (st.stop_requested() ) return;
@@ -164,10 +166,8 @@ void mineBlocks(std::stop_token st, Array256_t pubKey)
         if (getBlockHeaderHash(block.header) < block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
             std::cout << "Block mined!\n";
-            std::cout << "Adding block to chain...\n";
             addNewTipBlock(block);
             asio::co_spawn(ioCtx, broadcastNewBlock(ioCtx, block), asio::detached);
-            std::cout << "Broadcasting block to peers...\n";
         }
 
     }

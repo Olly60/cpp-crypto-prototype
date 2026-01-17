@@ -1,7 +1,9 @@
 #include "transaction.h"
 #include <sodium/crypto_sign.h>
 #include "crypto_utils.h"
+#include "tip.h"
 #include "storage/utxo_storage.h"
+#include "storage/block/block_indexes.h"
 
 Array256_t getTxHash(const Tx& tx)
 {
@@ -10,10 +12,6 @@ Array256_t getTxHash(const Tx& tx)
 
 Array256_t getMerkleRoot(const std::vector<Tx>& txs)
 {
-    if (txs.empty())
-    {
-        return Array256_t{}; // Empty merkle root for no transactions
-    }
 
     // Build initial layer from transaction hashes
     std::vector<Array256_t> currentLayer;
@@ -82,6 +80,9 @@ Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex)
         buf.writeArray256(recipient);
     }
 
+    // Nonce
+    buf.writeArray256(tx.nonce);
+
     return sha256Of(buf);
 }
 
@@ -132,6 +133,8 @@ BytesBuffer serialiseTx(const Tx& tx)
         txBytes.writeArray256(txOutput.recipient);
     }
 
+    // Nonce
+    txBytes.writeArray256(tx.nonce);
     return txBytes;
 }
 
@@ -169,13 +172,15 @@ Tx parseTx(BytesBuffer& txBytes)
         tx.txOutputs.push_back(txOutput);
     }
 
+    // Nonce
+    tx.nonce = txBytes.readArray256();
+
     return tx;
 }
 
 Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t& secKey, const Array256_t& recipient, uint64_t amount)
 {
     Tx tx;
-    tx.version = 1;
 
     // Spend Utxos
     for (const auto& utxo : utxos)
