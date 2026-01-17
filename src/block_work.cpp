@@ -117,7 +117,7 @@ ChainBlock newBlock(Array256_t pubKey)
         uint64_t totalInputAmount = 0;
         for (const auto& input : tx.txInputs)
         {
-            auto utxoInDb = tryGetUtxo(input);
+            auto utxoInDb = tryGetUtxo(input.utxoId);
             totalInputAmount += utxoInDb->amount;
         }
 
