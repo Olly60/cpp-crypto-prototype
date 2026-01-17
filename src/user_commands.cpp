@@ -3,6 +3,7 @@
 #include "user_commands.h"
 #include <iostream>
 #include <ranges>
+#include <thread>
 #include <asio/use_awaitable.hpp>
 #include <asio/use_future.hpp>
 #include <asio/co_spawn.hpp>
@@ -41,40 +42,50 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
                 std::cout << "Pong from: " << remote << "\n";
             }
             else { std::cout << "No pong from: " << remote << "\n"; }
+            co_return;
         }
-        else if (parts[1] == "get_mempool")
+
+        if (parts[1] == "get_mempool")
         {
             if (co_await requestMempool(socket))
             {
                 std::cout << "Got mempool from: " << remote << "\n";
             }
             else { std::cout << "Failed to get whole mempool from: " << remote << "\n"; }
+            co_return;
         }
-        else if (parts[1] == "get_peers")
+
+        if (parts[1] == "get_peers")
         {
             if (co_await requestPeers(socket))
             {
                 std::cout << "Got peers from: " << remote << "\n";
             }
             else { std::cout << "Couldn't get peers from: " << remote << "\n"; }
+            co_return;
         }
-        else if (parts[1] == "handshake")
+
+        if (parts[1] == "handshake")
         {
             if (co_await requestHandshake(socket))
             {
                 std::cout << "Successful handshake with: " << remote << "\n";
             }
             else { std::cout << "Failed to handshake with: " << remote << "\n"; }
+            co_return;
         }
-        else if (parts[1] == "sync")
+
+        if (parts[1] == "sync")
         {
             if (co_await syncIfBetter(socket))
             {
                 std::cout << "Synced with: " << remote << "\n";
             }
             else { std::cout << "Didn't sync with: " << remote << "\n"; }
+            co_return;
         }
-        else if (parts[1] == "headers")
+
+        if (parts[1] == "headers")
         {
             bool r = (co_await requestHeaders(socket)).empty();
             if (r)
@@ -82,6 +93,7 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
                 std::cout << "headers : " << remote << "\n";
             }
             else { std::cout << "Didn't headers: " << remote << "\n"; }
+            co_return;
         }
     }
     catch (const std::exception& e)
@@ -93,6 +105,8 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
         std::cerr << "unknown network command error\n";
     }
 }
+
+std::optional<std::jthread> miningThread;
 
 void handleUserCommand(const std::string& input)
 {
@@ -127,21 +141,19 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "mine")
     {
-        if (parts[1] == "start" && isMining == false)
+        if (parts[1] == "start")
         {
             std::cout << "Started mining blocks\n";
-            if (isMining == true)
+            if (miningThread)
             {
                 std::cout << "Already mining\n";
                 return;
             };
-            isMining = true;
-            std::thread miner(mineBlocks, hexToBytes(parts[2]).readArray256());
-            miner.detach();
+            miningThread = std::jthread(mineBlocks, hexToBytes(parts[2]).readArray256());
         }
         else if (parts[1] == "stop")
         {
-            isMining = false;
+            miningThread.reset();
             std::cout << "Stopped mining blocks\n";
         }
     }
@@ -168,6 +180,18 @@ void handleUserCommand(const std::string& input)
         {
             std::cout << peer.address().to_string() << " " << peer.port() << "\n";
         }
+    }
+
+    if (parts[0] == "block_info")
+    {
+        BytesBuffer hashBuf;
+        hashBuf.writeArray256(hexToBytes(parts[1]).readArray256());
+        Array256_t hash = hashBuf.readArray256();
+        BytesBuffer genBuf;
+        std::cout << "Block height: " << std::to_string(tryGetBlockIndex(hash)->height + 1) << "\n";
+        BytesBuffer chainWorkBuf;
+        chainWorkBuf.writeArray256(tryGetBlockIndex(hash)->chainWork);
+        std::cout << "Block work: " << bytesToHex(chainWorkBuf) << "\n";
     }
 
     if (parts[0] == "block_info")

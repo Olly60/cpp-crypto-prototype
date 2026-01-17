@@ -1,6 +1,7 @@
 #include "block_work.h"
 #include <iostream>
 #include <ranges>
+#include <thread>
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
 #include <asio/io_context.hpp>
@@ -133,9 +134,7 @@ ChainBlock newBlock(Array256_t pubKey)
     return block;
 }
 
-asio::io_context miningIo;
-
-void mineBlocks(Array256_t pubKey)
+void mineBlocks(std::stop_token st, Array256_t pubKey)
 {
     auto generateNonce = [
             engine = std::mt19937{std::random_device{}()},
@@ -157,7 +156,7 @@ void mineBlocks(Array256_t pubKey)
         std::cout << "Current difficulty: " << bytesToHex(buf) << "\n";
         while (getBlockHeaderHash(block.header) > block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
-            if (isMining == false ) return;
+            if (st.stop_requested() ) return;
             block.header.nonce = generateNonce();
 
         }
@@ -167,7 +166,7 @@ void mineBlocks(Array256_t pubKey)
             std::cout << "Block mined!\n";
             std::cout << "Adding block to chain...\n";
             addNewTipBlock(block);
-            asio::co_spawn(ioCtx, BroadcastNewBlock(miningIo, block), asio::detached);
+            asio::co_spawn(ioCtx, BroadcastNewBlock(ioCtx, block), asio::detached);
             std::cout << "Broadcasting block to peers...\n";
         }
 

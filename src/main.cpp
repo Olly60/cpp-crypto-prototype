@@ -34,7 +34,7 @@ int main()
 
     asio::co_spawn(ioCtx, acceptConnections(localPort), asio::detached);
 
-    std::thread handlePeers([](){ ioCtx.run();});
+    std::jthread handlePeers([](){ ioCtx.run();});
 
     while (true)
     {
@@ -46,6 +46,5 @@ int main()
     }
 
     ioCtx.stop();
-    handlePeers.join();
     storePeers();
 }

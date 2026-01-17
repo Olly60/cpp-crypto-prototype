@@ -5,6 +5,7 @@
 #include "storage/utxo_storage.h"
 #include "block.h"
 #include "block_work.h"
+#include "storage/block/block_indexes.h"
 
 bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 {
@@ -78,9 +79,7 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
     const BlockHeader prevHeader =
         ctx.prevHeader ? *ctx.prevHeader : *getBlockHeader(getTipHash());
 
-    const uint64_t prevPrevTimestamp = ctx.prevPrevTimestamp
-                                           ? *ctx.prevPrevTimestamp
-                                           : getBlockHeader(prevHeader.prevBlockHash)->timestamp;
+    const uint64_t prevPrevTimestamp = ctx.prevPrevTimestamp ? *ctx.prevPrevTimestamp : tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(getBlockHeader(getTipHash())->prevBlockHash)->timestamp : 0;
 
     Array256_t blockHash = getBlockHeaderHash(header);
 
