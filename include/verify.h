@@ -35,8 +35,8 @@ struct VerifyBlockHeaderContext
 
 struct VerifyTxContext
 {
-    std::unordered_set<TxInput, TxInputKeyHash>* seenUtxos = nullptr;
-    std::unordered_set<TxInput, TxInputKeyHash>* includeUtxos = nullptr;
+    std::unordered_set<UTXOId, UTXOIdHash>* seenUtxos = nullptr;
+    std::unordered_set<UTXOId, UTXOIdHash>* includeUtxos = nullptr;
     uint64_t* totalFees = nullptr;
 };
 

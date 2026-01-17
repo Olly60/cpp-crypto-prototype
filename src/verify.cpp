@@ -13,19 +13,19 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
     uint64_t totalOutputAmount = 0;
 
     // Create a local fallback
-    std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> localSeenUtxo;
+    std::unordered_set<UTXOId, UTXOIdHash> localSeenUtxo;
 
     // Determine which one to use once
     auto* activeSeenUtxos = ctx.seenUtxos ? ctx.seenUtxos : &localSeenUtxo;
 
     for (uint64_t i = 0; i < tx.txInputs.size(); ++i)
     {
-        auto utxoInDb = tryGetUtxo(tx.txInputs[i]);
+        auto utxoInDb = tryGetUtxo(tx.txInputs[i].utxoId);
 
         if (ctx.includeUtxos) // if included is defined then check it for the utxo as well
         {
             // Utxo not in database and not in the included list
-            if (!utxoInDb && ctx.includeUtxos->erase(tx.txInputs[i]) == 0) return false;
+            if (!utxoInDb && ctx.includeUtxos->erase(tx.txInputs[i].utxoId) == 0) return false;
         }
         else
         {
@@ -50,7 +50,7 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
         // Double spend
         if (ctx.seenUtxos)
         {
-            if (!activeSeenUtxos->insert(tx.txInputs[i]).second) // Check its not in seen (double spend)
+            if (!activeSeenUtxos->insert(tx.txInputs[i].utxoId).second) // Check its not in seen (double spend)
                 return false;
 
 

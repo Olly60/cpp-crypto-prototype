@@ -234,8 +234,8 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         };
 
         // Transactions context
-        std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> seenUtxosInDb;
-        std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> includeUtxos;
+        std::unordered_set<UTXOId, UTXOIdHash> seenUtxosInDb;
+        std::unordered_set<UTXOId, UTXOIdHash> includeUtxos;
         VerifyBlockContext blockCtx;
         blockCtx.txCtx.seenUtxos = &seenUtxosInDb;
         blockCtx.txCtx.includeUtxos = &includeUtxos;
