@@ -15,7 +15,7 @@ ChainBlock getGenesisBlock()
 {
     // Genesis transaction
     TxOutput genesisOutput;
-    genesisOutput.amount = 5000000000; // amount
+    genesisOutput.amount = BLOCK_REWARD; // amount
 
     Tx genesisTx;
     genesisTx.version = 1;

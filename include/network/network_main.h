@@ -7,6 +7,7 @@
 
 constexpr uint64_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
 constexpr uint64_t MAX_TX_SIZE = 8 * 1024 * 256;
+constexpr uint64_t BLOCK_REWARD = 1;
 
 inline uint16_t localPort;
 

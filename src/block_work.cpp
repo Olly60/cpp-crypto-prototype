@@ -126,7 +126,7 @@ ChainBlock newBlock(Array256_t pubKey)
     }
 
     Tx coinbaseTx;
-    coinbaseTx.txOutputs.push_back({totalFees + 5000000000, pubKey});
+    coinbaseTx.txOutputs.push_back({totalFees + BLOCK_REWARD, pubKey});
 
     block.txs.insert(block.txs.begin(), coinbaseTx);
 

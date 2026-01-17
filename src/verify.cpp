@@ -157,7 +157,7 @@ bool verifyBlock(const ChainBlock& block, VerifyBlockContext ctx)
         return false;
 
 
-    uint64_t expectedReward = 5000000000 + totalFees;
+    uint64_t expectedReward = BLOCK_REWARD + totalFees;
 
     uint64_t coinbaseAmount = 0;
     for (const TxOutput& output : coinbaseTx.txOutputs)
