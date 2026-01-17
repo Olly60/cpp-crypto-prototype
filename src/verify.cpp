@@ -11,10 +11,10 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
     uint64_t totalInputAmount = 0;
     uint64_t totalOutputAmount = 0;
 
-    // 1. Create a local fallback
+    // Create a local fallback
     std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq> localSeenUtxo;
 
-    // 2. Determine which one to use once
+    // Determine which one to use once
     auto* activeSeenUtxos = ctx.seenUtxos ? ctx.seenUtxos : &localSeenUtxo;
 
     for (uint64_t i = 0; i < tx.txInputs.size(); ++i)

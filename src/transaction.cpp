@@ -1,6 +1,5 @@
 #include "transaction.h"
 #include <sodium/crypto_sign.h>
-
 #include "crypto_utils.h"
 
 Array256_t getTxHash(const Tx& tx)
@@ -52,9 +51,7 @@ Array256_t getMerkleRoot(const std::vector<Tx>& txs)
     return currentLayer[0];
 }
 
-// ============================================================================
-// SIGNING
-// ============================================================================
+
 
 Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex)
 {
@@ -103,6 +100,8 @@ Tx signTxInputs(const Tx& tx, const Array512_t& sk) // full secret key
 
     return signedTx;
 }
+
+
 
 BytesBuffer serialiseTx(const Tx& tx)
 {
@@ -171,3 +170,5 @@ Tx parseTx(BytesBuffer& txBytes)
 
     return tx;
 }
+
+

@@ -29,8 +29,8 @@ void addNewTipBlock(const ChainBlock& block)
     BytesBuffer undoData;
 
     // Prepare UTXO batch
-    std::vector<std::pair<TxInput, TxOutput>> adds;
-    std::vector<TxInput> spends;
+    std::vector<std::pair<UTXOId, TxOutput>> adds;
+    std::vector<UTXOId> spends;
 
     undoData.writeU64(block.txs.size());
 
@@ -42,22 +42,27 @@ void addNewTipBlock(const ChainBlock& block)
         // Process inputs (undo data + spends)
         for (const auto& input : tx.txInputs)
         {
-            undoData.writeU64(input.UTXOTxHash.size());
-            undoData.writeU64(input.UTXOOutputIndex);
+            undoData.writeArray256(input.utxoId.UTXOTxHash);
+            undoData.writeU64(input.utxoId.UTXOOutputIndex);
 
-            TxOutput output = *tryGetUtxo(input);
+            TxOutput output = *tryGetUtxo(input.utxoId);
 
             undoData.writeU64(output.amount);
-            undoData.writeU64(output.recipient.size());
+            undoData.writeArray256(output.recipient);
 
-            spends.push_back(input);
+            spends.push_back(input.utxoId);
+
+            if (wallets.contains(output.recipient))
+            {
+                wallets[output.recipient].erase(input);
+            }
         }
 
         // Process outputs (adds)
         const Array256_t txHash = getTxHash(tx);
         for (uint64_t i = 0; i < tx.txOutputs.size(); i++)
         {
-            adds.emplace_back(TxInput{txHash, i, {}}, tx.txOutputs[i]);
+            adds.push_back({{txHash, i}, tx.txOutputs[i]});
         }
     }
 
@@ -98,19 +103,19 @@ void undoNewTipBlock()
     ChainBlock block = *getBlock(blockHash);
 
     // Collect UTXOs created by this block for deletion
-    std::vector<TxInput> spends;
+    std::vector<UTXOId> spends;
     for (const auto& tx : block.txs)
     {
         const Array256_t txHash = getTxHash(tx);
         for (uint64_t i = 0; i < tx.txOutputs.size(); i++)
-            spends.push_back(TxInput{txHash, i, {}});
+            spends.push_back({txHash, i});
     }
 
     // Undo file path
     auto undoFilePath = getUndoFilePath(blockHash);
 
     // Restore spent UTXOs from undo file
-    std::vector<std::pair<TxInput, TxOutput>> restores;
+    std::vector<std::pair<UTXOId, TxOutput>> restores;
     {
         auto undoDataBytes = readFile(undoFilePath);
         uint64_t txCount = undoDataBytes->readU64();
@@ -123,14 +128,14 @@ void undoNewTipBlock()
             for (uint64_t j = 0; j < inputCount; j++)
             {
                 TxInput input;
-                input.UTXOTxHash = undoDataBytes->readArray256();
-                input.UTXOOutputIndex = undoDataBytes->readU64();
+                input.utxoId.UTXOTxHash = undoDataBytes->readArray256();
+                input.utxoId.UTXOOutputIndex = undoDataBytes->readU64();
 
                 TxOutput utxo;
                 utxo.amount = undoDataBytes->readU64();
                 utxo.recipient = undoDataBytes->readArray256();
 
-                restores.emplace_back(input, utxo);
+                restores.emplace_back(input.utxoId, utxo);
             }
         }
     }

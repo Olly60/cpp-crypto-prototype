@@ -9,7 +9,7 @@
 // Hash function for UTXO keys
 struct TxInputKeyHash
 {
-    std::size_t operator()(const TxInput& key) const
+    std::size_t operator()(const UTXOId& key) const
     {
         std::size_t h = 0;
 
@@ -27,15 +27,6 @@ struct TxInputKeyHash
     }
 };
 
-struct TxInputKeyEq
-{
-    bool operator()(const TxInput& a, const TxInput& b) const noexcept
-    {
-        return a.UTXOTxHash == b.UTXOTxHash &&
-            a.UTXOOutputIndex == b.UTXOOutputIndex;
-    }
-};
-
 struct VerifyBlockHeaderContext
 {
     const BlockHeader* prevHeader = nullptr;
@@ -44,8 +35,8 @@ struct VerifyBlockHeaderContext
 
 struct VerifyTxContext
 {
-    std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq>* seenUtxos = nullptr;
-    std::unordered_set<TxInput, TxInputKeyHash, TxInputKeyEq>* includeUtxos = nullptr;
+    std::unordered_set<TxInput, TxInputKeyHash>* seenUtxos = nullptr;
+    std::unordered_set<TxInput, TxInputKeyHash>* includeUtxos = nullptr;
     uint64_t* totalFees = nullptr;
 };
 

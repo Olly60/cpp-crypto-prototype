@@ -14,6 +14,8 @@
 #include <boost/multiprecision/number.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 
+#include "verify.h"
+
 Array256_t getBlockWork(const Array256_t& target) {
 
     boost::multiprecision::uint256_t resultNum;

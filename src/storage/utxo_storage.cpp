@@ -78,7 +78,7 @@ rocksdb::DB* utxoDb() {
 
 
 std::optional<TxOutput>
-tryGetUtxo(const TxInput& input)
+tryGetUtxo(const UTXOId& input)
 {
     const std::string key = makeUtxoKey(input.UTXOTxHash, input.UTXOOutputIndex);
     std::string value;
@@ -106,8 +106,8 @@ tryGetUtxo(const TxInput& input)
 
 void applyUtxoBatch(
 
-    const std::vector<TxInput>& spends,
-    const std::vector<std::pair<TxInput, TxOutput>>& adds)
+    const std::vector<UTXOId>& spends,
+    const std::vector<std::pair<UTXOId, TxOutput>>& adds)
 {
     rocksdb::WriteBatch batch;
 

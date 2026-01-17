@@ -1,9 +1,10 @@
 #pragma once
+#include <set>
+#include <unordered_map>
+#include <unordered_set>
+
 #include "crypto_utils.h"
 
-// ============================================================================
-// DATA STRUCTURES
-// ============================================================================
 
 struct TxOutput
 {
@@ -11,11 +12,16 @@ struct TxOutput
     Array256_t recipient{};
 };
 
+struct UTXOId
+{
+    Array256_t UTXOTxHash{};
+    uint64_t UTXOOutputIndex = 0;
+};
+
 struct TxInput
 {
-    Array256_t UTXOTxHash{}; // Hash of transaction containing the UTXO
-    uint64_t UTXOOutputIndex = 0; // Index of output in that transaction
-    Array512_t signature{}; // Signature proving ownership
+    UTXOId utxoId;
+    Array512_t signature{};
 };
 
 struct Tx
@@ -25,21 +31,21 @@ struct Tx
     std::vector<TxOutput> txOutputs{};
 };
 
-// ============================================================================
-// HASHING FUNCTIONS
-// ============================================================================
+
+inline std::unordered_map<Array256_t, std::unordered_set<{    Array256_t UTXOTxHash{}; uint64_t UTXOOutputIndex; }>, Array256Hash> wallets;
+
 
 Array256_t getTxHash(const Tx& tx);
 
 Array256_t getMerkleRoot(const std::vector<Tx>& txs);
 
-// ============================================================================
-// SIGNING
-// ============================================================================
+
 
 Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex);
 
 Tx signTxInputs(const Tx& tx, const Array512_t& sk);
+
+
 
 BytesBuffer serialiseTx(const Tx& tx);
 
