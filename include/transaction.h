@@ -16,6 +16,7 @@ struct UTXOId
 {
     Array256_t UTXOTxHash{};
     uint64_t UTXOOutputIndex = 0;
+    bool operator==(const UTXOId&) const = default;
 };
 
 struct TxInput
@@ -31,8 +32,30 @@ struct Tx
     std::vector<TxOutput> txOutputs{};
 };
 
+struct UTXOIdHash
+{
+    std::size_t operator()(const UTXOId& id) const noexcept
+    {
+        std::size_t h = 0;
 
-inline std::unordered_map<Array256_t, std::unordered_set<{    Array256_t UTXOTxHash{}; uint64_t UTXOOutputIndex; }>, Array256Hash> wallets;
+        // Hash the 256-bit tx hash
+        for (uint8_t b : id.UTXOTxHash)
+        {
+            h = h * 131 ^ b;
+        }
+
+        // Mix in output index
+        h ^= std::hash<uint64_t>{}(id.UTXOOutputIndex)
+             + 0x9e3779b97f4a7c15ULL
+             + (h << 6)
+             + (h >> 2);
+
+        return h;
+    }
+};
+
+
+inline std::unordered_map<Array256_t, std::unordered_set<UTXOId, UTXOIdHash>, Array256Hash> wallets;
 
 
 Array256_t getTxHash(const Tx& tx);

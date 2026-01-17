@@ -13,6 +13,7 @@
 #include "node.h"
 #include "tip.h"
 #include "network/network_main.h"
+#include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
 
@@ -121,7 +122,6 @@ void handleUserCommand(const std::string& input)
     if (parts[0] == "peers")
     {
         asio::co_spawn(ioCtx, handleUserNetworkCommand(parts), asio::detached);
-        return;
     }
 
     if (parts[0] == "chain_info")
@@ -150,8 +150,10 @@ void handleUserCommand(const std::string& input)
                 return;
             };
             miningThread = std::jthread(mineBlocks, hexToBytes(parts[2]).readArray256());
+            return;
         }
-        else if (parts[1] == "stop")
+
+        if (parts[1] == "stop")
         {
             miningThread.reset();
             std::cout << "Stopped mining blocks\n";
@@ -194,15 +196,27 @@ void handleUserCommand(const std::string& input)
         std::cout << "Block work: " << bytesToHex(chainWorkBuf) << "\n";
     }
 
-    if (parts[0] == "block_info")
+    if (parts[0] == "wallet")
     {
-        BytesBuffer hashBuf;
-        hashBuf.writeArray256(hexToBytes(parts[1]).readArray256());
-        Array256_t hash = hashBuf.readArray256();
-        BytesBuffer genBuf;
-        std::cout << "Block height: " << std::to_string(tryGetBlockIndex(hash)->height + 1) << "\n";
-        BytesBuffer chainWorkBuf;
-        chainWorkBuf.writeArray256(tryGetBlockIndex(hash)->chainWork);
-        std::cout << "Block work: " << bytesToHex(chainWorkBuf) << "\n";
+        auto pubKey = hexToBytes(parts[2]).readArray256();
+        if (parts[1] == "add")
+        {
+                wallets[pubKey] = getUtxosForRecipient(pubKey);
+        }
+
+        if (parts[1] == "remove")
+        {
+            wallets.erase(pubKey);
+        }
+
+        if (parts[1] == "amount")
+        {
+            uint64_t amount = 0;
+            for (auto& value : wallets[pubKey])
+            {
+                amount += tryGetUtxo(value)->amount;
+            }
+            std::cout << amount << "\n";
+        }
     }
 }

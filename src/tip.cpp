@@ -39,14 +39,13 @@ void addNewTipBlock(const ChainBlock& block)
         undoData.writeU64(tx.version);
         undoData.writeU64(tx.txInputs.size());
 
-        // Process inputs (undo data + spends)
+        // Process inputs
         for (const auto& input : tx.txInputs)
         {
-            undoData.writeArray256(input.utxoId.UTXOTxHash);
-            undoData.writeU64(input.utxoId.UTXOOutputIndex);
-
             TxOutput output = *tryGetUtxo(input.utxoId);
 
+            undoData.writeArray256(input.utxoId.UTXOTxHash);
+            undoData.writeU64(input.utxoId.UTXOOutputIndex);
             undoData.writeU64(output.amount);
             undoData.writeArray256(output.recipient);
 
@@ -54,15 +53,21 @@ void addNewTipBlock(const ChainBlock& block)
 
             if (wallets.contains(output.recipient))
             {
-                wallets[output.recipient].erase(input);
+                wallets[output.recipient].erase(input.utxoId);
             }
+
         }
 
-        // Process outputs (adds)
+        // Process outputs
         const Array256_t txHash = getTxHash(tx);
         for (uint64_t i = 0; i < tx.txOutputs.size(); i++)
         {
             adds.push_back({{txHash, i}, tx.txOutputs[i]});
+
+            if (wallets.contains(tx.txOutputs[i].recipient))
+            {
+                wallets[tx.txOutputs[i].recipient].insert({txHash, i});
+            }
         }
     }
 
@@ -80,7 +85,8 @@ void addNewTipBlock(const ChainBlock& block)
     putHeightHashBatch({blockHash});
 
     BlockIndexValue blockIndex;
-    blockIndex.chainWork = addBlockWork(tryGetBlockIndex(getTipHash())->chainWork, getBlockWork(block.header.difficulty));
+    blockIndex.chainWork = addBlockWork(tryGetBlockIndex(getTipHash())->chainWork,
+                                        getBlockWork(block.header.difficulty));
     blockIndex.height = tryGetBlockIndex(getTipHash())->height + 1;
     putBlockIndexBatch({blockHash}, {blockIndex});
 
@@ -90,7 +96,7 @@ void addNewTipBlock(const ChainBlock& block)
     writeFileTrunc(TIP, hashBuf);
 
     // Remove any used transactions from the mempool
-    for (auto& tx: block.txs)
+    for (auto& tx : block.txs)
     {
         mempool.erase(getTxHash(tx));
     }
@@ -108,7 +114,9 @@ void undoNewTipBlock()
     {
         const Array256_t txHash = getTxHash(tx);
         for (uint64_t i = 0; i < tx.txOutputs.size(); i++)
+        {
             spends.push_back({txHash, i});
+        }
     }
 
     // Undo file path
@@ -136,6 +144,11 @@ void undoNewTipBlock()
                 utxo.recipient = undoDataBytes->readArray256();
 
                 restores.emplace_back(input.utxoId, utxo);
+
+                if (wallets.contains(utxo.recipient))
+                {
+                    wallets[utxo.recipient].insert(input.utxoId);
+                }
             }
         }
     }

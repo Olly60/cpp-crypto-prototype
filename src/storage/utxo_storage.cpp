@@ -31,23 +31,32 @@ namespace
         return std::string(buf.cdata(), buf.size());
     }
 
+    UTXOId parseUtxoKey(const std::string& key)
+    {
+        UTXOId utxoId;
+        BytesBuffer buf;
+        buf.insertBytes(key.data(), key.data() + key.size());
+
+        utxoId.UTXOTxHash = buf.readArray256();
+
+        utxoId.UTXOOutputIndex = buf.readU64();
+
+        return utxoId;
+    }
+
     TxOutput parseUtxoValue(const std::string& value)
     {
         TxOutput out;
-        const uint8_t* ptr = reinterpret_cast<const uint8_t*>(value.data());
+        BytesBuffer buf;
+        buf.insertBytes(value.data(), value.data() + value.size());
 
-        // Parse amount (little-endian)
-        out.amount = 0;
-        for (size_t i = 0; i < 8; ++i)
-        {
-            out.amount |= static_cast<uint64_t>(ptr[i]) << (8 * i);
-        }
+        out.amount = buf.readU64();
 
-        // Copy recipient (raw 32 bytes)
-        std::copy(ptr + 8, ptr + 40, out.recipient.begin());
+        out.recipient = buf.readArray256();
 
         return out;
     }
+
 
 }
 
@@ -55,8 +64,10 @@ namespace
 // Single-UTXO operations (non-throwing where possible)
 // -------------------------------------------------
 
-rocksdb::DB* utxoDb() {
-    static rocksdb::DB* raw = []{
+rocksdb::DB* utxoDb()
+{
+    static rocksdb::DB* raw = []
+    {
         rocksdb::Options options;
         options.create_if_missing = true;
 
@@ -67,7 +78,8 @@ rocksdb::DB* utxoDb() {
             &db
         );
 
-        if (!status.ok() || !db) {
+        if (!status.ok() || !db)
+        {
             throw std::runtime_error("Failed to open RocksDB: " + status.ToString());
         }
 
@@ -97,7 +109,6 @@ tryGetUtxo(const UTXOId& input)
 
     return parseUtxoValue(value);
 }
-
 
 
 // -------------------------------------------------
@@ -142,5 +153,32 @@ void applyUtxoBatch(
     auto status = utxoDb()->Write(wo, &batch);
     if (!status.ok())
         throw std::runtime_error("UTXO batch write failed: " + status.ToString());
+}
+
+std::unordered_set<UTXOId, UTXOIdHash> getUtxosForRecipient(const Array256_t& recipient)
+{
+    std::unordered_set<UTXOId , UTXOIdHash> result;
+    std::unique_ptr<rocksdb::Iterator> it(utxoDb()->NewIterator(rocksdb::ReadOptions{}));
+
+    for (it->SeekToFirst(); it->Valid(); it->Next())
+    {
+        const std::string& key = it->key().ToString();
+        const std::string& value = it->value().ToString();
+
+        UTXOId utxoId = parseUtxoKey(key);
+        TxOutput txOutput = parseUtxoValue(value);
+
+        if (txOutput.recipient == recipient)
+        {
+            result.insert(utxoId);
+        }
+    }
+
+    if (!it->status().ok())
+    {
+        throw std::runtime_error("UTXO iteration failed: " + it->status().ToString());
+    }
+
+    return result;
 }
 

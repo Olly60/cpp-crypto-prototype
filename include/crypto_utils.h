@@ -62,12 +62,6 @@ private:
         return v;
     }
 
-    void writeBytesImpl(std::span<const uint8_t> bytes)
-    {
-        writeU64(bytes.size());
-        data_.insert(data_.end(), bytes.data(), bytes.data() + bytes.size());
-    }
-
 public:
 
     BytesBuffer() = default;
@@ -125,7 +119,8 @@ public:
     // Variable-length byte vector
     void writeByteVector(const std::vector<uint8_t>& v)
     {
-        writeBytesImpl(v);
+        writeU64(v.size());
+        data_.insert(data_.end(), v.data(), v.data() + v.size());
     }
 
     std::vector<uint8_t> readByteVector()
@@ -140,21 +135,14 @@ public:
         return out;
     }
 
-    // String (length-prefixed UTF-8 bytes)
     void writeString(const std::string& s)
     {
-        if (constexpr size_t MAX_STRING_SIZE = 1 << 20; s.size() > MAX_STRING_SIZE)
-            throw std::runtime_error("BytesBuffer: string too large");
-
-        writeBytesImpl(std::span<const uint8_t>(
-            reinterpret_cast<const uint8_t*>(s.data()),
-            s.size()
-        ));
+        writeU64(s.size());
+        data_.insert(data_.end(), s.data(), s.data() + s.size());
     }
 
     std::string readString()
     {
-
         const uint64_t len = readU64();
         if (read_offset_ + len > data_.size())
             throw std::runtime_error("BytesBuffer: out of bounds");
@@ -207,12 +195,16 @@ public:
     template <uint64_t N>
     void writeFixedArray(std::array<uint8_t, N> array)
     {
+
         data_.insert(data_.end(), array.begin(), array.end());
     }
 
     template <uint64_t N>
     std::array<uint8_t, N> readFixedArray()
     {
+        if (read_offset_ + N > data_.size())
+            throw std::runtime_error("BytesBuffer: out of bounds");
+
         std::array<uint8_t, N> out;
         std::memcpy(out.data(), data_.data() + read_offset_, N);
         read_offset_ += N;
@@ -222,7 +214,12 @@ public:
     // BytesBuffer
     void writeBytesBuffer(const BytesBuffer& other)
     {
-        data_.insert(data_.end(), other.data(), other.data() + other.size());
+        data_.insert(data_.end(), other.begin(), other.end());
+    }
+
+    void insertBytes(const void* begin, const void* end)
+    {
+        data_.insert(data_.end(), reinterpret_cast<const uint8_t*>(begin), reinterpret_cast<const uint8_t*>(end));
     }
 };
 

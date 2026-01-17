@@ -65,8 +65,8 @@ Array256_t computeTxSignHash(const Tx& tx, uint64_t inputIndex)
     for (size_t i = 0; i < tx.txInputs.size(); ++i)
     {
         const auto& input = tx.txInputs[i];
-        buf.writeArray256(input.UTXOTxHash);
-        buf.writeU64(input.UTXOOutputIndex);
+        buf.writeArray256(input.utxoId.UTXOTxHash);
+        buf.writeU64(input.utxoId.UTXOOutputIndex);
 
         // Add the input index only for the input being signed
         if (i == inputIndex)
@@ -116,8 +116,8 @@ BytesBuffer serialiseTx(const Tx& tx)
     // Inputs
     for (const auto& txInput : tx.txInputs)
     {
-        txBytes.writeArray256(txInput.UTXOTxHash);
-        txBytes.writeU64(txInput.UTXOOutputIndex);
+        txBytes.writeArray256(txInput.utxoId.UTXOTxHash);
+        txBytes.writeU64(txInput.utxoId.UTXOOutputIndex);
         txBytes.writeArray512(txInput.signature);
     }
 
@@ -149,8 +149,8 @@ Tx parseTx(BytesBuffer& txBytes)
     for (uint64_t i = 0; i < inputAmount; i++)
     {
         TxInput txInput;
-        txInput.UTXOTxHash = txBytes.readArray256();
-        txInput.UTXOOutputIndex = txBytes.readU64();
+        txInput.utxoId.UTXOTxHash = txBytes.readArray256();
+        txInput.utxoId.UTXOOutputIndex = txBytes.readU64();
         txInput.signature = txBytes.readArray512();
         tx.txInputs.push_back(txInput);
     }

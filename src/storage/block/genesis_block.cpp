@@ -68,5 +68,5 @@ void initGenesisBlock()
     writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
 
     // Genesis utxo
-    applyUtxoBatch( {}, {std::pair<TxInput, TxOutput>({getTxHash(genesisBlock.txs[0]),0}, genesisBlock.txs[0].txOutputs[0])});
+    applyUtxoBatch( {}, {{{getTxHash(genesisBlock.txs[0]), 0}, genesisBlock.txs[0].txOutputs[0]}});
 }
