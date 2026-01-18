@@ -95,14 +95,22 @@ ChainBlock newBlock(Array256_t pubKey)
     }
     else
     {
-        block.header.difficulty = shiftLeft(currentTipHeader->difficulty);
+        block.header.difficulty = shiftRight(currentTipHeader->difficulty);
     }
+
+    std::unordered_set<UTXOId, UTXOIdHash> utxosInBlock;
 
     // Transactions
     uint64_t size = 0;
     for (auto& val : mempool | std::views::values)
     {
         size += serialiseTx(val).size();
+        bool used = false;
+        for (const auto& txInput : val.txInputs)
+        {
+            if (utxosInBlock.contains(txInput.utxoId)) used = true;
+        }
+        if (used) continue;
 
         if (size > MAX_TX_SIZE - calculateBlockHeaderSize()) break;
         block.txs.push_back(val);

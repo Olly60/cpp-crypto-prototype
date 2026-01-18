@@ -23,7 +23,7 @@
 asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 {
 
-        auto peer = socket.remote_endpoint().address();
+        auto peerAddr = normalizeAddress(socket.remote_endpoint().address());
 
         for (;;) // Loop until peer closes connection
         {
@@ -39,17 +39,16 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
                 continue;
             }
 
-
             // Check if peer is authenticated
-            if (!knownPeers.contains(peer))
+            if (!knownPeers.contains(peerAddr))
             {
-                std::cout << "Unknown peer: " << socket.remote_endpoint().address().to_string() <<
+                std::cout << "Unknown peer: " << peerAddr.to_string() <<
                     " requested something other than a handshake\n";
                 co_return; // Unauthenticated peer
             }
 
             // Update last seen
-            knownPeers[peer].lastSeen = getCurrentTimestamp();
+            knownPeers[peerAddr].lastSeen = getCurrentTimestamp();
 
             // Route message
             if (msgCommand == ProtocolMessage::Ping)
@@ -82,7 +81,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
             }
             else
             {
-                std::cout << "Unknown message from: " << socket.remote_endpoint().address().to_string() << "\n";
+                std::cout << "Unknown message from: " << peerAddr << "\n";
                 break;
             }
         }
@@ -102,7 +101,7 @@ asio::awaitable<void> acceptConnections(uint16_t port)
         for (;;)
         {
             auto socket = co_await acceptor.async_accept(asio::use_awaitable);
-            std::cout << "Connection from: " << socket.remote_endpoint().address().to_string() << "\n";
+            std::cout << "Connection from: " << normalizeAddress(socket.remote_endpoint().address()) << "\n";
 
             // Spawn a coroutine to handle the connection
             co_spawn(ioCtx,
@@ -321,12 +320,12 @@ asio::awaitable<void> broadcastNewTx(asio::io_context &io, const Tx& tx)
 
         try
         {
+            // Connect to peer
             asio::ip::tcp::socket socket(io);
             co_await socket.async_connect({peer.first, peer.second.port});
 
             // Send message type
-            auto msgType = ProtocolMessage::BroadcastNewTx;
-            co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+            co_await asio::async_write(socket, asio::buffer(ProtocolMessage::BroadcastNewTx), asio::use_awaitable);
 
             auto txBytes = serialiseTx(tx);
 
@@ -350,11 +349,12 @@ asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& 
     {
         try
         {
+            // Connect to peer
             asio::ip::tcp::socket socket(io);
             co_await socket.async_connect({peer.first, peer.second.port});
+
             // Send message type
-            auto msgType = ProtocolMessage::BroadcastNewBlock;
-            co_await asio::async_write(socket, asio::buffer(&msgType, 1), asio::use_awaitable);
+            co_await asio::async_write(socket, asio::buffer(ProtocolMessage::BroadcastNewBlock), asio::use_awaitable);
 
             // Send block size
             const auto blockBytes = serialiseBlock(block);

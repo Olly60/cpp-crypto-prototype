@@ -112,13 +112,15 @@ asio::awaitable<void> handleHandshake(asio::ip::tcp::socket& socket)
     constexpr uint8_t myVerack = 0x01;
     co_await asio::async_write(socket, asio::buffer(&myVerack, 1), asio::use_awaitable);
 
+    auto peerAddr = normalizeAddress(socket.remote_endpoint().address());
+
     knownPeers.insert({
-    socket.remote_endpoint().address(), {theirHandshake.services, {}, theirHandshake.relay, theirHandshake.blockchainTip, theirHandshake.port}
+    peerAddr, {theirHandshake.services, {}, theirHandshake.relay, theirHandshake.blockchainTip, theirHandshake.port}
 
 });
-    unknownPeers.erase({socket.remote_endpoint().address(), theirHandshake.port});
+    unknownPeers.erase({peerAddr, theirHandshake.port});
 
-    std::cout << "Successful handshake with: " << socket.remote_endpoint().address().to_string() << "\n";
+    std::cout << "Successful handshake with: " << peerAddr << "\n";
 }
 
 asio::awaitable<void> handlePing(asio::ip::tcp::socket& socket)
@@ -208,7 +210,9 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
     // Send missing transactions
     for (const auto key : peerMissingHashes)
     {
-        const auto peerMissingTxBytes = serialiseTx(mempool[key]);
+        auto it = mempool.find(key);
+
+        const auto peerMissingTxBytes = serialiseTx(it->second);
 
         // Send transaction size
         co_await writeU64Tcp(socket, peerMissingTxBytes.size());

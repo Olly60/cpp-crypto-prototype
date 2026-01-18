@@ -83,3 +83,5 @@ inline UnknownPeersMap unknownPeers;
 void storePeers();
 
 void loadPeers();
+
+asio::ip::address normalizeAddress(asio::ip::address addr);

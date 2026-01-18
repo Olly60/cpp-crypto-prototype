@@ -18,7 +18,7 @@
 asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
 {
     // Check node offers service
-    auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
+    auto peerServices = knownPeers[normalizeAddress(socket.remote_endpoint().address())].services;
     if (!((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetPeers) != 0)) co_return false;
 
     // Write message type
@@ -89,12 +89,14 @@ asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket)
         co_return false;
     }
 
+    auto peerAddr = normalizeAddress(socket.remote_endpoint().address());
+
     knownPeers.insert({
-        socket.remote_endpoint().address(),
+        peerAddr,
         {theirHandshake.services, {}, theirHandshake.relay, theirHandshake.blockchainTip, theirHandshake.port}
     });
 
-    unknownPeers.erase({socket.remote_endpoint().address(), theirHandshake.port});
+    unknownPeers.erase({peerAddr, theirHandshake.port});
     co_return true;
 }
 
@@ -119,7 +121,7 @@ asio::awaitable<bool> requestPing(asio::ip::tcp::socket& socket)
 asio::awaitable<std::optional<ChainBlock>> requestBlock(asio::ip::tcp::socket& socket, const Array256_t& blockHash)
 {
     // Check node offers service
-    auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
+    auto peerServices = knownPeers[normalizeAddress(socket.remote_endpoint().address())].services;
     if (!((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetBlock) != 0)) co_return std::nullopt;
 
     // Write message type
@@ -146,7 +148,7 @@ asio::awaitable<std::optional<ChainBlock>> requestBlock(asio::ip::tcp::socket& s
 asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& socket)
 {
     // Check node offers service
-    auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
+    auto peerServices = knownPeers[normalizeAddress(socket.remote_endpoint().address())].services;
 
     if (!((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetHeaders) != 0)) co_return std::vector
         <BlockHeader>{};
@@ -214,7 +216,7 @@ asio::awaitable<std::vector<BlockHeader>> requestHeaders(asio::ip::tcp::socket& 
 asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
 {
     // Check node offers service
-    auto peerServices = knownPeers[socket.remote_endpoint().address()].services;
+    auto peerServices = knownPeers[normalizeAddress(socket.remote_endpoint().address())].services;
     if (!((peerServices & Services::FullNode) != 0 || (peerServices & Services::GetMempool) != 0)) co_return false;
 
     // Write message type
@@ -226,7 +228,6 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
     // Read inv
     std::vector<Array256_t> theirInv;
     theirInv.reserve(invSize);
-
     for (uint64_t i = 0; i < invSize; i++)
     {
         Array256_t hash;
@@ -248,7 +249,7 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
     // Write missing size
     co_await writeU64Tcp(socket, missingInv.size());
 
-    // Write missing transactions hashes
+    // Write missing hashes
     for (const auto& hash : missingInv)
     {
         co_await asio::async_write(socket, asio::buffer(hash), asio::use_awaitable);

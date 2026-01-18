@@ -194,6 +194,7 @@ void handleUserCommand(const std::string& input)
         crypto_sign_ed25519_sk_to_pk(pk.data(), sk.data());
         auto newTx = makeTx(wallets[pk], sk,
                             hexToBytes(parts[2]).readArray256(), std::stoi(parts[3]));
+
         if (!verifyTx(newTx))
         {
             std::cerr << "Invalid transaction\n";
