@@ -192,6 +192,24 @@ void handleUserCommand(const std::string& input)
         auto sk = hexToBytes(parts[1]).readArray512();
         Array256_t pk;
         crypto_sign_ed25519_sk_to_pk(pk.data(), sk.data());
+
+        if (!wallets.contains(pk))
+        {
+            std::cerr << "Wallet not found\n";
+            return;
+        }
+
+        std::unordered_set<UTXOId, UTXOIdHash> validUtxos = wallets[pk];
+
+        for (auto& val : mempool | std::views::values)
+        {
+            for (const auto& txInput : val.txInputs)
+            {
+                validUtxos.erase(txInput.utxoId);
+            }
+
+        }
+
         auto newTx = makeTx(wallets[pk], sk,
                             hexToBytes(parts[2]).readArray256(), std::stoi(parts[3]));
 
@@ -228,7 +246,7 @@ void handleUserCommand(const std::string& input)
         std::cout << "Block work: " << bytesToHex(tryGetBlockIndex(hash)->chainWork) << "\n";
     }
 
-    if (parts[0] == "wallet")
+    if (parts[0] == "wallets")
     {
         if (parts[1] == "add")
         {
@@ -252,7 +270,7 @@ void handleUserCommand(const std::string& input)
             {
                 amount += tryGetUtxo(value)->amount;
             }
-            std::cout << amount << "\n";
+            std::cout << "Balance" << amount << "\n";
         }
 
         if (parts[1] == "list")

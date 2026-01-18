@@ -9,9 +9,6 @@
 using MempoolMap = std::unordered_map<Array256_t, Tx, Array256Hash>;
 inline MempoolMap mempool;
 
-// IO context
-inline asio::io_context ioCtx;
-
 // Protocol version this node is running
 constexpr uint64_t LocalProtocolVersion = 1;
 

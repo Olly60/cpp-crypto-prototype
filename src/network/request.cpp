@@ -55,6 +55,7 @@ asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
 
         unknownPeers.insert(peerAddr);
     }
+
     co_return true;
 }
 
@@ -97,6 +98,7 @@ asio::awaitable<bool> requestHandshake(asio::ip::tcp::socket& socket)
     });
 
     unknownPeers.erase({peerAddr, theirHandshake.port});
+
     co_return true;
 }
 
@@ -273,7 +275,10 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
     // Add their mempool to local mempool
     for (auto& tx : txs)
     {
-        if (!verifyTx(tx)) co_return false;
+        if (!verifyTx(tx))
+        {
+            co_return false;
+        }
         mempool.insert({getTxHash(tx), tx});
     }
     co_return true;

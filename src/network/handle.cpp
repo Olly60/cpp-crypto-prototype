@@ -227,12 +227,11 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 // Handle new data
 // ============================================
 
-std::mutex newDataLock; // Ensure new data can only be accepted from one peer at a time
-
 asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 {
-    std::lock_guard<std::mutex> lock(newDataLock);
+    co_await asio::post(syncStrand, asio::use_awaitable);
 
+    auto addr = normalizeAddress(socket.remote_endpoint().address());
     // Read size
     const uint64_t blockSize = co_await readU64Tcp(socket);
 
@@ -245,25 +244,25 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 
     ChainBlock block = parseBlock(blockBytes);
 
-    // New block doesnt match current tip -> take peers chain if better
+    // New block doesnt match current tip
     if (block.header.prevBlockHash != getTipHash())
     {
-        std::cout << "Block not matching current tip from:" << socket.remote_endpoint().address().to_string() << "\n";
-        co_await syncIfBetter(socket);
+        std::cout << "Block not matching current tip from:" << addr << "\n";
         co_return;
     }
 
     // Broadcast to other peers and add block if valid
-    if (verifyBlock(block))
-    {
-        addNewTipBlock(block);
-        co_await broadcastNewBlock(ioCtx, block);
-    }
+    if (!verifyBlock(block) || tryGetBlockIndex(getBlockHeaderHash(block.header))) co_return;
+
+    std::cout << "New block from:" << addr << "\n";
+    addNewTipBlock(block);
+    asio::co_spawn(ioCtx, broadcastNewBlock(ioCtx, block), asio::detached);
+
 }
 
 asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 {
-    std::lock_guard<std::mutex> lock(newDataLock);
+    co_await asio::post(syncStrand, asio::use_awaitable);
 
     // Read size
     const uint64_t txSize = co_await readU64Tcp(socket);
@@ -277,11 +276,12 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 
     // Verify
     Tx newTx = parseTx(txBytes);
-    if (!verifyTx(newTx)) co_return;
+    if (!verifyTx(newTx) || mempool.contains(getTxHash(newTx))) co_return;
+    std::cout << "New tx from:" << normalizeAddress(socket.remote_endpoint().address()) << "\n";
 
     // Add to mempool
     mempool.insert({getTxHash(newTx), newTx});
 
     // Broadcast to other peers
-    co_await broadcastNewTx(ioCtx,newTx);
+    asio::co_spawn(ioCtx, broadcastNewTx(ioCtx, newTx), asio::detached);
 }

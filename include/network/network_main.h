@@ -3,7 +3,12 @@
 #include <random>
 #include <unordered_set>
 #include <asio/awaitable.hpp>
+#include <asio/strand.hpp>
+
 #include "storage/block/genesis_block.h"
+
+// IO context
+inline asio::io_context ioCtx;
 
 constexpr uint64_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
 constexpr uint64_t MAX_TX_SIZE = 8 * 1024 * 256;
@@ -65,6 +70,6 @@ asio::awaitable<bool> trySyncWithPeers();
 // Broadcast
 // ============================================
 
-asio::awaitable<void> broadcastNewTx(asio::io_context &io, const Tx& tx);
+asio::awaitable<void> broadcastNewTx(asio::io_context& io, const Tx& tx);
 
 asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& block);

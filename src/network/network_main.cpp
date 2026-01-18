@@ -22,71 +22,68 @@
 
 asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 {
+    auto peerAddr = normalizeAddress(socket.remote_endpoint().address());
 
-        auto peerAddr = normalizeAddress(socket.remote_endpoint().address());
+    for (;;) // Loop until peer closes connection
+    {
+        // Read fixed-size message command
+        std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
+        co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
 
-        for (;;) // Loop until peer closes connection
+        // Handle handshake first
+        if (msgCommand == ProtocolMessage::Handshake)
         {
-            // Read fixed-size message command
-            std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
-            co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
-
-
-            // Handle handshake first
-            if (msgCommand == ProtocolMessage::Handshake)
-            {
-                co_await handleHandshake(socket);
-                continue;
-            }
-
-            // Check if peer is authenticated
-            if (!knownPeers.contains(peerAddr))
-            {
-                std::cout << "Unknown peer: " << peerAddr.to_string() <<
-                    " requested something other than a handshake\n";
-                co_return; // Unauthenticated peer
-            }
-
-            // Update last seen
-            knownPeers[peerAddr].lastSeen = getCurrentTimestamp();
-
-            // Route message
-            if (msgCommand == ProtocolMessage::Ping)
-            {
-                co_await handlePing(socket);
-            }
-            else if (msgCommand == ProtocolMessage::GetBlock)
-            {
-                co_await handleGetBlock(socket);
-            }
-            else if (msgCommand == ProtocolMessage::BroadcastNewBlock)
-            {
-                co_await handleNewBlock(socket);
-            }
-            else if (msgCommand == ProtocolMessage::BroadcastNewTx)
-            {
-                co_await handleNewTx(socket);
-            }
-            else if (msgCommand == ProtocolMessage::GetMempool)
-            {
-                co_await handleGetMempool(socket);
-            }
-            else if (msgCommand == ProtocolMessage::GetHeaders)
-            {
-                co_await handleGetHeaders(socket);
-            }
-            else if (msgCommand == ProtocolMessage::GetPeers)
-            {
-                co_await handleGetPeers(socket);
-            }
-            else
-            {
-                std::cout << "Unknown message from: " << peerAddr << "\n";
-                break;
-            }
+            co_await handleHandshake(socket);
+            continue;
         }
-}
 
+        // Check if peer is authenticated
+        if (!knownPeers.contains(peerAddr))
+        {
+            std::cout << "Unknown peer: " << peerAddr.to_string() <<
+                " requested something other than a handshake\n";
+            co_return; // Unauthenticated peer
+        }
+
+        // Update last seen
+        knownPeers[peerAddr].lastSeen = getCurrentTimestamp();
+
+        // Route message
+        if (msgCommand == ProtocolMessage::Ping)
+        {
+            co_await handlePing(socket);
+        }
+        else if (msgCommand == ProtocolMessage::GetBlock)
+        {
+            co_await handleGetBlock(socket);
+        }
+        else if (msgCommand == ProtocolMessage::BroadcastNewBlock)
+        {
+            co_await handleNewBlock(socket);
+        }
+        else if (msgCommand == ProtocolMessage::BroadcastNewTx)
+        {
+            co_await handleNewTx(socket);
+        }
+        else if (msgCommand == ProtocolMessage::GetMempool)
+        {
+            co_await handleGetMempool(socket);
+        }
+        else if (msgCommand == ProtocolMessage::GetHeaders)
+        {
+            co_await handleGetHeaders(socket);
+        }
+        else if (msgCommand == ProtocolMessage::GetPeers)
+        {
+            co_await handleGetPeers(socket);
+        }
+        else
+        {
+            std::cout << "Unknown message from: " << peerAddr << "\n";
+            break;
+        }
+    }
+}
 
 
 // ============================================
@@ -119,29 +116,31 @@ asio::awaitable<void> acceptConnections(uint16_t port)
 // Sync blockchain
 // ============================================
 
+asio::strand<asio::io_context::executor_type> syncStrand{ioCtx.get_executor()};
+
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
+    co_await asio::post(syncStrand, asio::use_awaitable);
     try
     {
-        std::cout << "Attempting to sync blockchain with " << socket.remote_endpoint().address().to_string() << "\n";
-
         // Handshake to find peer's tip hash
-        co_await requestHandshake(socket);
+        if (!co_await requestHandshake(socket)) co_return false;
 
         // Tip already the same as peer's
-        if (knownPeers[socket.remote_endpoint().address()].tip == getTipHash()) co_return true;
+        if (knownPeers[socket.remote_endpoint().address()].tip == getTipHash())
+        {
+            co_await requestMempool(socket);
+            co_await requestPeers(socket);
+            co_return true;
+        };
 
         // Get missing headers
         auto headers = co_await requestHeaders(socket);
-
-        // Headers empty blockchain up to date
-        if (headers.empty()) co_return true;
 
         auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
 
         // common ancestor doesnt exist
         if (!commonAncestorHeader) co_return false;
-        std::cout << "Found common ancestor: " << "\n";
 
         // Get chain work from new headers
         auto peerChainwork = tryGetBlockIndex(getTipHash())->chainWork;
@@ -156,12 +155,13 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
         // Chainwork is lower
         if (tryGetBlockIndex(getTipHash())->chainWork >= peerChainwork) co_return false;
-        std::cout << "Peer has higher chainwork\n";
 
         // Verify first header
         VerifyBlockHeaderContext h0Ctx;
         h0Ctx.prevHeader = &(*commonAncestorHeader);
-        uint64_t h0CtxTimestamp = tryGetBlockIndex(headers[0].prevBlockHash)->height > 0 ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp : 0;
+        uint64_t h0CtxTimestamp = tryGetBlockIndex(headers[0].prevBlockHash)->height > 0
+                                      ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp
+                                      : 0;
         h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
         if (!verifyBlockHeader(headers[0], h0Ctx)) co_return false;
 
@@ -208,6 +208,8 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
                 addNewTipBlock(*block);
             }
+            co_await requestMempool(socket);
+            co_await requestPeers(socket);
             co_return true; // Done syncing these blocks
         }
 
@@ -273,9 +275,12 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
             addNewTipBlock(readTmpBlockFile(hash));
         }
 
-        std::cout << "Synced blockchain with: " << socket.remote_endpoint().address().to_string() << "\n";
+        co_await requestMempool(socket);
+        co_await requestPeers(socket);
+
         co_return true;
-    } catch (...)
+    }
+    catch (...)
     {
         co_return false;
     }
@@ -286,7 +291,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 // ============================================
 asio::awaitable<bool> trySyncWithPeers()
 {
-    std::cout << "Syncing blockchain with peers...\n";
+    std::cout << "Syncing with peers...\n";
     for (auto& peer : knownPeers)
     {
         asio::ip::tcp::socket socket(ioCtx);
@@ -295,8 +300,9 @@ asio::awaitable<bool> trySyncWithPeers()
         {
             co_await socket.async_connect({peer.first, peer.second.port}, asio::use_awaitable);
 
-            if (!co_await requestPing(socket)) continue;
             if (!co_await syncIfBetter(socket)) continue;
+
+            std::cout << "Synced with: " << peer.first << "\n";
 
             co_return true; // synced successfully
         }
@@ -312,59 +318,91 @@ asio::awaitable<bool> trySyncWithPeers()
 // Broadcast
 // ============================================
 
-asio::awaitable<void> broadcastNewTx(asio::io_context &io, const Tx& tx)
+asio::strand<asio::io_context::executor_type> broadcastStrand{ioCtx.get_executor()};
+
+asio::awaitable<void> broadcastNewTx(asio::io_context& io, const Tx& tx)
 {
+    co_await asio::post(broadcastStrand, asio::use_awaitable);
+
+    auto txBytes = serialiseTx(tx);
+
     for (const auto& peer : knownPeers)
     {
-        if (peer.second.relay == 0) continue;
+        if (peer.second.relay == 0)
+            continue;
 
-        try
-        {
-            // Connect to peer
-            asio::ip::tcp::socket socket(io);
-            co_await socket.async_connect({peer.first, peer.second.port});
+        asio::co_spawn(
+            io,
+            [peer, txBytes, &io]() -> asio::awaitable<void>
+            {
+                try
+                {
+                    asio::ip::tcp::socket socket(io);
 
-            // Send message type
-            co_await asio::async_write(socket, asio::buffer(ProtocolMessage::BroadcastNewTx), asio::use_awaitable);
+                    // Connect to peer
+                    co_await socket.async_connect({peer.first, peer.second.port},asio::use_awaitable);
 
-            auto txBytes = serialiseTx(tx);
+                    // Write message type
+                    co_await asio::async_write(socket,asio::buffer(ProtocolMessage::BroadcastNewTx),asio::use_awaitable);
 
-            // Send transaction size
-            BytesBuffer txSizeBuf;
-            txSizeBuf.writeU64(txBytes.size());
-            co_await asio::async_write(socket, asio::buffer(txSizeBuf.data(), txSizeBuf.size()), asio::use_awaitable);
+                    // Write size
+                    co_await writeU64Tcp(socket, txBytes.size());
 
-            // Send transaction
-            co_await asio::async_write(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
-        }
-        catch (...)
-        {
-        }
+                    // Write transaction
+                    co_await asio::async_write(socket,asio::buffer(txBytes.data(), txBytes.size()),asio::use_awaitable);
+                }
+                catch (...)
+                {
+                }
+
+                co_return;
+            },
+            asio::detached
+        );
     }
+
+    co_return;
 }
+
 
 asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& block)
 {
+    co_await asio::post(broadcastStrand, asio::use_awaitable);
+
+    auto blockBytes = serialiseBlock(block);
+
     for (const auto& peer : knownPeers)
     {
-        try
-        {
-            // Connect to peer
-            asio::ip::tcp::socket socket(io);
-            co_await socket.async_connect({peer.first, peer.second.port});
+        asio::co_spawn(
+            io,
+            [peer, blockBytes, &io]() -> asio::awaitable<void>
+            {
+                try
+                {
+                    asio::ip::tcp::socket socket(io);
 
-            // Send message type
-            co_await asio::async_write(socket, asio::buffer(ProtocolMessage::BroadcastNewBlock), asio::use_awaitable);
+                    // Connect to peer
+                    co_await socket.async_connect({ peer.first, peer.second.port },asio::use_awaitable);
 
-            // Send block size
-            const auto blockBytes = serialiseBlock(block);
-            co_await writeU64Tcp(socket, blockBytes.size());
+                    // Write message type
+                    co_await asio::async_write(socket,asio::buffer(ProtocolMessage::BroadcastNewBlock),asio::use_awaitable);
 
-            // Send block
-            co_await asio::async_write(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
-        }
-        catch (...)
-        {
-        }
+                    // Write size
+                    co_await writeU64Tcp(socket, blockBytes.size());
+
+                    // Write block
+                    co_await asio::async_write(socket,asio::buffer(blockBytes.data(), blockBytes.size()),asio::use_awaitable);
+                }
+                catch (...)
+                {
+
+                }
+
+                co_return;
+            },
+            asio::detached
+        );
     }
+
+    co_return;
 }
