@@ -227,9 +227,11 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
 // Handle new data
 // ============================================
 
+asio::strand<asio::io_context::executor_type> newDataStrand{ioCtx.get_executor()};
+
 asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 {
-    co_await asio::post(syncStrand, asio::use_awaitable);
+    co_await asio::post(newDataStrand, asio::use_awaitable);
 
     auto addr = normalizeAddress(socket.remote_endpoint().address());
     // Read size
@@ -262,7 +264,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 
 asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 {
-    co_await asio::post(syncStrand, asio::use_awaitable);
+    co_await asio::post(newDataStrand, asio::use_awaitable);
 
     // Read size
     const uint64_t txSize = co_await readU64Tcp(socket);
