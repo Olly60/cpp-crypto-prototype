@@ -7,7 +7,6 @@
 
 #include "storage/block/genesis_block.h"
 
-// IO context
 inline asio::io_context ioCtx;
 
 constexpr uint64_t MAX_BLOCK_SIZE = 8 * 1024 * 1024 * 4;
@@ -16,9 +15,9 @@ constexpr uint64_t BLOCK_REWARD = 1;
 
 inline uint16_t localPort = 50000;
 
-// ============================================
-// Protocol messages
-// ============================================
+inline asio::strand<asio::io_context::executor_type> chainEditStrand{ioCtx.get_executor()};
+
+// ==================== Protocol messages ====================
 namespace ProtocolMessage
 {
     constexpr uint8_t CommandSize = 16;
@@ -40,9 +39,7 @@ namespace ProtocolMessage
     constexpr auto GetPeers = makeCommand("get_peers");
 };
 
-// ============================================
-// Services a node offers
-// ============================================
+// ==================== Services a node offers ====================
 namespace Services
 {
     constexpr uint64_t FullNode = 1;
@@ -54,21 +51,14 @@ namespace Services
 
 asio::awaitable<void> acceptConnections(uint16_t port);
 
-// ============================================
-// Sync blockchain
-// ============================================
+
+// ==================== Sync blockchain ====================
 
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket);
 
-// ============================================
-// Update chain and connect to network
-// ============================================
-
 asio::awaitable<bool> trySyncWithPeers();
 
-// ============================================
-// Broadcast
-// ============================================
+// ==================== Broadcast ====================
 
 asio::awaitable<void> broadcastNewTx(asio::io_context& io, const Tx& tx);
 

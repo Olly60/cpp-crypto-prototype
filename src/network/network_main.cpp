@@ -116,11 +116,9 @@ asio::awaitable<void> acceptConnections(uint16_t port)
 // Sync blockchain
 // ============================================
 
-asio::strand<asio::io_context::executor_type> syncStrand{ioCtx.get_executor()};
-
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
-    co_await asio::post(syncStrand, asio::use_awaitable);
+    co_await asio::post(chainEditStrand, asio::use_awaitable);
     try
     {
         // Handshake to find peer's tip hash
