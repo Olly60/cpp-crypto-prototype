@@ -12,6 +12,7 @@
 #include "block_work.h"
 #include "node.h"
 #include "tip.h"
+#include "verify.h"
 #include "wallet.h"
 #include "network/network_main.h"
 #include "storage/utxo_storage.h"
@@ -120,6 +121,30 @@ void handleUserCommand(const std::string& input)
         parts.push_back(part);
     }
 
+    part.resize(4); // Resize to the longest command to prevent accessing out-of-bounds memory
+
+    if (parts[0] == "help")
+    {
+        std::cout << "Commands:\n";
+        std::cout << "peers ping <ip> <port>\n";
+        std::cout << "peers handshake <ip> <port>\n";
+        std::cout << "peers sync <ip> <port>\n";
+        std::cout << "peers get_mempool\n";
+        std::cout << "peers get_peers\n";
+        std::cout << "chain_info\n";
+        std::cout << "mine start <reward_address>\n";
+        std::cout << "mine stop\n";
+        std::cout << "tx <sender_secret_key> <recipient_address> <amount>\n";
+        std::cout << "known_peers\n";
+        std::cout << "unknown_peers\n";
+        std::cout << "block_info <block_hash>\n";
+        std::cout << "wallet add <recipient_address>\n";
+        std::cout << "wallet remove <recipient_address>\n";
+        std::cout << "wallet amount <recipient_address>\n";
+        std::cout << "wallet list\n";
+        std::cout << "keyset\n";
+    }
+
     if (parts[0] == "peers")
     {
         asio::co_spawn(ioCtx, handleUserNetworkCommand(parts), asio::detached);
@@ -150,7 +175,8 @@ void handleUserCommand(const std::string& input)
                 std::cout << "Already mining\n";
                 return;
             };
-            miningThread = std::jthread(mineBlocks, hexToBytes(parts[2]).readArray256());
+            Array256_t rewardAddr = hexToBytes(parts[2]).readArray256();
+            miningThread = std::jthread(mineBlocks, rewardAddr);
             return;
         }
 
@@ -163,8 +189,19 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "tx")
     {
-        asio::co_spawn(ioCtx,broadcastNewTx(ioCtx ,makeTx(wallets[hexToBytes(parts[1]).readArray256()], hexToBytes(parts[2]).readArray512(), hexToBytes(parts[3]).readArray256(), std::stoi(parts[4]))), asio::detached);
-
+        auto sk = hexToBytes(parts[1]).readArray512();
+        Array256_t pk;
+        crypto_sign_ed25519_sk_to_pk(pk.data(), sk.data());
+        auto newTx = makeTx(wallets[pk], sk,
+                            hexToBytes(parts[2]).readArray256(), std::stoi(parts[3]));
+        if (!verifyTx(newTx))
+        {
+            std::cerr << "Invalid transaction\n";
+            return;
+        }
+        mempool.insert({getTxHash(newTx), newTx});
+        asio::co_spawn(ioCtx, broadcastNewTx(ioCtx, newTx), asio::detached);
+        std::cout << "Transaction sent to mempool\n";
     }
 
     if (parts[0] == "known_peers")
@@ -185,41 +222,51 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "block_info")
     {
-        BytesBuffer hashBuf;
-        hashBuf.writeArray256(hexToBytes(parts[1]).readArray256());
-        Array256_t hash = hashBuf.readArray256();
-        BytesBuffer genBuf;
-        std::cout << "Block height: " << std::to_string(tryGetBlockIndex(hash)->height + 1) << "\n";
-        BytesBuffer chainWorkBuf;
-        chainWorkBuf.writeArray256(tryGetBlockIndex(hash)->chainWork);
-        std::cout << "Block work: " << bytesToHex(chainWorkBuf) << "\n";
+        Array256_t hash = hexToBytes(parts[1]).readArray256();
+        std::cout << "Block height: " << (tryGetBlockIndex(hash)->height + 1) << "\n";
+        std::cout << "Block work: " << bytesToHex(tryGetBlockIndex(hash)->chainWork) << "\n";
     }
 
     if (parts[0] == "wallet")
     {
-        auto pubKey = hexToBytes(parts[2]).readArray256();
         if (parts[1] == "add")
         {
-                wallets[pubKey] = getUtxosForRecipient(pubKey);
-                std::cout << "Added wallet" << "\n";
+            auto pubKey = hexToBytes(parts[2]).readArray256();
+            wallets[pubKey] = getUtxosForRecipient(pubKey);
+            std::cout << "Added wallet" << "\n";
         }
 
         if (parts[1] == "remove")
         {
+            auto pubKey = hexToBytes(parts[2]).readArray256();
             wallets.erase(pubKey);
             std::cout << "Removed wallet" << "\n";
         }
 
         if (parts[1] == "amount")
         {
+            auto pubKey = hexToBytes(parts[2]).readArray256();
             uint64_t amount = 0;
             for (auto& value : wallets[pubKey])
             {
                 amount += tryGetUtxo(value)->amount;
             }
-            std::cout << wallets[pubKey].size() << "\n";
+            std::cout << amount << "\n";
         }
 
+        if (parts[1] == "list")
+        {
+            for (auto& wallet : wallets)
+            {
+                uint64_t amount = 0;
+                for (auto& value : wallets[wallet.first])
+                {
+                    amount += tryGetUtxo(value)->amount;
+                }
+                std::cout << bytesToHex(wallet.first) << " ";
+                std::cout << amount << "\n";
+            }
+        }
     }
     if (parts[0] == "keyset")
     {
@@ -234,7 +281,13 @@ void handleUserCommand(const std::string& input)
         keysBuf.clear();
         keysBuf.writeArray512(secKey);
         std::cout << "Secret key is: " << bytesToHex(keysBuf) << "\n";
-
     }
 
+    if (parts[0] == "mempool")
+    {
+        for (const auto& hash : mempool | std::views::keys)
+        {
+            std::cout << bytesToHex(hash) << "\n";
+        }
+    }
 }

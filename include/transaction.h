@@ -72,5 +72,5 @@ BytesBuffer serialiseTx(const Tx& tx);
 Tx parseTx(BytesBuffer& txBytes);
 
 
-Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t& secKey, const Array256_t& recipient, uint64_t amount);
+Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t& sk, const Array256_t& recipient, uint64_t amount);
 

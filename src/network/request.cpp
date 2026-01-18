@@ -224,7 +224,8 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
     const uint64_t invSize = co_await readU64Tcp(socket);
 
     // Read inv
-    std::vector<Array256_t> theirInv(invSize);
+    std::vector<Array256_t> theirInv;
+    theirInv.reserve(invSize);
 
     for (uint64_t i = 0; i < invSize; i++)
     {
@@ -247,7 +248,7 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
     // Write missing size
     co_await writeU64Tcp(socket, missingInv.size());
 
-    // Ask for missing transactions
+    // Write missing transactions hashes
     for (const auto& hash : missingInv)
     {
         co_await asio::async_write(socket, asio::buffer(hash), asio::use_awaitable);
@@ -256,7 +257,7 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
     // Get each transaction
     std::vector<Tx> txs;
     txs.reserve(invSize);
-    for (uint64_t i = 0; i != missingInv.size(); i++)
+    for (uint64_t i = 0; i < missingInv.size(); i++)
     {
         // Read size
         const uint64_t txSize = co_await readU64Tcp(socket);
@@ -269,13 +270,10 @@ asio::awaitable<bool> requestMempool(asio::ip::tcp::socket& socket)
     }
 
     // Add their mempool to local mempool
-    MempoolMap theirMempool;
-    theirMempool.reserve(txs.size());
     for (auto& tx : txs)
     {
         if (!verifyTx(tx)) co_return false;
-        auto hashTx = getTxHash(tx);
-        mempool.insert({hashTx, tx});
+        mempool.insert({getTxHash(tx), tx});
     }
     co_return true;
 }

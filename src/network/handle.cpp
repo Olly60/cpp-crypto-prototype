@@ -206,9 +206,6 @@ asio::awaitable<void> handleGetMempool(asio::ip::tcp::socket& socket)
     }
 
     // Send missing transactions
-    std::vector<Tx> peerMissingTxs;
-    peerMissingTxs.reserve(peerMissingCount);
-
     for (const auto key : peerMissingHashes)
     {
         const auto peerMissingTxBytes = serialiseTx(mempool[key]);

@@ -229,4 +229,6 @@ uint64_t getCurrentTimestamp();
 
 std::string bytesToHex(const BytesBuffer& bytes);
 
+std::string bytesToHex(const Array256_t& bytes);
+
 BytesBuffer hexToBytes(const std::string& hex);

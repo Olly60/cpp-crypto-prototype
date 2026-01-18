@@ -112,7 +112,7 @@ asio::awaitable<void> acceptConnections(uint16_t port)
     }
     catch (...)
     {
-
+        std::cout << "Error accepting connection\n";
     }
 }
 
@@ -348,7 +348,6 @@ asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& 
 {
     for (const auto& peer : knownPeers)
     {
-
         try
         {
             asio::ip::tcp::socket socket(io);

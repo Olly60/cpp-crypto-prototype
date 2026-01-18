@@ -33,6 +33,21 @@ std::string bytesToHex(const BytesBuffer& bytes)
     return hex;
 };
 
+std::string bytesToHex(const Array256_t& bytes)
+{
+    std::string hex;
+    hex.reserve(bytes.size() * 2);
+
+    for (const auto& byte : bytes)
+    {
+        constexpr char hexChars[] = "0123456789ABCDEF";
+        hex.push_back(hexChars[byte >> 4]);
+        hex.push_back(hexChars[byte & 0x0F]);
+    }
+
+    return hex;
+};
+
 BytesBuffer hexToBytes(const std::string& hex)
 {
     BytesBuffer bytes;

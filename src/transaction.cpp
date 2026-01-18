@@ -178,7 +178,7 @@ Tx parseTx(BytesBuffer& txBytes)
     return tx;
 }
 
-Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t& secKey, const Array256_t& recipient, uint64_t amount)
+Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t& sk, const Array256_t& recipient, uint64_t amount)
 {
     Tx tx;
 
@@ -190,17 +190,24 @@ Tx makeTx(const std::unordered_set<UTXOId, UTXOIdHash>& utxos, const Array512_t&
         tx.txInputs.push_back(txInput);
     }
 
+    // Get total amount
     uint64_t inputAmount = 0;
     for (const auto& utxo : utxos)
     {
         inputAmount += tryGetUtxo(utxo)->amount;
     }
 
-    if (inputAmount < amount + std::max(inputAmount / 100, static_cast<uint64_t>(1))) throw std::runtime_error("Not enough funds");
-
+    // Give the amount specified to recipient
     tx.txOutputs.push_back({amount, recipient});
 
-    return signTxInputs(tx, secKey);
+    uint64_t change = inputAmount - (amount + std::max(inputAmount / 100, static_cast<uint64_t>(1)));
+
+    Array256_t pk;
+    crypto_sign_ed25519_sk_to_pk(pk.data(), sk.data());
+    tx.txOutputs.push_back({change, pk});
+
+    // Give remainder back to the sender
+    return signTxInputs(tx, sk);
 }
 
 
