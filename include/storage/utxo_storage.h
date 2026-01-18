@@ -10,10 +10,8 @@ rocksdb::DB* utxoDb();
 std::optional<TxOutput> tryGetUtxo(
     const UTXOId& id);
 
-// -------------------------------------------------
-// Atomic block-level UTXO updates
-// -------------------------------------------------
 
+// Atomic UTXO updates
 void applyUtxoBatch(
 
     const std::vector<UTXOId>& spends,

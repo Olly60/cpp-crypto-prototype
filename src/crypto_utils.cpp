@@ -18,31 +18,16 @@ uint64_t getCurrentTimestamp()
     );
 }
 
-std::string bytesToHex(const BytesBuffer& bytes)
+std::string bytesToHex(const void* data, size_t size)
 {
     std::string hex;
-    hex.reserve(bytes.size() * 2);
+    hex.reserve(size * 2);
 
-    for (const auto& byte : bytes)
+    for (size_t i = 0; i < size; i++)
     {
         constexpr char hexChars[] = "0123456789ABCDEF";
-        hex.push_back(hexChars[byte >> 4]);
-        hex.push_back(hexChars[byte & 0x0F]);
-    }
-
-    return hex;
-};
-
-std::string bytesToHex(const Array256_t& bytes)
-{
-    std::string hex;
-    hex.reserve(bytes.size() * 2);
-
-    for (const auto& byte : bytes)
-    {
-        constexpr char hexChars[] = "0123456789ABCDEF";
-        hex.push_back(hexChars[byte >> 4]);
-        hex.push_back(hexChars[byte & 0x0F]);
+        hex.push_back(hexChars[*(reinterpret_cast<const uint8_t*>(data) + i) >> 4]);
+        hex.push_back(hexChars[*(reinterpret_cast<const uint8_t*>(data) + i) & 0x0F]);
     }
 
     return hex;

@@ -70,9 +70,8 @@ public:
     explicit BytesBuffer(size_t size)
         : data_(size)
     {}
-    // ------------------------------------------------------------
-    // Raw access (inspection only)
-    // ------------------------------------------------------------
+
+    // -------------------- Raw access --------------------
 
     [[nodiscard]] const uint8_t* data() const { return data_.data(); }
     [[nodiscard]] uint8_t* data() { return data_.data(); }
@@ -80,15 +79,14 @@ public:
     [[nodiscard]] const char* cdata() const { return reinterpret_cast<const char*>(data_.data()); }
     [[nodiscard]] char* cdata() { return reinterpret_cast<char*>(data_.data()); }
 
+    // -------------------- Utilities --------------------
     void clear() { data_.clear(); read_offset_ = 0; }
     void resetRead() { read_offset_ = 0; }
     void prepareRead(size_t newSize) { data_.resize(newSize); }
     void reserve(size_t newCap) { data_.reserve(newCap); }
     void resize(size_t newSize) { data_.resize(newSize); }
 
-    // ------------------------------------------------------------
-    // Fixed-width integers (explicit)
-    // ------------------------------------------------------------
+    // -------------------- Fixed-width integers --------------------
 
     void writeU8(uint8_t v)   { write_le(v); }
     void writeU16(uint16_t v) { write_le(v); }
@@ -100,10 +98,7 @@ public:
     uint32_t readU32() { return read_le<uint32_t>(); }
     uint64_t readU64() { return read_le<uint64_t>(); }
 
-    // ------------------------------------------------------------
-    // Iterator support
-    // ------------------------------------------------------------
-
+    // -------------------- Iterator support --------------------
     // Mutable iterators
     uint8_t* begin() noexcept { return data_.data(); }
     uint8_t* end() noexcept { return data_.data() + data_.size(); }
@@ -116,7 +111,7 @@ public:
     // Semantic byte APIs (preferred)
     // ------------------------------------------------------------
 
-    // Variable-length byte vector
+    // Vector
     void writeByteVector(const std::vector<uint8_t>& v)
     {
         writeU64(v.size());
@@ -135,6 +130,7 @@ public:
         return out;
     }
 
+    // String
     void writeString(const std::string& s)
     {
         writeU64(s.size());
@@ -153,7 +149,7 @@ public:
         return out;
     }
 
-    // Fixed-size 32-byte array (hashes, keys, nonces)
+    // Fixed-size 32-byte array
     void writeArray256(const Array256_t& a)
     {
         data_.insert(data_.end(), a.begin(), a.end());
@@ -173,7 +169,7 @@ public:
         return out;
     }
 
-    // Fixed-size 64-byte array (signatures)
+    // Fixed-size 64-byte array
     void writeArray512(const Array512_t& a)
     {
         data_.insert(data_.end(), a.begin(), a.end());
@@ -192,6 +188,7 @@ public:
         return out;
     }
 
+    // Fixed array
     template <uint64_t N>
     void writeFixedArray(std::array<uint8_t, N> array)
     {
@@ -217,6 +214,7 @@ public:
         data_.insert(data_.end(), other.begin(), other.end());
     }
 
+    // Insert any buffer with int8_t and uint8_t (not including size)
     void insertBytes(const void* begin, const void* end)
     {
         data_.insert(data_.end(), reinterpret_cast<const uint8_t*>(begin), reinterpret_cast<const uint8_t*>(end));
@@ -227,8 +225,6 @@ Array256_t sha256Of(const BytesBuffer& data);
 
 uint64_t getCurrentTimestamp();
 
-std::string bytesToHex(const BytesBuffer& bytes);
-
-std::string bytesToHex(const Array256_t& bytes);
+std::string bytesToHex(const void* data, size_t size);
 
 BytesBuffer hexToBytes(const std::string& hex);

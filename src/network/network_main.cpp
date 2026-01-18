@@ -26,7 +26,7 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
 
     for (;;) // Loop until peer closes connection
     {
-        // Read fixed-size message command
+        // Read the fixed-size message command
         std::array<uint8_t, ProtocolMessage::CommandSize> msgCommand{};
         co_await asio::async_read(socket, asio::buffer(msgCommand), asio::use_awaitable);
 
@@ -85,11 +85,6 @@ asio::awaitable<void> handleConnection(asio::ip::tcp::socket socket)
     }
 }
 
-
-// ============================================
-// Accept connections
-// ============================================
-
 asio::awaitable<void> acceptConnections(uint16_t port)
 {
     asio::ip::tcp::acceptor acceptor(ioCtx, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), port));
@@ -112,10 +107,6 @@ asio::awaitable<void> acceptConnections(uint16_t port)
     }
 }
 
-// ============================================
-// Sync blockchain
-// ============================================
-
 asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 {
     co_await asio::post(chainEditStrand, asio::use_awaitable);
@@ -125,12 +116,13 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         if (!co_await requestHandshake(socket)) co_return false;
 
         // Tip already the same as peer's
-        if (knownPeers[socket.remote_endpoint().address()].tip == getTipHash())
+
+        if (knownPeers[normalizeAddress(socket.remote_endpoint().address())].tip == getTipHash())
         {
             co_await requestMempool(socket);
             co_await requestPeers(socket);
             co_return true;
-        };
+        }
 
         // Get missing headers
         auto headers = co_await requestHeaders(socket);
@@ -141,7 +133,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         if (!commonAncestorHeader) co_return false;
 
         // Get chain work from new headers
-        auto peerChainwork = tryGetBlockIndex(getTipHash())->chainWork;
+        auto peerChainwork = tryGetBlockIndex(commonAncestorHeader->prevBlockHash)->chainWork;
 
         std::vector<Array256_t> blockHashes;
         blockHashes.reserve(headers.size());
@@ -166,7 +158,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         // Verify 2nd header if size > 1
         VerifyBlockHeaderContext h1Ctx;
         h1Ctx.prevHeader = &headers[0];
-        uint64_t h1CtxTimestamp = getBlockHeader(getTipHash())->timestamp;
+        uint64_t h1CtxTimestamp = commonAncestorHeader->timestamp;
         h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
         if (headers.size() > 1) { if (!verifyBlockHeader(headers[1], h1Ctx)) co_return false; }
 
@@ -183,16 +175,15 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         }
 
         std::filesystem::path tmpBlocksPath = "tmp_blockchain";
+        std::filesystem::create_directories(tmpBlocksPath);
         auto getTmpBlockPath = [&tmpBlocksPath](const Array256_t& hash) -> std::filesystem::path
         {
             BytesBuffer hashBuf;
             hashBuf.writeArray256(hash);
-            return tmpBlocksPath / (bytesToHex(hashBuf) + ".dat");
+            return tmpBlocksPath / (bytesToHex(hashBuf.data(), hashBuf.size()) + ".dat");
         };
 
-        // ----------------------------------------
-        // Blockchain extension
-        // ----------------------------------------
+        // -------------------- Blockchain extension --------------------
         auto commonAncestorHash = getBlockHeaderHash(*commonAncestorHeader);
         auto tipHash = getTipHash();
         if (commonAncestorHash == tipHash)
@@ -211,9 +202,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
             co_return true; // Done syncing these blocks
         }
 
-        // ----------------------------------------
-        // Blockchain reorg
-        // ----------------------------------------
+        // -------------------- Blockchain reorg --------------------
         // Store blocks
         for (auto& hash : blockHashes)
         {
@@ -284,9 +273,6 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
     }
 }
 
-// ============================================
-// Update chain and connect to network
-// ============================================
 asio::awaitable<bool> trySyncWithPeers()
 {
     std::cout << "Syncing with peers...\n";
@@ -311,10 +297,6 @@ asio::awaitable<bool> trySyncWithPeers()
     std::cout << "No better chain found\n";
     co_return false;
 }
-
-// ============================================
-// Broadcast
-// ============================================
 
 asio::strand<asio::io_context::executor_type> broadcastStrand{ioCtx.get_executor()};
 

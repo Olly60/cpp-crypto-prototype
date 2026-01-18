@@ -9,7 +9,7 @@
 
 struct AddressHash
 {
-    std::size_t operator()(const asio::ip::address addr) const noexcept
+    std::size_t operator()(const asio::ip::address& addr) const noexcept
     {
         std::size_t h = 0;
 
@@ -60,8 +60,6 @@ struct EndpointHash
 
 const std::filesystem::path KNOWN_PEERS = "known_peers.dat";
 const std::filesystem::path UNKNOWN_PEERS = "unknown_peers.dat";
-
-
 
 struct PeerStatus
 {

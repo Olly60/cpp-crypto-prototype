@@ -57,9 +57,6 @@ BytesBuffer serialiseBlockHeader(const BlockHeader& header);
 
 BlockHeader parseBlockHeader(BytesBuffer& headerBytes);
 
-// ----------------------------------------
-// Block
-// ----------------------------------------
 BytesBuffer serialiseBlock(const ChainBlock& block);
 
 ChainBlock parseBlock(BytesBuffer& blockBytes);
