@@ -174,15 +174,9 @@ void mineBlocks(const std::stop_token& st, const Array256_t& pubKey)
 
         if (getBlockHeaderHash(block.header) <= block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
-            if (verifyBlock(block))
-            {
-                std::cout << "Block mined!\n";
-            }
-            else
-            {
-                std::cout << "Invalid block mined";
-                return;
-            }
+
+            std::cout << (verifyBlock(block) ? "Block mined!\n" : "Invalid block mined");
+
             addNewTipBlock(block);
             asio::co_spawn(ioCtx, broadcastNewBlock(ioCtx, block), asio::detached);
         }
