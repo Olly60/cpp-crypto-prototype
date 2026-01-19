@@ -116,7 +116,6 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         if (!co_await requestHandshake(socket)) co_return false;
 
         // Tip already the same as peer's
-
         if (knownPeers[normalizeAddress(socket.remote_endpoint().address())].tip == getTipHash())
         {
             co_await requestMempool(socket);
@@ -126,6 +125,8 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
 
         // Get missing headers
         auto headers = co_await requestHeaders(socket);
+
+        if (headers.empty()) co_return true;
 
         auto commonAncestorHeader = getBlockHeader(headers[0].prevBlockHash);
 
@@ -149,17 +150,15 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         // Verify first header
         VerifyBlockHeaderContext h0Ctx;
         h0Ctx.prevHeader = &(*commonAncestorHeader);
-        uint64_t h0CtxTimestamp = tryGetBlockIndex(headers[0].prevBlockHash)->height > 0
-                                      ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp
-                                      : 0;
-        h0Ctx.prevPrevTimestamp = &h0CtxTimestamp;
+        uint64_t h0CtxPrevPrevTimestamp = tryGetBlockIndex(headers[0].prevBlockHash)->height > 0 ? getBlockHeader(commonAncestorHeader->prevBlockHash)->timestamp : commonAncestorHeader->timestamp;
+        h0Ctx.prevPrevTimestamp = &h0CtxPrevPrevTimestamp;
         if (!verifyBlockHeader(headers[0], h0Ctx)) co_return false;
 
         // Verify 2nd header if size > 1
         VerifyBlockHeaderContext h1Ctx;
         h1Ctx.prevHeader = &headers[0];
-        uint64_t h1CtxTimestamp = commonAncestorHeader->timestamp;
-        h1Ctx.prevPrevTimestamp = &h1CtxTimestamp;
+        uint64_t h1CtxPrevPrevTimestamp = commonAncestorHeader->timestamp;
+        h1Ctx.prevPrevTimestamp = &h1CtxPrevPrevTimestamp;
         if (headers.size() > 1) { if (!verifyBlockHeader(headers[1], h1Ctx)) co_return false; }
 
         // Verify all other headers if size > 2
@@ -300,7 +299,7 @@ asio::awaitable<bool> trySyncWithPeers()
 
 asio::strand<asio::io_context::executor_type> broadcastStrand{ioCtx.get_executor()};
 
-asio::awaitable<void> broadcastNewTx(asio::io_context& io, const Tx& tx)
+asio::awaitable<void> broadcastNewTx(asio::io_context& io, Tx tx)
 {
     co_await asio::post(broadcastStrand, asio::use_awaitable);
 
@@ -311,41 +310,31 @@ asio::awaitable<void> broadcastNewTx(asio::io_context& io, const Tx& tx)
         if (peer.second.relay == 0)
             continue;
 
-        asio::co_spawn(
-            io,
-            [peer, txBytes, &io]() -> asio::awaitable<void>
-            {
-                try
-                {
-                    asio::ip::tcp::socket socket(io);
+        try
+        {
+            asio::ip::tcp::socket socket(io);
 
-                    // Connect to peer
-                    co_await socket.async_connect({peer.first, peer.second.port},asio::use_awaitable);
+            // Connect to peer
+            co_await socket.async_connect({peer.first, peer.second.port}, asio::use_awaitable);
 
-                    // Write message type
-                    co_await asio::async_write(socket,asio::buffer(ProtocolMessage::BroadcastNewTx),asio::use_awaitable);
+            // Write message type
+            co_await asio::async_write(socket, asio::buffer(ProtocolMessage::BroadcastNewTx), asio::use_awaitable);
 
-                    // Write size
-                    co_await writeU64Tcp(socket, txBytes.size());
+            // Write size
+            co_await writeU64Tcp(socket, txBytes.size());
 
-                    // Write transaction
-                    co_await asio::async_write(socket,asio::buffer(txBytes.data(), txBytes.size()),asio::use_awaitable);
-                }
-                catch (...)
-                {
-                }
-
-                co_return;
-            },
-            asio::detached
-        );
+            // Write transaction
+            co_await asio::async_write(socket, asio::buffer(txBytes.data(), txBytes.size()), asio::use_awaitable);
+        }
+        catch (...)
+        {
+        }
     }
-
     co_return;
 }
 
 
-asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& block)
+asio::awaitable<void> broadcastNewBlock(asio::io_context& io, ChainBlock block)
 {
     co_await asio::post(broadcastStrand, asio::use_awaitable);
 
@@ -353,36 +342,25 @@ asio::awaitable<void> broadcastNewBlock(asio::io_context& io, const ChainBlock& 
 
     for (const auto& peer : knownPeers)
     {
-        asio::co_spawn(
-            io,
-            [peer, blockBytes, &io]() -> asio::awaitable<void>
-            {
-                try
-                {
-                    asio::ip::tcp::socket socket(io);
+        try
+        {
+            asio::ip::tcp::socket socket(io);
 
-                    // Connect to peer
-                    co_await socket.async_connect({ peer.first, peer.second.port },asio::use_awaitable);
+            // Connect to peer
+            co_await socket.async_connect({peer.first, peer.second.port}, asio::use_awaitable);
 
-                    // Write message type
-                    co_await asio::async_write(socket,asio::buffer(ProtocolMessage::BroadcastNewBlock),asio::use_awaitable);
+            // Write message type
+            co_await asio::async_write(socket, asio::buffer(ProtocolMessage::BroadcastNewBlock), asio::use_awaitable);
 
-                    // Write size
-                    co_await writeU64Tcp(socket, blockBytes.size());
+            // Write size
+            co_await writeU64Tcp(socket, blockBytes.size());
 
-                    // Write block
-                    co_await asio::async_write(socket,asio::buffer(blockBytes.data(), blockBytes.size()),asio::use_awaitable);
-                }
-                catch (...)
-                {
-
-                }
-
-                co_return;
-            },
-            asio::detached
-        );
+            // Write block
+            co_await asio::async_write(socket, asio::buffer(blockBytes.data(), blockBytes.size()), asio::use_awaitable);
+        }
+        catch (...)
+        {
+        }
     }
-
     co_return;
 }

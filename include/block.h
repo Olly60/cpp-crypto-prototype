@@ -18,8 +18,9 @@ struct BlockHeader
         prevBlockHash.fill(0xFF);
         // Starting difficulty
         difficulty.fill(0xFF);
-        difficulty[0] = 0;
-        difficulty[1] = 0;
+        difficulty[0] = 0x00;
+        difficulty[1] = 0x00;
+        difficulty[2] = 0x0F;
     }
 };
 

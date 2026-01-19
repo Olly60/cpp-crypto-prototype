@@ -17,86 +17,89 @@
 
 #include "verify.h"
 
-Array256_t getBlockWork(const Array256_t& target) {
+Array256_t uint256ToArray(const boost::multiprecision::uint256_t& num)
+{
+    Array256_t result{};
+    std::vector<uint8_t> tmp;
 
-    boost::multiprecision::uint256_t resultNum;
-    boost::multiprecision::import_bits(resultNum, target.rbegin(), target.rend(), 8, true);
+    boost::multiprecision::export_bits(
+        num, std::back_inserter(tmp), 8, true
+    );
 
-    boost::multiprecision::uint256_t max = ~boost::multiprecision::uint256_t{0};
-    resultNum = max / resultNum;
+    const size_t offset = 32 - tmp.size();
+    for (size_t i = 0; i < tmp.size(); ++i)
+        result[offset + i] = tmp[i];
+    return result;
+}
 
-    Array256_t resultArr{};
-    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
-    return resultArr;
+
+Array256_t getBlockWork(const Array256_t& target)
+{
+    using boost::multiprecision::uint256_t;
+
+    uint256_t targetNum;
+    boost::multiprecision::import_bits(
+        targetNum, target.begin(), target.end(), 8, true
+    );
+
+    uint256_t max = ~uint256_t{0};
+    uint256_t work = (targetNum == 0) ? max : (max / targetNum);
+
+    return uint256ToArray(work);
 }
 
 Array256_t addBlockWork(const Array256_t& a, const Array256_t& b)
 {
-
     boost::multiprecision::uint256_t aNum;
     boost::multiprecision::uint256_t bNum;
-    boost::multiprecision::import_bits(aNum, a.rbegin(), a.rend(), 8, true);
-    boost::multiprecision::import_bits(bNum, b.rbegin(), b.rend(), 8, true);
+
+    boost::multiprecision::import_bits(aNum, a.begin(), a.end(), 8, true);
+    boost::multiprecision::import_bits(bNum, b.begin(), b.end(), 8, true);
 
     boost::multiprecision::uint256_t resultNum = aNum + bNum;
 
-    Array256_t resultArr{};
-    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
-    return resultArr;
+    return uint256ToArray(resultNum);
 }
 
 // Shift right (harder)
 Array256_t shiftRight(const Array256_t& arr)
 {
     boost::multiprecision::uint256_t resultNum;
-    boost::multiprecision::import_bits(resultNum, arr.rbegin(), arr.rend(), 8, true);
+    boost::multiprecision::import_bits(resultNum, arr.begin(), arr.end(), 8, true);
 
-    resultNum = resultNum >> 1;
+    resultNum >>= 1;
 
-    Array256_t resultArr{};
-    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
-    return resultArr;
+    return uint256ToArray(resultNum);
 }
 
 // Shift left (easier)
 Array256_t shiftLeft(const Array256_t& arr)
 {
     boost::multiprecision::uint256_t resultNum;
-    boost::multiprecision::import_bits(resultNum, arr.rbegin(), arr.rend(), 8, true);
+    boost::multiprecision::import_bits(resultNum, arr.begin(), arr.end(), 8, true);
 
-    resultNum = resultNum << 1;
+    resultNum <<= 1;
 
-    Array256_t resultArr{};
-    boost::multiprecision::export_bits(resultNum, resultArr.rbegin(), 8, true);
-    return resultArr;
+    return uint256ToArray(resultNum);
 }
 
 ChainBlock newBlock(Array256_t pubKey)
 {
-    auto currentTip = getTipHash();
+    auto currentTipHash = getTipHash();
     ChainBlock block;
-    block.header.prevBlockHash = getTipHash();
-    block.header.timestamp = getCurrentTimestamp();
+    block.header.prevBlockHash = currentTipHash;
 
     // Difficulty
-    auto currentTipHeader = getBlockHeader(currentTip);
-    uint64_t prevTimestamp = 0;
-    if (tryGetBlockIndex(getTipHash())->height > 0)
-    {
-        prevTimestamp = getBlockHeader(currentTipHeader->prevBlockHash)->timestamp;
-    }
-    uint64_t timeDelta =
-        (currentTipHeader->timestamp > prevTimestamp)
-            ? currentTipHeader->timestamp - prevTimestamp
-            : 0;
-    if (timeDelta < 600)
-    {
-        block.header.difficulty = shiftLeft(currentTipHeader->difficulty);
-    }
-    else
-    {
-        block.header.difficulty = shiftRight(currentTipHeader->difficulty);
-    }
+    auto currentTipHeader = getBlockHeader(currentTipHash);
+    uint64_t prevPrevTimestamp = tryGetBlockIndex(getTipHash())->height > 0
+                                     ? getBlockHeader(currentTipHeader->prevBlockHash)->timestamp
+                                     : currentTipHeader->timestamp;
+
+    uint64_t timeDelta = currentTipHeader->timestamp - prevPrevTimestamp;
+
+    block.header.difficulty = timeDelta < 600
+                                  ? shiftRight(currentTipHeader->difficulty)
+                                  : shiftLeft(currentTipHeader->difficulty);
 
     std::unordered_set<UTXOId, UTXOIdHash> utxosInBlock;
 
@@ -108,11 +111,11 @@ ChainBlock newBlock(Array256_t pubKey)
         bool used = false;
         for (const auto& txInput : val.txInputs)
         {
-            if (utxosInBlock.contains(txInput.utxoId)) used = true;
+            if (!utxosInBlock.insert(txInput.utxoId).second) used = true;
         }
         if (used) continue;
 
-        if (size > MAX_TX_SIZE - calculateBlockHeaderSize()) break;
+        if (size > MAX_BLOCK_SIZE - calculateBlockHeaderSize()) break;
         block.txs.push_back(val);
     }
 
@@ -135,7 +138,7 @@ ChainBlock newBlock(Array256_t pubKey)
     coinbaseTx.txOutputs.push_back({totalFees + BLOCK_REWARD, pubKey});
 
     BytesBuffer nonceBuf;
-    nonceBuf.writeU64(tryGetBlockIndex(getTipHash())->height + 1);
+    nonceBuf.writeU64(tryGetBlockIndex(currentTipHash)->height + 1);
     coinbaseTx.nonce = sha256Of(nonceBuf);
 
     block.txs.insert(block.txs.begin(), coinbaseTx);
@@ -162,21 +165,26 @@ void mineBlocks(const std::stop_token& st, const Array256_t& pubKey)
     while (true)
     {
         auto block = newBlock(pubKey);
-        BytesBuffer buf;
-        buf.writeArray256(block.header.difficulty);
+
         while (getBlockHeaderHash(block.header) > block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
-            if (st.stop_requested() ) return;
+            if (st.stop_requested()) return;
             block.header.nonce = generateNonce();
-
         }
 
-        if (getBlockHeaderHash(block.header) < block.header.difficulty && block.header.prevBlockHash == getTipHash())
+        if (getBlockHeaderHash(block.header) <= block.header.difficulty && block.header.prevBlockHash == getTipHash())
         {
-            std::cout << "Block mined!\n";
+            if (verifyBlock(block))
+            {
+                std::cout << "Block mined!\n";
+            }
+            else
+            {
+                std::cout << "Invalid block mined";
+                return;
+            }
             addNewTipBlock(block);
             asio::co_spawn(ioCtx, broadcastNewBlock(ioCtx, block), asio::detached);
         }
-
     }
 }

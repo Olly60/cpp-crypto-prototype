@@ -21,7 +21,7 @@ Handshake createHandshake()
 {
     return {
         LocalProtocolVersion,
-        getGenesisBlockHash(),
+        getGenesisHash(),
         Services::FullNode,
         LOCAL_NONCE,
         getTipHash(),
@@ -60,7 +60,7 @@ bool isValidHandshake(const Handshake& hs)
 {
     return
         hs.version == LocalProtocolVersion &&
-        hs.genesisBlockHash == getGenesisBlockHash() &&
+        hs.genesisBlockHash == getGenesisHash() &&
         hs.nonce != LOCAL_NONCE;
 }
 

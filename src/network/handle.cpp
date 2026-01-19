@@ -144,10 +144,7 @@ asio::awaitable<void> handleGetHeaders(asio::ip::tcp::socket& socket)
         blockHashes.push_back(blockHash);
     }
 
-    BytesBuffer buf;
-    buf.writeArray256(blockHashes.back());
-    std::cout << bytesToHex(buf) << "\n";
-    if (blockHashes.back() != getGenesisBlockHash()) { co_await writeU64Tcp(socket, 0); co_return; }
+    if (blockHashes.back() != getGenesisHash()) { co_await writeU64Tcp(socket, 0); co_return; }
 
     // Find common ancestor
     Array256_t commonAncestor;
@@ -244,10 +241,12 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 
     ChainBlock block = parseBlock(blockBytes);
 
+    std::cout << bytesToHex(block.header.prevBlockHash.data(), block.header.prevBlockHash.size()) << "\n";
+
     // New block doesnt match current tip
     if (block.header.prevBlockHash != getTipHash())
     {
-        std::cout << "Block not matching current tip from:" << addr << "\n";
+        std::cout << "Block not matching current tip from: " << addr << "\n";
         co_return;
     }
 

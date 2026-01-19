@@ -34,7 +34,7 @@ ChainBlock getGenesisBlock()
     return genesisBlock;
 }
 
-Array256_t getGenesisBlockHash()
+Array256_t getGenesisHash()
 {
     return getBlockHeaderHash(getGenesisBlock().header);
 }
@@ -42,10 +42,10 @@ Array256_t getGenesisBlockHash()
 void initGenesisBlock()
 {
     // If genesis block exists skip
-    if (std::filesystem::exists(getBlockFilePath(getGenesisBlockHash()))) return;
+    if (std::filesystem::exists(getBlockFilePath(getGenesisHash()))) return;
 
     auto genesisBlock = getGenesisBlock();
-    auto genesisBlockHash = getGenesisBlockHash();
+    auto genesisBlockHash = getGenesisHash();
 
     // Setup tip file
     BytesBuffer hashBuf;

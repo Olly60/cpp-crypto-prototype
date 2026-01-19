@@ -1,4 +1,6 @@
 #include "verify.h"
+
+#include <iostream>
 #include <sodium/crypto_sign.h>
 #include "tip.h"
 #include "crypto_utils.h"
@@ -76,11 +78,13 @@ bool verifyTx(const Tx& tx, VerifyTxContext ctx)
 
 bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
 {
-    // Resolve defaults
-    const BlockHeader prevHeader =
-        ctx.prevHeader ? *ctx.prevHeader : *getBlockHeader(getTipHash());
+    auto tipHash = getTipHash();
 
-    const uint64_t prevPrevTimestamp = ctx.prevPrevTimestamp ? *ctx.prevPrevTimestamp : tryGetBlockIndex(getTipHash())->height > 0 ? getBlockHeader(getBlockHeader(getTipHash())->prevBlockHash)->timestamp : 0;
+    // Resolve defaults
+    BlockHeader prevHeader =
+        ctx.prevHeader ? *ctx.prevHeader : *getBlockHeader(tipHash);
+
+    uint64_t prevPrevTimestamp = ctx.prevPrevTimestamp ? *ctx.prevPrevTimestamp : prevHeader.timestamp;
 
     Array256_t blockHash = getBlockHeaderHash(header);
 
@@ -92,31 +96,20 @@ bool verifyBlockHeader(const BlockHeader& header, VerifyBlockHeaderContext ctx)
     if (header.prevBlockHash != getBlockHeaderHash(prevHeader))
         return false;
 
-    // Timestamp checks
-    if (header.timestamp <= prevHeader.timestamp)
-        return false;
-
-    if (header.timestamp > getCurrentTimestamp() + 600)
+    // Timestamp check
+    if (header.timestamp < prevHeader.timestamp)
         return false;
 
     // Difficulty adjustment (target-based)
-    uint64_t timeDelta =
-    (prevHeader.timestamp > prevPrevTimestamp)
-        ? prevHeader.timestamp - prevPrevTimestamp
-        : 0;
+    uint64_t timeDelta = prevHeader.timestamp - prevPrevTimestamp;
 
-    Array256_t expectedDifficulty =
-        (timeDelta < 600)
-            ? shiftRight(prevHeader.difficulty)
-            : shiftLeft(prevHeader.difficulty);
-
+    Array256_t expectedDifficulty = timeDelta < 600 ? shiftRight(prevHeader.difficulty) : shiftLeft(prevHeader.difficulty);
 
     if (header.difficulty != expectedDifficulty)
         return false;
 
     // Proof-of-work: hash must be <= target
     if (blockHash > header.difficulty) return false;
-
     return true;
 }
 
@@ -125,6 +118,7 @@ bool verifyBlock(const ChainBlock& block, VerifyBlockContext ctx)
     // ---------------------------
     // Verify block header
     // ---------------------------
+
     if (!verifyBlockHeader(block.header, ctx.headerCtx))
         return false;
 

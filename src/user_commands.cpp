@@ -109,8 +109,6 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
     }
 }
 
-std::optional<std::jthread> miningThread;
-
 void handleUserCommand(const std::string& input)
 {
     std::vector<std::string> parts;
@@ -152,16 +150,15 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "chain_info")
     {
-        BytesBuffer tipBuf;
-        tipBuf.writeArray256(getTipHash());
-        std::cout << "Current tip hash: " << bytesToHex(tipBuf) << "\n";
-        BytesBuffer genBuf;
-        genBuf.writeArray256(getGenesisBlockHash());
-        std::cout << "Genesis hash: " << bytesToHex(genBuf) << "\n";
-        std::cout << "Length: " << std::to_string(tryGetBlockIndex(getTipHash())->height + 1) << "\n";
-        BytesBuffer chainWorkBuf;
-        chainWorkBuf.writeArray256(tryGetBlockIndex(getTipHash())->chainWork);
-        std::cout << "Chain work: " << bytesToHex(chainWorkBuf) << "\n";
+        auto tipHash = getTipHash();
+        std::cout << "Current tip hash: " << bytesToHex(tipHash.data(), tipHash.size()) << "\n";
+        auto genesisHash = getGenesisHash();
+        std::cout << "Genesis hash: " << bytesToHex(genesisHash.data(), genesisHash.size()) << "\n";
+        std::cout << "Length: " << (tryGetBlockIndex(getTipHash())->height + 1) << "\n";
+        auto chainWork = tryGetBlockIndex(getTipHash())->chainWork;
+        std::cout << "Chain work: " << bytesToHex(chainWork.data(), chainWork.size()) << "\n";
+        auto difficulty = getBlockHeader(tipHash)->difficulty;
+        std::cout << "Current difficulty target: " << bytesToHex(difficulty.data(), difficulty.size()) << "\n";
     }
 
 
@@ -243,7 +240,10 @@ void handleUserCommand(const std::string& input)
     {
         Array256_t hash = hexToBytes(parts[1]).readArray256();
         std::cout << "Block height: " << (tryGetBlockIndex(hash)->height + 1) << "\n";
-        std::cout << "Block work: " << bytesToHex(tryGetBlockIndex(hash)->chainWork) << "\n";
+        auto chainWork = tryGetBlockIndex(hash)->chainWork;
+        std::cout << "Block chain work: " << bytesToHex(chainWork.data(), chainWork.size()) << "\n";
+        auto block = getBlock(hash).value();
+        std::cout << "Previous block hash: " << bytesToHex(block.header.prevBlockHash.data(), block.header.prevBlockHash.size()) << "\n";
     }
 
     if (parts[0] == "wallets")
@@ -282,31 +282,25 @@ void handleUserCommand(const std::string& input)
                 {
                     amount += tryGetUtxo(value)->amount;
                 }
-                std::cout << bytesToHex(wallet.first) << " ";
+                std::cout << bytesToHex(wallet.first.data(), wallet.first.size()) << " ";
                 std::cout << amount << "\n";
             }
         }
     }
     if (parts[0] == "keyset")
     {
-        Array256_t pubKey;
-        Array512_t secKey;
-        crypto_sign_keypair(pubKey.data(), secKey.data());
-
-        BytesBuffer keysBuf;
-        keysBuf.writeArray256(pubKey);
-        std::cout << "Public key is: " << bytesToHex(keysBuf) << "\n";
-
-        keysBuf.clear();
-        keysBuf.writeArray512(secKey);
-        std::cout << "Secret key is: " << bytesToHex(keysBuf) << "\n";
+        Array256_t pk;
+        Array512_t sk;
+        crypto_sign_keypair(pk.data(), sk.data());
+        std::cout << "Public key is: " << bytesToHex(pk.data(), pk.size()) << "\n";
+        std::cout << "Secret key is: " << bytesToHex(sk.data(), sk.size()) << "\n";
     }
 
     if (parts[0] == "mempool")
     {
         for (const auto& hash : mempool | std::views::keys)
         {
-            std::cout << bytesToHex(hash) << "\n";
+            std::cout << bytesToHex(hash.data(), hash.size()) << "\n";
         }
     }
 }

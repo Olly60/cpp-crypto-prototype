@@ -9,6 +9,7 @@
 #include "node.h"
 #include "user_commands.h"
 #include "block.h"
+#include "block_work.h"
 #include "wallet.h"
 
 // ============================================
@@ -17,6 +18,7 @@
 
 int main(int argc, char* argv[])
 {
+
     // If a program argument is given, parse it as the port
     if (argc >= 2)
     {
@@ -37,7 +39,7 @@ int main(int argc, char* argv[])
     loadWallets();
 
     // Sync to latest chain
-    asio::co_spawn(ioCtx, trySyncWithPeers(), asio::use_future);
+    asio::co_spawn(ioCtx, trySyncWithPeers(), asio::detached);
     ioCtx.run();
     ioCtx.restart();
 

@@ -7,16 +7,12 @@
 
 std::filesystem::path getBlockFilePath(const Array256_t& blockHash)
 {
-    BytesBuffer hashBuf;
-    hashBuf.writeArray256(blockHash);
-    return std::filesystem::path("blocks") / (bytesToHex(hashBuf) + ".dat");
+    return std::filesystem::path("blocks") / (bytesToHex(blockHash.data(), blockHash.size()) + ".dat");
 }
 
 std::filesystem::path getUndoFilePath(const Array256_t& blockHash)
 {
-    BytesBuffer hashBuf;
-    hashBuf.writeArray256(blockHash);
-    return std::filesystem::path("undo") / (bytesToHex(hashBuf) +  ".dat");
+    return std::filesystem::path("undo") / (bytesToHex(blockHash.data(), blockHash.size()) +  ".dat");
 };
 
 std::optional<ChainBlock> getBlock(const Array256_t& blockHash)

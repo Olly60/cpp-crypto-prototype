@@ -3,6 +3,6 @@
 #include "crypto_utils.h"
 ChainBlock getGenesisBlock();
 
-Array256_t getGenesisBlockHash();
+Array256_t getGenesisHash();
 
 void initGenesisBlock();
