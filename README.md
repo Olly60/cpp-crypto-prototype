@@ -1,4 +1,11 @@
-# Crypto Project
+# Prototype Crypto Project
+
+## NOTE:
+This project is a prototype intended to demonstrate my C++ knowledge and is not production-ready.
+To keep the scope manageable, it has known performance limitations, 
+unhandled edge cases, and lacks several security features required for a real blockchain (e.g. network rate limiting and peer banning).
+These would be addressed in a production implementation. Further details are covered in the accompanying document.
+
 
 ## Requirements
 - CMake ≥ 3.20
