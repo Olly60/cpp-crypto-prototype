@@ -176,7 +176,7 @@ void mineBlocks(const std::stop_token& st, const Array256_t& pubKey)
         {
             if (verifyBlock(block))
             {
-                std::cout << "Block verified!\n";
+                std::cout << "Block mined!\n";
             } else
             {
                 std::cerr << "Invalid block mined!\n";
