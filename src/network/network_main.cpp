@@ -173,7 +173,7 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
             }
         }
 
-        std::filesystem::path tmpBlocksPath = "tmp_blockchain";
+        std::filesystem::path tmpBlocksPath = "tmp_blocks";
         std::filesystem::create_directories(tmpBlocksPath);
         auto getTmpBlockPath = [&tmpBlocksPath](const Array256_t& hash) -> std::filesystem::path
         {
@@ -210,7 +210,8 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
             if (!block) co_return false; // Peer doesnt have block
 
             // Write block file
-            writeFileTrunc(getTmpBlockPath(hash), serialiseBlock(*block));
+            auto blockBytes = serialiseBlock(*block);
+            writeFileTrunc(getTmpBlockPath(hash), blockBytes.data(), blockBytes.size());
         }
 
         // Verify blocks
@@ -255,11 +256,14 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
             undoNewTipBlock();
         }
 
+
         // Add new blocks from peer
         for (auto& hash : blockHashes)
         {
             addNewTipBlock(readTmpBlockFile(hash));
         }
+
+        std::filesystem::remove_all(tmpBlocksPath);
 
         co_await requestMempool(socket);
         co_await requestPeers(socket);

@@ -20,7 +20,6 @@ struct BlockHeader
         difficulty.fill(0xFF);
         difficulty[0] = 0x00;
         difficulty[1] = 0x00;
-        difficulty[2] = 0x0F;
     }
 };
 

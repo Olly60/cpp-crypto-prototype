@@ -52,7 +52,7 @@ std::optional<BytesBuffer> readFile(const std::filesystem::path& filePath, size_
     return buffer;
 }
 
-void writeFileTrunc(const std::filesystem::path& path, const BytesBuffer& buf)
+void writeFileTrunc(const std::filesystem::path& path, const void* data, size_t size)
 {
     // Ensure parent directories exist
     const auto dir = path.parent_path();
@@ -70,8 +70,8 @@ void writeFileTrunc(const std::filesystem::path& path, const BytesBuffer& buf)
     file.exceptions(std::ios::failbit | std::ios::badbit);
 
     // Write the buffer
-    file.write(reinterpret_cast<const char*>(buf.data()),
-               static_cast<std::streamsize>(buf.size()));
+    file.write(reinterpret_cast<const char*>(data),
+               static_cast<std::streamsize>(size));
 
     // Optional: flush to OS
     file.flush();

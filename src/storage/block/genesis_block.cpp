@@ -48,9 +48,7 @@ void initGenesisBlock()
     auto genesisBlockHash = getGenesisHash();
 
     // Setup tip file
-    BytesBuffer hashBuf;
-    hashBuf.writeArray256(genesisBlockHash);
-    writeFileTrunc(TIP, hashBuf);
+    writeFileTrunc(TIP, genesisBlockHash.data(), genesisBlockHash.size());
 
     // Setup height
     rocksdb::WriteOptions wo;
@@ -68,7 +66,8 @@ void initGenesisBlock()
     putBlockIndexBatch({{genesisBlockHash, blockIndex}});
 
     // Write block file
-    writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
+    auto blockBytes = serialiseBlock(genesisBlock);
+    writeFileTrunc(getBlockFilePath(genesisBlockHash), blockBytes.data(), blockBytes.size());
 
     // Genesis utxo
     applyUtxoBatch( {}, {{{getTxHash(genesisBlock.txs[0]), 0}, genesisBlock.txs[0].txOutputs[0]}});

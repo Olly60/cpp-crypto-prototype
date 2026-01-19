@@ -7,5 +7,5 @@ std::optional<BytesBuffer> readFile(const std::filesystem::path& filePath);
 
 std::optional<BytesBuffer> readFile(const std::filesystem::path& filePath, size_t amount);
 
-void writeFileTrunc(const std::filesystem::path& path, const BytesBuffer& buf);
+void writeFileTrunc(const std::filesystem::path& path, const void* data, size_t size);
 

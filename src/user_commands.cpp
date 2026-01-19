@@ -36,15 +36,15 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
             asio::use_awaitable
         );
 
-        auto remote = socket.remote_endpoint().address().to_string();
+        auto addr = socket.remote_endpoint().address().to_string();
 
         if (parts[1] == "ping")
         {
             if (co_await requestPing(socket))
             {
-                std::cout << "Pong from: " << remote << "\n";
+                std::cout << "Pong from: " << addr << "\n";
             }
-            else { std::cout << "No pong from: " << remote << "\n"; }
+            else { std::cout << "No pong from: " << addr << "\n"; }
             co_return;
         }
 
@@ -52,9 +52,9 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
         {
             if (co_await requestMempool(socket))
             {
-                std::cout << "Got mempool from: " << remote << "\n";
+                std::cout << "Got mempool from: " << addr << "\n";
             }
-            else { std::cout << "Failed to get whole mempool from: " << remote << "\n"; }
+            else { std::cout << "Failed to get whole mempool from: " << addr << "\n"; }
             co_return;
         }
 
@@ -62,9 +62,9 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
         {
             if (co_await requestPeers(socket))
             {
-                std::cout << "Got peers from: " << remote << "\n";
+                std::cout << "Got peers from: " << addr << "\n";
             }
-            else { std::cout << "Couldn't get peers from: " << remote << "\n"; }
+            else { std::cout << "Couldn't get peers from: " << addr << "\n"; }
             co_return;
         }
 
@@ -72,19 +72,20 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
         {
             if (co_await requestHandshake(socket))
             {
-                std::cout << "Successful handshake with: " << remote << "\n";
+                std::cout << "Successful handshake with: " << addr << "\n";
             }
-            else { std::cout << "Failed to handshake with: " << remote << "\n"; }
+            else { std::cout << "Failed to handshake with: " << addr << "\n"; }
             co_return;
         }
 
         if (parts[1] == "sync")
         {
+            std::cout << "Attempting sync with: " << addr << "\n";
             if (co_await syncIfBetter(socket))
             {
-                std::cout << "Synced with: " << remote << "\n";
+                std::cout << "Synced with: " << addr << "\n";
             }
-            else { std::cout << "Didn't sync with: " << remote << "\n"; }
+            else { std::cout << "Didn't sync with: " << addr << "\n"; }
             co_return;
         }
 
@@ -93,9 +94,9 @@ asio::awaitable<void> handleUserNetworkCommand(const std::vector<std::string>& p
             bool r = (co_await requestHeaders(socket)).empty();
             if (r)
             {
-                std::cout << "headers : " << remote << "\n";
+                std::cout << "headers : " << addr << "\n";
             }
-            else { std::cout << "Didn't headers: " << remote << "\n"; }
+            else { std::cout << "Didn't headers: " << addr << "\n"; }
             co_return;
         }
     }

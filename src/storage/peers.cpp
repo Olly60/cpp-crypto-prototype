@@ -37,7 +37,7 @@ void storePeers()
         knownPeersFileBytes.writeU64(peer.second.lastSeen);
     }
 
-    writeFileTrunc(KNOWN_PEERS, knownPeersFileBytes);
+    writeFileTrunc(KNOWN_PEERS, knownPeersFileBytes.data(), knownPeersFileBytes.size());
 
     BytesBuffer unknownPeersFileBytes;
 
@@ -62,7 +62,7 @@ void storePeers()
         unknownPeersFileBytes.writeU16(peerAddr.port());
     }
 
-    writeFileTrunc(UNKNOWN_PEERS, unknownPeersFileBytes);
+    writeFileTrunc(UNKNOWN_PEERS, unknownPeersFileBytes.data(), unknownPeersFileBytes.size());
 }
 
 void loadPeers()

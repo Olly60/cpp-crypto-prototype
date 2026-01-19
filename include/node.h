@@ -16,4 +16,4 @@ constexpr uint64_t LocalProtocolVersion = 1;
 constexpr uint8_t RELAY = 1;
 
 // Local nonce to ensure no self connections happen
-const uint64_t LOCAL_NONCE = []{ static std::mt19937_64 g(std::random_device{}()); return g(); }();
+const inline uint64_t LOCAL_NONCE = []{ static std::mt19937_64 g(std::random_device{}()); return g(); }();

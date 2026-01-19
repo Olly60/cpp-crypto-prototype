@@ -17,7 +17,7 @@ void storeWallets()
             walletFileBytes.writeU64(utxo.UTXOOutputIndex);
         }
     }
-    writeFileTrunc(walletsFilePath, walletFileBytes);
+    writeFileTrunc(walletsFilePath, walletFileBytes.data(), walletFileBytes.size());
 }
 
 void loadWallets()

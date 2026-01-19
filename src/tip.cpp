@@ -73,11 +73,11 @@ void addNewTipBlock(const ChainBlock& block)
     }
 
     // Write undo file
-    writeFileTrunc(undoFilePath, undoData);
+    writeFileTrunc(undoFilePath, undoData.data(), undoData.size());
 
     // Write block file
     auto blockBytes = serialiseBlock(block);
-    writeFileTrunc(blockFilePath, blockBytes);
+    writeFileTrunc(blockFilePath, blockBytes.data(), blockBytes.size());
 
     // Apply UTXO batch
     applyUtxoBatch(spends, adds);
@@ -92,9 +92,7 @@ void addNewTipBlock(const ChainBlock& block)
     putBlockIndexBatch({{blockHash, blockIndex}});
 
     // Write new tip hash
-    BytesBuffer hashBuf;
-    hashBuf.writeArray256(blockHash);
-    writeFileTrunc(TIP, hashBuf);
+    writeFileTrunc(TIP, blockHash.data(), blockHash.size());
 
     // Remove any used transactions from the mempool
     for (auto& tx : block.txs)
@@ -177,9 +175,7 @@ void undoNewTipBlock()
     batchDeleteBlockIndex({blockHash});
 
     // Write new tip hash
-    BytesBuffer hashBuf;
-    hashBuf.writeArray256(blockHash);
-    writeFileTrunc(TIP, hashBuf);
+    writeFileTrunc(TIP, block.header.prevBlockHash.data(), block.header.prevBlockHash.size());
 }
 
 
