@@ -20,9 +20,6 @@ Array256_t getTipHash()
     return hash->readArray256();
 }
 
-//----------------------------------------
-// Add and undo blocks
-//----------------------------------------
 void addNewTipBlock(const ChainBlock& block)
 {
     Array256_t blockHash = getBlockHeaderHash(block.header);
@@ -54,7 +51,11 @@ void addNewTipBlock(const ChainBlock& block)
 
             spends.push_back(input.utxoId);
 
-            wallets[output.recipient].erase(input.utxoId);
+            if (wallets.contains(output.recipient))
+            {
+                wallets[output.recipient].erase(input.utxoId);
+                std::cout << output.amount << " Removed from wallet: " << bytesToHex(output.recipient.data(), output.recipient.size()) << "\n";
+            }
         }
 
         // Process outputs
@@ -66,6 +67,7 @@ void addNewTipBlock(const ChainBlock& block)
             if (wallets.contains(tx.txOutputs[i].recipient))
             {
                 wallets[tx.txOutputs[i].recipient].insert({txHash, i});
+                std::cout << tx.txOutputs[i].amount << " Added to wallet: " << bytesToHex(tx.txOutputs[i].recipient.data(), tx.txOutputs[i].recipient.size()) << "\n";
             }
         }
     }
@@ -87,7 +89,7 @@ void addNewTipBlock(const ChainBlock& block)
     blockIndex.chainWork = addBlockWork(tryGetBlockIndex(getTipHash())->chainWork,
                                         getBlockWork(block.header.difficulty));
     blockIndex.height = tryGetBlockIndex(getTipHash())->height + 1;
-    putBlockIndexBatch({blockHash}, {blockIndex});
+    putBlockIndexBatch({{blockHash, blockIndex}});
 
     // Write new tip hash
     BytesBuffer hashBuf;
@@ -115,6 +117,11 @@ void undoNewTipBlock()
         for (uint64_t i = 0; i < tx.txOutputs.size(); i++)
         {
             spends.push_back({txHash, i});
+            if (wallets.contains(tx.txOutputs[i].recipient))
+            {
+                wallets[tx.txOutputs[i].recipient].erase({txHash, i});
+                std::cout << tx.txOutputs[i].amount << " Removed from wallet: " << bytesToHex(tx.txOutputs[i].recipient.data(), tx.txOutputs[i].recipient.size()) << "\n";
+            }
         }
     }
 
@@ -129,7 +136,9 @@ void undoNewTipBlock()
 
         for (uint64_t i = 0; i < txCount; i++)
         {
-            undoDataBytes->readU64(); // version
+            // Version
+            undoDataBytes->readU64();
+
             uint64_t inputCount = undoDataBytes->readU64();
 
             for (uint64_t j = 0; j < inputCount; j++)
@@ -147,6 +156,7 @@ void undoNewTipBlock()
                 if (wallets.contains(utxo.recipient))
                 {
                     wallets[utxo.recipient].insert(input.utxoId);
+                    std::cout << utxo.amount << " Added to wallet: " << bytesToHex(utxo.recipient.data(), utxo.recipient.size()) << "\n";
                 }
             }
         }

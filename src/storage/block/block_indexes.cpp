@@ -62,25 +62,20 @@ rocksdb::DB* blockIndexesDb() {
     return raw;
 }
 
-// Put block index
 void putBlockIndexBatch(
-    const std::vector<Array256_t>& hashes,
-    const std::vector<BlockIndexValue>& values)
+    const std::vector<std::pair<Array256_t, BlockIndexValue>>& indexes)
 {
-    if (hashes.size() != values.size())
-        throw std::runtime_error("hash/value size mismatch");
-
     rocksdb::WriteBatch batch;
 
     std::vector<std::string> keys;
     std::vector<std::string> vals;
-    keys.reserve(hashes.size());
-    vals.reserve(values.size());
+    keys.reserve(indexes.size());
+    vals.reserve(indexes.size());
 
-    for (size_t i = 0; i < hashes.size(); ++i)
+    for (auto& index : indexes)
     {
-        keys.push_back(makeHashKey(hashes[i]));
-        vals.push_back(makeIndexValue(values[i]));
+        keys.push_back(makeHashKey(index.first));
+        vals.push_back(makeIndexValue(index.second));
     }
 
     for (size_t i = 0; i < keys.size(); ++i)

@@ -2,22 +2,16 @@
 #include <rocksdb/db.h>
 #include "crypto_utils.h"
 
-struct BlockIndexValue {
+struct BlockIndexValue
+{
     uint64_t height{};
     Array256_t chainWork{};
 };
 
 rocksdb::DB* blockIndexesDb();
 
-void putBlockIndexBatch(
-    const std::vector<Array256_t>& hashes,
-    const std::vector<BlockIndexValue>& values);
+void putBlockIndexBatch(const std::vector<std::pair<Array256_t, BlockIndexValue>>& indexes);
 
-// Delete block index
-void batchDeleteBlockIndex(
+void batchDeleteBlockIndex(const std::vector<Array256_t>& hashes);
 
-    const std::vector<Array256_t>& hashes);
-
-// Get block index
-std::optional<BlockIndexValue>
-tryGetBlockIndex(const Array256_t& hash);
+std::optional<BlockIndexValue> tryGetBlockIndex(const Array256_t& hash);

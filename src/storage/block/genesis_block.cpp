@@ -65,7 +65,7 @@ void initGenesisBlock()
     BlockIndexValue blockIndex;
     blockIndex.chainWork = getBlockWork(genesisBlock.header.difficulty);
     blockIndex.height = 0;
-    putBlockIndexBatch({genesisBlockHash}, {blockIndex});
+    putBlockIndexBatch({{genesisBlockHash, blockIndex}});
 
     // Write block file
     writeFileTrunc(getBlockFilePath(genesisBlockHash), serialiseBlock(genesisBlock));
