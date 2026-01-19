@@ -241,8 +241,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
 
     ChainBlock block = parseBlock(blockBytes);
 
-    std::cout << bytesToHex(block.header.prevBlockHash.data(), block.header.prevBlockHash.size()) << "\n";
-
+    if (tryGetBlockIndex(getBlockHeaderHash(block.header))) co_return;
     // New block doesnt match current tip
     if (block.header.prevBlockHash != getTipHash())
     {
@@ -251,7 +250,11 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     }
 
     // Broadcast to other peers and add block if valid
-    if (!verifyBlock(block) || tryGetBlockIndex(getBlockHeaderHash(block.header))) co_return;
+    if (!verifyBlock(block))
+    {
+        std::cout << "Invalid block from: " << addr << "\n";
+        co_return;
+    }
 
     std::cout << "New block from:" << addr << "\n";
     addNewTipBlock(block);
@@ -275,7 +278,13 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
 
     // Verify
     Tx newTx = parseTx(txBytes);
-    if (!verifyTx(newTx) || mempool.contains(getTxHash(newTx))) co_return;
+    if (mempool.contains(getTxHash(newTx))) {co_return;}
+    if (!verifyTx(newTx))
+    {
+        std::cout << "Invalid tx from: " << normalizeAddress(socket.remote_endpoint().address()) << "\n";
+        co_return;
+    }
+
     std::cout << "New tx from:" << normalizeAddress(socket.remote_endpoint().address()) << "\n";
 
     // Add to mempool
