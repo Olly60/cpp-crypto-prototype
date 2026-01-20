@@ -33,13 +33,13 @@ Array256_t uint256ToArray(const boost::multiprecision::uint256_t& num)
 }
 
 
-Array256_t getBlockWork(const Array256_t& target)
+Array256_t getBlockWork(const Array256_t& difficulty)
 {
     using boost::multiprecision::uint256_t;
 
     uint256_t targetNum;
     boost::multiprecision::import_bits(
-        targetNum, target.begin(), target.end(), 8, true
+        targetNum, difficulty.begin(), difficulty.end(), 8, true
     );
 
     uint256_t max = ~uint256_t{0};

@@ -1,19 +1,17 @@
 #include <asio.hpp>
 #include <asio/awaitable.hpp>
 #include <asio/use_awaitable.hpp>
+
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "tip.h"
 #include "network/request.h"
-
-#include <iostream>
-
 #include "node.h"
 #include "verify.h"
 #include "network/network_utils.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "../../include/block.h"
+#include "block.h"
 
 asio::awaitable<bool> requestPeers(asio::ip::tcp::socket& socket)
 {

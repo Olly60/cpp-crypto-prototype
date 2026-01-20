@@ -90,9 +90,9 @@ rocksdb::DB* utxoDb()
 
 
 std::optional<TxOutput>
-tryGetUtxo(const UTXOId& input)
+tryGetUtxo(const UTXOId& id)
 {
-    const std::string key = makeUtxoKey(input.UTXOTxHash, input.UTXOOutputIndex);
+    const std::string key = makeUtxoKey(id.UTXOTxHash, id.UTXOOutputIndex);
     std::string value;
 
     auto status = utxoDb()->Get(

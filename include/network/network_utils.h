@@ -18,7 +18,7 @@ constexpr uint64_t calculateHandshakeSize()
             Handshake::genesisBlockHash)) + sizeof(decltype(Handshake::services)) + sizeof(decltype(Handshake::version))
         +
         sizeof(decltype(Handshake::relay)) + sizeof(decltype(Handshake::port));
-};
+}
 
 Handshake createHandshake();
 

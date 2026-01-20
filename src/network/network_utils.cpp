@@ -1,17 +1,13 @@
 #include <asio/awaitable.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio.hpp>
+
 #include "network/network_utils.h"
 #include "crypto_utils.h"
 #include "node.h"
 #include "network/network_main.h"
-#include "storage/peers.h"
 #include "tip.h"
-#include "network/request.h"
-#include "verify.h"
-#include "storage/storage_utils.h"
-#include "storage/block/block_indexes.h"
-#include "../../include/block.h"
+
 
 // ============================================
 // Handshake Helpers

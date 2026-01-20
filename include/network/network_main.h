@@ -1,11 +1,10 @@
 #pragma once
-#include "storage/peers.h"
 #include <random>
-#include <unordered_set>
 #include <asio/awaitable.hpp>
 #include <asio/strand.hpp>
 
 #include "storage/block/genesis_block.h"
+#include "storage/peers.h"
 
 inline asio::io_context ioCtx;
 
@@ -37,7 +36,7 @@ namespace ProtocolMessage
     constexpr auto GetMempool = makeCommand("get_mempool");
     constexpr auto GetHeaders = makeCommand("get_headers");
     constexpr auto GetPeers = makeCommand("get_peers");
-};
+}
 
 // ==================== Services a node offers ====================
 namespace Services
@@ -47,7 +46,7 @@ namespace Services
     constexpr uint64_t GetMempool = 4;
     constexpr uint64_t GetHeaders = 8;
     constexpr uint64_t GetPeers = 16;
-};
+}
 
 asio::awaitable<void> acceptConnections(uint16_t port);
 

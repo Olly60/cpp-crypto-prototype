@@ -13,7 +13,7 @@ std::filesystem::path getBlockFilePath(const Array256_t& blockHash)
 std::filesystem::path getUndoFilePath(const Array256_t& blockHash)
 {
     return std::filesystem::path("undo") / (bytesToHex(blockHash.data(), blockHash.size()) +  ".dat");
-};
+}
 
 std::optional<ChainBlock> getBlock(const Array256_t& blockHash)
 {

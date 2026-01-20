@@ -31,7 +31,7 @@ std::string bytesToHex(const void* data, size_t size)
     }
 
     return hex;
-};
+}
 
 BytesBuffer hexToBytes(const std::string& hex)
 {

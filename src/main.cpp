@@ -4,17 +4,11 @@
 #include "network/network_main.h"
 #include "storage/peers.h"
 #include <iostream>
-#include <asio/use_future.hpp>
 #include <thread>
 #include "node.h"
 #include "user_commands.h"
 #include "block.h"
-#include "block_work.h"
 #include "wallet.h"
-
-// ============================================
-// Main
-// ============================================
 
 int main(int argc, char* argv[])
 {
@@ -26,7 +20,7 @@ int main(int argc, char* argv[])
         {
             localPort = std::stoi(argv[1]);
         }
-        catch (const std::exception& e)
+        catch (...)
         {
             std::cerr << "Invalid port argument, using default 50000\n";
         }
