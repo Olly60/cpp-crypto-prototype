@@ -6,6 +6,8 @@ To keep the scope manageable, it has known performance limitations,
 unhandled edge cases, and lacks several security features required for a real blockchain (e.g. network rate limiting and peer banning).
 These would be addressed in a production implementation. Further details are covered in the accompanying document.
 
+Ignore the 300+ commits named "e" that was just paranoid backups
+
 To see an overview of this project, go to: https://docs.google.com/document/d/1Rjvty-Aji4gGOBz-VtBTbAyxt211fhRO6ZN7CGoUAg0/edit?usp=sharing
 
 ## Requirements
