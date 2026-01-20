@@ -43,6 +43,8 @@ int main(int argc, char* argv[])
     ioCtx.run();
     ioCtx.restart();
 
+    std::cout << "Type 'help' for a list of commands\n";
+
     asio::co_spawn(ioCtx, acceptConnections(localPort), asio::detached);
 
     std::jthread handlePeers([](){ ioCtx.run();});

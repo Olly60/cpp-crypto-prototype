@@ -142,6 +142,7 @@ void handleUserCommand(const std::string& input)
         std::cout << "wallet amount <recipient_address>\n";
         std::cout << "wallet list\n";
         std::cout << "keyset\n";
+        std::cout << "exit\n";
     }
 
     if (parts[0] == "peers")
@@ -205,11 +206,9 @@ void handleUserCommand(const std::string& input)
             {
                 validUtxos.erase(txInput.utxoId);
             }
-
         }
 
-        auto newTx = makeTx(wallets[pk], sk,
-                            hexToBytes(parts[2]).readArray256(), std::stoi(parts[3]));
+        auto newTx = makeTx(wallets[pk], sk, hexToBytes(parts[2]).readArray256(), std::stoi(parts[3]));
 
         if (!verifyTx(newTx))
         {
@@ -240,11 +239,18 @@ void handleUserCommand(const std::string& input)
     if (parts[0] == "block_info")
     {
         Array256_t hash = hexToBytes(parts[1]).readArray256();
-        std::cout << "Block height: " << (tryGetBlockIndex(hash)->height + 1) << "\n";
-        auto chainWork = tryGetBlockIndex(hash)->chainWork;
+        auto blockIndex = tryGetBlockIndex(hash);
+        if (!blockIndex)
+        {
+            std::cout << "Block not in chain\n";
+            return;
+        }
+        std::cout << "Block height: " << blockIndex->height << "\n";
+        auto chainWork = blockIndex->chainWork;
         std::cout << "Block chain work: " << bytesToHex(chainWork.data(), chainWork.size()) << "\n";
-        auto block = getBlock(hash).value();
-        std::cout << "Previous block hash: " << bytesToHex(block.header.prevBlockHash.data(), block.header.prevBlockHash.size()) << "\n";
+        auto block = getBlock(hash);
+        std::cout << "Previous block hash: " << bytesToHex(block->header.prevBlockHash.data(),
+                                                           block->header.prevBlockHash.size()) << "\n";
     }
 
     if (parts[0] == "wallets")
@@ -299,9 +305,9 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "mempool")
     {
-        for (const auto& hash : mempool | std::views::keys)
+        for (const auto& tx : mempool)
         {
-            std::cout << bytesToHex(hash.data(), hash.size()) << "\n";
+            std::cout << bytesToHex(tx.first.data(), tx.first.size()) << "\n";
         }
     }
 }

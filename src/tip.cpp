@@ -54,7 +54,6 @@ void addNewTipBlock(const ChainBlock& block)
             if (wallets.contains(output.recipient))
             {
                 wallets[output.recipient].erase(input.utxoId);
-                std::cout << output.amount << " Removed from wallet: " << bytesToHex(output.recipient.data(), output.recipient.size()) << "\n";
             }
         }
 
@@ -67,7 +66,6 @@ void addNewTipBlock(const ChainBlock& block)
             if (wallets.contains(tx.txOutputs[i].recipient))
             {
                 wallets[tx.txOutputs[i].recipient].insert({txHash, i});
-                std::cout << tx.txOutputs[i].amount << " Added to wallet: " << bytesToHex(tx.txOutputs[i].recipient.data(), tx.txOutputs[i].recipient.size()) << "\n";
             }
         }
     }
@@ -118,7 +116,6 @@ void undoNewTipBlock()
             if (wallets.contains(tx.txOutputs[i].recipient))
             {
                 wallets[tx.txOutputs[i].recipient].erase({txHash, i});
-                std::cout << tx.txOutputs[i].amount << " Removed from wallet: " << bytesToHex(tx.txOutputs[i].recipient.data(), tx.txOutputs[i].recipient.size()) << "\n";
             }
         }
     }
@@ -154,7 +151,6 @@ void undoNewTipBlock()
                 if (wallets.contains(utxo.recipient))
                 {
                     wallets[utxo.recipient].insert(input.utxoId);
-                    std::cout << utxo.amount << " Added to wallet: " << bytesToHex(utxo.recipient.data(), utxo.recipient.size()) << "\n";
                 }
             }
         }
