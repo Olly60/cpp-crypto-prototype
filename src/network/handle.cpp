@@ -229,6 +229,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
     co_await asio::post(chainEditStrand, asio::use_awaitable);
 
     auto addr = normalizeAddress(socket.remote_endpoint().address());
+
     // Read size
     const uint64_t blockSize = co_await readU64Tcp(socket);
 
@@ -256,7 +257,7 @@ asio::awaitable<void> handleNewBlock(asio::ip::tcp::socket& socket)
         co_return;
     }
 
-    std::cout << "New block from:" << addr << "\n";
+    std::cout << "New block from: " << addr << "\n";
     addNewTipBlock(block);
     asio::co_spawn(ioCtx, broadcastNewBlock(ioCtx, block), asio::detached);
 
@@ -285,7 +286,7 @@ asio::awaitable<void> handleNewTx(asio::ip::tcp::socket& socket)
         co_return;
     }
 
-    std::cout << "New tx from:" << normalizeAddress(socket.remote_endpoint().address()) << "\n";
+    std::cout << "New tx from: " << normalizeAddress(socket.remote_endpoint().address()) << "\n";
 
     // Add to mempool
     mempool.insert({getTxHash(newTx), newTx});
