@@ -29,3 +29,19 @@ cmake -S . -B build-release \
 ```cmake
 cmake --build build-release
 ```
+
+## Open the executable
+This project has minimal front-end support and is intended to be run from the terminal. 
+The second argument specifies the port to host on; if omitted, it defaults to 50000.
+
+#### Navigate to the folder and run:
+
+### Linux / macOS:
+```bash
+./crypto <port>
+```
+
+### Windows:
+```shell 
+crypto.exe <port>
+```
