@@ -286,7 +286,7 @@ void handleUserCommand(const std::string& input)
             {
                 amount += tryGetUtxo(value)->amount;
             }
-            std::cout << "Balance" << amount << "\n";
+            std::cout << "Balance: " << amount << "\n";
         }
 
         if (parts[1] == "list")
@@ -299,7 +299,7 @@ void handleUserCommand(const std::string& input)
                     amount += tryGetUtxo(value)->amount;
                 }
                 std::cout << bytesToHex(wallet.first.data(), wallet.first.size()) << " ";
-                std::cout << amount << "\n";
+                std::cout << "Balance: " << amount << "\n";
             }
         }
     }
