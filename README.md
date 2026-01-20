@@ -6,6 +6,7 @@ To keep the scope manageable, it has known performance limitations,
 unhandled edge cases, and lacks several security features required for a real blockchain (e.g. network rate limiting and peer banning).
 These would be addressed in a production implementation. Further details are covered in the accompanying document.
 
+I have chosen to keep the commit history in its current, unrefined state. As this project is a prototype and not intended for long-term maintenance, the commit history reflects each step of the development process. In a production or long-term project, the commits would be squashed and organized to maintain a clean and manageable history.
 To see an overview of this project, go to: https://docs.google.com/document/d/1Rjvty-Aji4gGOBz-VtBTbAyxt211fhRO6ZN7CGoUAg0/edit?usp=sharing
 
 ## Requirements
