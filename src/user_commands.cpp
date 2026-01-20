@@ -127,8 +127,8 @@ void handleUserCommand(const std::string& input)
         std::cout <<
                 "======================================================================\n"
                 " NETWORK\n"
-                "  peers ping <ip> <port>      Check if a peer is active\n"
                 "  peers handshake <ip> <port> Connect and add to known peers\n"
+                "  peers ping <ip> <port>      Check if a peer is active\n"
                 "  peers sync <ip> <port>      Sync chain/mempool if peer is ahead\n"
                 "  peers get_mempool           Request mempool from network\n"
                 "  peers get_peers             Discover new peers\n"
