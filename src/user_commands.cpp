@@ -120,8 +120,6 @@ void handleUserCommand(const std::string& input)
         parts.push_back(part);
     }
 
-    part.resize(4); // Resize to the longest command to prevent accessing out-of-bounds memory
-
     if (parts[0] == "help")
     {
         std::cout <<
@@ -171,7 +169,6 @@ void handleUserCommand(const std::string& input)
         auto difficulty = getBlockHeader(tipHash)->difficulty;
         std::cout << "Current difficulty target: " << bytesToHex(difficulty.data(), difficulty.size()) << "\n";
     }
-
 
     if (parts[0] == "mine")
     {
@@ -303,6 +300,7 @@ void handleUserCommand(const std::string& input)
             }
         }
     }
+
     if (parts[0] == "keyset")
     {
         Array256_t pk;
