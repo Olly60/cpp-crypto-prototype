@@ -119,7 +119,6 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         if (knownPeers[normalizeAddress(socket.remote_endpoint().address())].tip == getTipHash())
         {
             co_await requestMempool(socket);
-            co_await requestPeers(socket);
             co_return true;
         }
 
@@ -266,7 +265,6 @@ asio::awaitable<bool> syncIfBetter(asio::ip::tcp::socket& socket)
         std::filesystem::remove_all(tmpBlocksPath);
 
         co_await requestMempool(socket);
-        co_await requestPeers(socket);
 
         co_return true;
     }

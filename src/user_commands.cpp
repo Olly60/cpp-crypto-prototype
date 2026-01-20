@@ -124,25 +124,34 @@ void handleUserCommand(const std::string& input)
 
     if (parts[0] == "help")
     {
-        std::cout << "Commands:\n";
-        std::cout << "peers ping <ip> <port>\n";
-        std::cout << "peers handshake <ip> <port>\n";
-        std::cout << "peers sync <ip> <port>\n";
-        std::cout << "peers get_mempool\n";
-        std::cout << "peers get_peers\n";
-        std::cout << "chain_info\n";
-        std::cout << "mine start <reward_address>\n";
-        std::cout << "mine stop\n";
-        std::cout << "tx <sender_secret_key> <recipient_address> <amount>\n";
-        std::cout << "known_peers\n";
-        std::cout << "unknown_peers\n";
-        std::cout << "block_info <block_hash>\n";
-        std::cout << "wallet add <recipient_address>\n";
-        std::cout << "wallet remove <recipient_address>\n";
-        std::cout << "wallet amount <recipient_address>\n";
-        std::cout << "wallet list\n";
-        std::cout << "keyset\n";
-        std::cout << "exit\n";
+        std::cout <<
+                "======================================================================\n"
+                " NETWORK\n"
+                "  peers ping <ip> <port>      Check if a peer is active\n"
+                "  peers handshake <ip> <port> Connect and add to known peers\n"
+                "  peers sync <ip> <port>      Sync chain/mempool if peer is ahead\n"
+                "  peers get_mempool           Request mempool from network\n"
+                "  peers get_peers             Discover new peers\n"
+                "  known_peers                 List verified peers\n"
+                "  unknown_peers               List unverified peers\n"
+                "\n"
+                " MINING & CHAIN\n"
+                "  chain_info                  Display chain height and work\n"
+                "  mine start <addr>           Start mining to <addr>\n"
+                "  mine stop                   Halt mining operations\n"
+                "  block_info <hash>           Show details for a specific block\n"
+                "\n"
+                " WALLET & TRANSACTIONS\n"
+                "  tx <sk> <to> <amt>          Send transaction (SecretKey, To, Amount)\n"
+                "  wallet add <addr>           Track a wallet's balance\n"
+                "  wallet remove <addr>        Stop tracking a wallet\n"
+                "  wallet amount <addr>        Show balance of one wallet\n"
+                "  wallet list                 Show all tracked balances\n"
+                "  keyset                      Generate a new keypair\n"
+                "\n"
+                " SYSTEM\n"
+                "  exit                        Shutdown and save state\n"
+                "======================================================================\n";
     }
 
     if (parts[0] == "peers")
