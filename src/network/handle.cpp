@@ -1,19 +1,18 @@
 #include <asio.hpp>
 #include <asio/awaitable.hpp>
 #include <asio/use_awaitable.hpp>
+#include <iostream>
+#include <ranges>
+
 #include "crypto_utils.h"
 #include "network/network_main.h"
 #include "tip.h"
 #include "network/handle.h"
-
-#include <iostream>
-#include <ranges>
-
 #include "node.h"
 #include "network/network_utils.h"
 #include "storage/block/block_indexes.h"
 #include "verify.h"
-#include "../../include/block.h"
+#include "block.h"
 
 asio::awaitable<void> handleGetPeers(asio::ip::tcp::socket& socket)
 {

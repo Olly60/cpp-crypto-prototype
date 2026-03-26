@@ -1,11 +1,10 @@
-#include "crypto_utils.h"
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <array>
 #include <string>
-#include "storage/storage_utils.h"
-#include "storage/block/block_indexes.h"
 
+#include "storage/block/block_indexes.h"
+#include "crypto_utils.h"
 namespace
 {
     // Serialize hash key

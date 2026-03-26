@@ -1,10 +1,10 @@
-#include "storage/block/block_heights.h"
-#include "crypto_utils.h"
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <array>
 #include <string>
 
+#include "storage/block/block_heights.h"
+#include "crypto_utils.h"
 #include "tip.h"
 #include "storage/storage_utils.h"
 #include "storage/block/block_indexes.h"

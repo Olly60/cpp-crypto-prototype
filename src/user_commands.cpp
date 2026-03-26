@@ -1,6 +1,4 @@
 #include <vector>
-#include "network/request.h"
-#include "user_commands.h"
 #include <iostream>
 #include <ranges>
 #include <thread>
@@ -9,6 +7,9 @@
 #include <asio/ip/tcp.hpp>
 #include <boost/multiprecision/number.hpp>
 #include <sodium/crypto_sign.h>
+
+#include "network/request.h"
+#include "user_commands.h"
 #include "block_work.h"
 #include "node.h"
 #include "tip.h"

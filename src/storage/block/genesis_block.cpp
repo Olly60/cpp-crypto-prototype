@@ -1,6 +1,6 @@
-#include "storage/block/genesis_block.h"
 #include <filesystem>
 
+#include "storage/block/genesis_block.h"
 #include "block_work.h"
 #include "crypto_utils.h"
 #include "tip.h"
@@ -8,7 +8,7 @@
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "../../../include/block.h"
+#include "block.h"
 #include "network/network_main.h"
 
 // Genesis block

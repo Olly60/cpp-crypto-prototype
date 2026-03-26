@@ -1,5 +1,4 @@
 #include "storage/peers.h"
-
 #include "network/network_main.h"
 #include "storage/storage_utils.h"
 

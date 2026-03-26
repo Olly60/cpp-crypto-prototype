@@ -1,7 +1,7 @@
-#include "verify.h"
-
 #include <iostream>
 #include <sodium/crypto_sign.h>
+
+#include "verify.h"
 #include "tip.h"
 #include "crypto_utils.h"
 #include "storage/utxo_storage.h"

@@ -1,13 +1,13 @@
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
 #include <asio/ip/tcp.hpp>
-#include "network/network_main.h"
-#include "storage/peers.h"
 #include <iostream>
 #include <thread>
+
+#include "network/network_main.h"
+#include "storage/peers.h"
 #include "node.h"
 #include "user_commands.h"
-#include "block.h"
 #include "wallet.h"
 
 int main(int argc, char* argv[])

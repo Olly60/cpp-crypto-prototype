@@ -1,6 +1,7 @@
-﻿#include "crypto_utils.h"
-#include <sodium.h>
+﻿#include <sodium.h>
 #include <chrono>
+
+#include "crypto_utils.h"
 
 Array256_t sha256Of(const BytesBuffer& data)
 {

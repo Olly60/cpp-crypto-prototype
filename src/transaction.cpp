@@ -1,5 +1,6 @@
-#include "transaction.h"
 #include <sodium/crypto_sign.h>
+
+#include "transaction.h"
 #include "crypto_utils.h"
 #include "tip.h"
 #include "storage/utxo_storage.h"

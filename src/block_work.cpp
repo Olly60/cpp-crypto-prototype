@@ -1,10 +1,12 @@
-#include "block_work.h"
 #include <iostream>
 #include <ranges>
-#include <thread>
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
 #include <asio/io_context.hpp>
+#include <boost/multiprecision/number.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
+
+#include "block_work.h"
 #include "node.h"
 #include "tip.h"
 #include "transaction.h"
@@ -12,8 +14,7 @@
 #include "storage/utxo_storage.h"
 #include "block.h"
 #include "storage/block/block_indexes.h"
-#include <boost/multiprecision/number.hpp>
-#include <boost/multiprecision/cpp_int.hpp>
+
 
 #include "verify.h"
 

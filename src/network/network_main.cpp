@@ -1,9 +1,10 @@
-﻿#include "network/network_main.h"
+﻿#include <asio.hpp>
+#include <iostream>
 #include <asio/awaitable.hpp>
 #include <asio/use_awaitable.hpp>
+
+#include "network/network_main.h"
 #include "crypto_utils.h"
-#include <asio.hpp>
-#include <iostream>
 #include "node.h"
 #include "verify.h"
 #include "tip.h"

@@ -1,5 +1,6 @@
-#include "block.h"
 #include <asio/ip/address.hpp>
+
+#include "block.h"
 #include "tip.h"
 #include "transaction.h"
 #include "storage/storage_utils.h"

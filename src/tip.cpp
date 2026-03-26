@@ -1,10 +1,9 @@
 #include <filesystem>
-#include "crypto_utils.h"
-#include "storage/storage_utils.h"
-#include "../include/tip.h"
-
 #include <iostream>
 
+#include "tip.h"
+#include "crypto_utils.h"
+#include "storage/storage_utils.h"
 #include "block_work.h"
 #include "node.h"
 #include "verify.h"
@@ -12,7 +11,7 @@
 #include "storage/utxo_storage.h"
 #include "storage/block/block_heights.h"
 #include "storage/block/block_indexes.h"
-#include "../include/block.h"
+#include "block.h"
 
 Array256_t getTipHash()
 {
